@@ -317,7 +317,10 @@ if [ ! -d v4l-utils/.git ]; then
 	fi
 	rm -rf v4l-utils
 	mkdir -p v4l-utils
-	tar xzf "$V4L_UTILS_ARCHIVE" -C v4l-utils
+	# Do not restore archive owners. The pinned source archive was created
+	# with a non-root owner; preserving that metadata makes Git reject the
+	# checkout as dubious when the build runs as root in the container.
+	tar --no-same-owner -xzf "$V4L_UTILS_ARCHIVE" -C v4l-utils
 	echo "== v4l-utils pinned archive verified and extracted =="
 fi
 v4l_utils_actual=$(git -C v4l-utils rev-parse HEAD 2>/dev/null || echo "unknown")
