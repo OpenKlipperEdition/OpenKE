@@ -73,8 +73,8 @@ Buildroot's own overlay dir). No manual step, no real device required.
 ## What each stage does
 
 1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs
-   into `vendor/` at the exact refs this project used: the X2000 kernel SDK, this project's own
-   `OKE` branch (`OpenKlipperEdition/System`), the Buildroot config (`lone0/buildroot-x2000`), Klipper
+   into `vendor/` at the latest `OKE` branch HEAD for the X2000 kernel SDK, then at the exact refs
+   this project used for the Buildroot config (`lone0/buildroot-x2000`), Klipper
    (`coreflake1/NebulaOS-klipper`), GuppyScreen (`coreflake1/NebulaOS-guppyscreen`), Moonraker
    (`Arksine/moonraker`, official), `pellcorp/k1-ustreamer`, and Mainsail's latest prebuilt release.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125

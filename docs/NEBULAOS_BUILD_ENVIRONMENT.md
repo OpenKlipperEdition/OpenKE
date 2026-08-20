@@ -76,8 +76,8 @@ Only after **all** of:
 
 1. The candidate image is built from tracked `build-env/Dockerfile` content and pushed to GHCR.
 2. Its digest is known and recorded.
-3. A fresh clone is rebuilt using **exactly** the source refs already accepted as the reference (same
-   `KERNEL_PIN`/`KLIPPER_PIN`/`GUPPYSCREEN_PIN` — not newer `main`, not newer anything).
+3. A fresh clone is rebuilt using the accepted immutable source refs and the current `OKE` kernel
+   branch HEAD (`KLIPPER_PIN`/`GUPPYSCREEN_PIN` remain pinned; OKE is intentionally moving).
 4. That rebuild's output is strictly compared against the accepted reference artifacts (hashes,
    `build-manifest.txt` fields, `06-verify.sh`'s full content checks) — see the Phase 11 final report
    for this project's own worked example of that comparison.

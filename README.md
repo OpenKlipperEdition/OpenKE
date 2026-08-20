@@ -5,8 +5,8 @@ Creality Ender-3 V3 KE — real mainline-ish kernel, real Klipper, a proper touc
 the stock firmware's binary blobs where we could avoid them.
 
 If you want to build the whole OS, this is the repo you want. The kernel, Klipper, and GuppyScreen
-each live in their own repos, but this one pins the exact commit of each, fetches them fresh, and
-puts the whole thing together into something you can flash.
+each live in their own repos; this build follows the latest OKE kernel branch and pins the other
+inputs, then fetches them fresh and puts the whole thing together into something you can flash.
 
 ```
 NebulaOS-kernel  ─┐
@@ -19,10 +19,11 @@ NebulaOS-guppyscreen ┘   (this repo)
 - [`NebulaOS-guppyscreen`](https://github.com/coreflake1/NebulaOS-guppyscreen) — touchscreen UI fork (`main` branch)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
-Every dependency this build pulls in — kernel, Klipper, GuppyScreen, Buildroot, Moonraker,
-k1-ustreamer, v4l-utils, Mainsail, WiFi firmware, the build container itself — is pinned by exact
-commit/tag/digest and a SHA256 in `manifests/dependencies.conf`. The build always fetches fresh; it
-won't pick up a local checkout of the kernel or Klipper repo sitting next to it, even if you have
+Every dependency this build pulls in — Klipper, GuppyScreen, Buildroot, Moonraker, k1-ustreamer,
+v4l-utils, Mainsail, WiFi firmware, the build container itself — is pinned by exact commit/tag/
+digest and a SHA256 in `manifests/dependencies.conf`. The kernel is the deliberate exception: it
+follows the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch. The build always fetches
+fresh and won't pick up a local checkout of the kernel or Klipper repo sitting next to it, even if you have
 one.
 
 ## Building it
@@ -72,9 +73,9 @@ that pulls all three together into something flashable.
 
 ## How reproducible is this, really
 
-Every pin in `manifests/dependencies.conf` is an exact commit/tag/digest plus a SHA256, checked on
-every run — that file's comments explain why each one is pinned the way it is, and most of them
-have a real story behind them. The 8 kernel variants we build on top of stock upstream (PREEMPT_RT,
+Every immutable pin in `manifests/dependencies.conf` is an exact commit/tag/digest plus a SHA256,
+checked on every run. The kernel's fetched HEAD is recorded in `build-manifest.txt` instead. The 8
+kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final
 backlight controller, PWM state readback, the final touch driver, and disabling WiFi roaming) live
 as small, order-independent scripts under `scripts/build/`, applied by

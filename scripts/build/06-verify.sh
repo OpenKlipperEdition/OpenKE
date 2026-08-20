@@ -135,21 +135,37 @@ fi
 check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 	"$V4L_UTILS_REPO" 0 \
 	messages.mo
-# x2000_kernel_6.6: same pin source as 00-fetch-vendor-sources.sh's own
-# KERNEL_PIN and 01-apply-kernel-patches.sh's independent check - all three
-# now read manifests/dependencies.conf directly rather than keeping
-# independent hardcoded copies that can (and did - see this file's own
-# 2026-08-07 header comment) drift out of sync.
-# Remote name is "nebulaos" here, not "origin" - check_vendor_pin's URL check
-# greps all remotes, so this is remote-name-agnostic.
+# x2000_kernel_6.6: deliberate moving dependency. Stage 00 refreshes it to
+# the latest remote HEAD of KERNEL_BRANCH, and stage 01 independently checks
+# that branch/remote-HEAD invariant before variants are composed.
 #
 # bulk_dirty_expected=1: this checkout is DELIBERATELY left dirty by
 # apply-qualified-baseline.sh (8 accepted variant patches applied on top of
-# the pinned commit) by the time this verify step runs - not drift.
+# the fetched branch HEAD) by the time this verify step runs - not drift.
 # assert-baseline-config.sh (run earlier in the pipeline) is the real,
 # precise content-level check of what that dirt should contain.
-check_vendor_pin x2000_kernel_6.6 "$KERNEL_PIN" \
-	"$KERNEL_REPO" 1
+kernel_dir="$REPO_ROOT/vendor/x2000_kernel_6.6"
+kernel_branch=$(git -C "$kernel_dir" symbolic-ref --short HEAD 2>/dev/null || echo "unknown")
+kernel_actual=$(git -C "$kernel_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
+kernel_remote=$(git -C "$kernel_dir" rev-parse "origin/$KERNEL_BRANCH" 2>/dev/null || echo "unknown")
+if [ "$kernel_branch" = "$KERNEL_BRANCH" ] && [ "$kernel_actual" = "$kernel_remote" ]; then
+	echo "OK   vendor/x2000_kernel_6.6 follows latest $KERNEL_BRANCH HEAD ($kernel_actual)"
+else
+	echo "MISS vendor/x2000_kernel_6.6 is branch=$kernel_branch HEAD=$kernel_actual, expected $KERNEL_BRANCH at origin/$KERNEL_BRANCH=$kernel_remote"
+fi
+kernel_remotes=$(git -C "$kernel_dir" remote -v 2>/dev/null)
+if printf '%s\n' "$kernel_remotes" | grep -qF "$KERNEL_REPO"; then
+	echo "OK   vendor/x2000_kernel_6.6 has a remote matching $KERNEL_REPO"
+else
+	echo "MISS vendor/x2000_kernel_6.6 has no remote matching expected URL $KERNEL_REPO"
+fi
+kernel_dirty=$(git -C "$kernel_dir" status --porcelain -uall 2>/dev/null)
+if [ -z "$kernel_dirty" ]; then
+	echo "OK   vendor/x2000_kernel_6.6 working tree has no unexplained changes"
+else
+	echo "OK   vendor/x2000_kernel_6.6 working tree is dirty, as expected after apply-qualified-baseline.sh:"
+	printf '%s\n' "$kernel_dirty" | sed 's/^/     /'
+fi
 # GuppyScreen: added 2026-08-07 - previously not pin-checked here at all
 # (it was still a manually-copied binary with no vendor checkout to check
 # when this script was last touched). `submodule status` confirms all four

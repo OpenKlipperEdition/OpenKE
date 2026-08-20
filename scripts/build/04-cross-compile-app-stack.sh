@@ -657,12 +657,13 @@ echo "== factory seeds created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/") =="
 # wifi-firmware-v1.0.0) is not - restricting the match pattern is what
 # actually fixes this, not a coincidence of current tag names.
 firmware_tag=$(git -C "$REPO_ROOT" describe --tags --match 'nebulaos-*' 2>/dev/null || echo "unknown")
+kernel_sha=$(git -C "$VENDOR/x2000_kernel_6.6" rev-parse HEAD 2>/dev/null || echo "unknown")
 cat > "$OVERLAY/opt/nebulaos-version.json" <<EOF
 {
   "build_date": "$build_date",
   "firmware_tag": "$firmware_tag",
   "firmware_sha": "$firmware_head",
-  "kernel_sha": "${KERNEL_PIN:-unknown}",
+  "kernel_sha": "$kernel_sha",
   "guppyscreen_sha": "${GUPPYSCREEN_PIN:-unknown}"
 }
 EOF

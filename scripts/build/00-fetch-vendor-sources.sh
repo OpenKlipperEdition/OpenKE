@@ -1,6 +1,7 @@
 #!/bin/sh
-# Clone/download every third-party source this build needs, pinned to the
-# exact refs this project used. See FIRMWARE.md for why each one was chosen.
+# Clone/download every third-party source this build needs. All dependencies
+# except the kernel use exact refs; the kernel intentionally follows the
+# latest commit on the configured OKE branch. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
 # file, manifests/dependencies.conf, sourced below - not scattered as
@@ -28,7 +29,7 @@ require_pin() {
 	fi
 }
 
-for required in KERNEL_REPO KERNEL_BRANCH KERNEL_PIN BUILDROOT_REPO BUILDROOT_PIN \
+for required in KERNEL_REPO KERNEL_BRANCH BUILDROOT_REPO BUILDROOT_PIN \
 	PELLCORP_CREALITY_REPO PELLCORP_CREALITY_PIN KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
@@ -181,12 +182,12 @@ clone_pinned() {
 }
 
 # X2000 kernel SDK, Open Klipper Edition System (FIRMWARE.md sec 39),
-# sparse-checked-out to kernel/kernel-6.6 only. The requested branch and
-# immutable commit both come from manifests/dependencies.conf.
+# sparse-checked-out to kernel/kernel-6.6 only. Unlike every other source,
+# this deliberately tracks the latest remote HEAD of the requested branch.
 #
-# Special-cased (not clone_pinned) because of the sparse-checkout step - the
-# pin itself still comes from the manifest (KERNEL_PIN), enforced the same
-# fail-loudly way.
+# Special-cased (not clone_pinned) because of the sparse-checkout step and
+# moving-branch behavior. The vendor checkout is generated state: discard any
+# prior composed variants/build products, fetch OKE, and reset to origin/OKE.
 if [ ! -d "x2000_kernel_6.6/.git" ]; then
 	echo "== cloning x2000_kernel_6.6 (sparse: kernel/kernel-6.6 only) =="
 	git clone --filter=blob:none --sparse \
@@ -194,21 +195,23 @@ if [ ! -d "x2000_kernel_6.6/.git" ]; then
 		"$KERNEL_REPO" \
 		x2000_kernel_6.6
 	git -C x2000_kernel_6.6 sparse-checkout set kernel/kernel-6.6
-	# Checkout the immutable pin rather than the moving branch tip. The branch
-	# selects the requested source line; KERNEL_PIN makes the build reproducible.
-	git -C x2000_kernel_6.6 checkout "$KERNEL_PIN"
 else
-	echo "== x2000_kernel_6.6 already present, skipping clone =="
+	echo "== x2000_kernel_6.6 already present, refreshing OKE =="
 fi
+# The kernel checkout contains generated variant edits after a build. Reset
+# those before fetching so a moving branch can advance cleanly on the next run.
+git -C x2000_kernel_6.6 reset --hard >/dev/null
+git -C x2000_kernel_6.6 clean -fdx >/dev/null
+git -C x2000_kernel_6.6 fetch --prune origin "$KERNEL_BRANCH"
+git -C x2000_kernel_6.6 checkout -B "$KERNEL_BRANCH" "origin/$KERNEL_BRANCH"
+git -C x2000_kernel_6.6 reset --hard "origin/$KERNEL_BRANCH" >/dev/null
 kernel_actual=$(git -C x2000_kernel_6.6 rev-parse HEAD)
-if [ "$kernel_actual" != "$KERNEL_PIN" ]; then
-	echo "FATAL: vendor/x2000_kernel_6.6 HEAD is $kernel_actual, expected pinned commit $KERNEL_PIN" >&2
-	echo "The $KERNEL_BRANCH branch has moved (or this checkout was never on the pinned commit)." >&2
-	echo "If this is a deliberate, reviewed pin bump, update KERNEL_PIN in $MANIFEST." >&2
-	echo "Otherwise: git -C vendor/x2000_kernel_6.6 checkout $KERNEL_PIN" >&2
+kernel_remote=$(git -C x2000_kernel_6.6 rev-parse "origin/$KERNEL_BRANCH")
+[ "$kernel_actual" = "$kernel_remote" ] || {
+	echo "FATAL: vendor/x2000_kernel_6.6 did not land on origin/$KERNEL_BRANCH" >&2
 	exit 1
-fi
-echo "== x2000_kernel_6.6 pinned commit verified ($KERNEL_PIN) =="
+}
+echo "== x2000_kernel_6.6 follows latest $KERNEL_BRANCH HEAD ($kernel_actual) =="
 
 # Buildroot config for this board family (Phase 0's find).
 clone_pinned buildroot-x2000 "$BUILDROOT_REPO" "$BUILDROOT_PIN"
