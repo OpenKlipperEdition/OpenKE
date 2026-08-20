@@ -36,9 +36,7 @@ rootfs-overlay deletion gotcha) are all documented there with root causes, not j
   `vendor/` directory is gitignored on purpose (large, mixed-provenance sources, see the main
   README), so nothing under `vendor/` is checked into this repo. The kernel is the one exception to
   "gitignored, nothing checked in": this project's kernel changes live as real commits on the
-  `openke` branch of a real fork, [`coreflake1/NebulaOS-kernel`](https://github.com/coreflake1/NebulaOS-kernel)
-  (renamed 2026-08-14 from `coreflake1/NebulaOS`; forked from the original upstream,
-  `Llixuma/ingenic-linux-kernel6.6-x2000-v1.0-20250221`) -
+  `OKE` branch of [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) -
   `00-fetch-vendor-sources.sh` clones that branch directly, so the kernel changes travel with their
   own real git history instead of a patch file. What else *is* checked into this repo: the small set
   of files this project actually wrote by hand (`scripts/build/overlay/` - init scripts and configs,
@@ -76,8 +74,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs
    into `vendor/` at the exact refs this project used: the X2000 kernel SDK, this project's own
-   fork's `openke` branch (`coreflake1/NebulaOS-kernel`, forked from `Llixuma/ingenic-linux-kernel6.6-
-   x2000-v1.0-20250221`), the Buildroot config (`lone0/buildroot-x2000`), Klipper
+   `OKE` branch (`OpenKlipperEdition/System`), the Buildroot config (`lone0/buildroot-x2000`), Klipper
    (`coreflake1/NebulaOS-klipper`), GuppyScreen (`coreflake1/NebulaOS-guppyscreen`), Moonraker
    (`Arksine/moonraker`, official), `pellcorp/k1-ustreamer`, and Mainsail's latest prebuilt release.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125
@@ -92,7 +89,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 2. **`01-apply-kernel-patches.sh`** - no longer applies anything (this project's kernel changes -
    touch DT wiring, the new display panel driver, the new Bluetooth H5 Broadcom vendor extension,
    WiFi/BT/display Kconfig changes, the real ported NS2009 driver, and the upstream `binder.h`
-   build-fix - are already real commits on the fork's `openke` branch, checked out by stage 0). Just
+   build-fix - are already present on the `OKE` branch, checked out by stage 0). Just
    verifies they're actually present, kept as stage "01" so the numbered sequence stays stable.
 3. **`02-configure-buildroot.sh`** - writes the real Buildroot `.config` (base `x2000_halley5_v30_
    linux` defconfig plus every option this project added - WiFi/BT/touch/display/RNG/Python3/

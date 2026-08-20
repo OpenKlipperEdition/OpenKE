@@ -14,7 +14,7 @@ NebulaOS-klipper ─┼─►  NebulaOS-firmware  ─►  final rootfs + kernel 
 NebulaOS-guppyscreen ┘   (this repo)
 ```
 
-- [`NebulaOS-kernel`](https://github.com/coreflake1/NebulaOS-kernel) — Linux 6.6 kernel fork (`openke` branch)
+- [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — Linux 6.6 kernel (`OKE` branch)
 - [`NebulaOS-klipper`](https://github.com/coreflake1/NebulaOS-klipper) — Klipper runtime fork (`master` branch)
 - [`NebulaOS-guppyscreen`](https://github.com/coreflake1/NebulaOS-guppyscreen) — touchscreen UI fork (`main` branch)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
@@ -85,8 +85,9 @@ as small, order-independent scripts under `scripts/build/`, applied by
 No, and it's a fair question since they're related. [OpenKE](https://github.com/coreflake1/guppyscreen)
 is a separate project — its own installer for stock Creality firmware, its own releases — that
 shares an author and some history with NebulaOS, but they're not the same project anymore.
-`NebulaOS-kernel`'s branch is still called `openke` for historical reasons; that's a leftover name,
-not a sign the two projects are still connected.
+The kernel source now comes from the `OKE` branch of
+[`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System); that repository is
+separate from the OpenKE installer project.
 
 ## If you're setting one of these up yourself
 

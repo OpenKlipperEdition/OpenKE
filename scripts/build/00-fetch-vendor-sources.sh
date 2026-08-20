@@ -180,15 +180,9 @@ clone_pinned() {
 	echo "== $name pinned commit verified ($expected) =="
 }
 
-# X2000 kernel SDK, OpenKE fork (FIRMWARE.md sec 39): coreflake1/NebulaOS-kernel
-# (renamed 2026-08-14 from coreflake1/NebulaOS) is a real GitHub fork of the
-# original upstream (Llixuma/ingenic-linux-kernel6.6-x2000-v1.0-20250221 @
-# a98c2e1, "initial release"), with every OpenKE change
-# (NS2009 touch, the display panel driver, BT H5 vendor ext, watchdog fix, DTS
-# wiring, arch/mips/Kconfig compression selects) as one real, reviewable commit
-# on the `openke` branch, rather than a patch file applied at build time -
-# `main` on the fork tracks upstream unmodified. Sparse-checked-out to
-# kernel/kernel-6.6 only (the full repo is ~684MB).
+# X2000 kernel SDK, Open Klipper Edition System (FIRMWARE.md sec 39),
+# sparse-checked-out to kernel/kernel-6.6 only. The requested branch and
+# immutable commit both come from manifests/dependencies.conf.
 #
 # Special-cased (not clone_pinned) because of the sparse-checkout step - the
 # pin itself still comes from the manifest (KERNEL_PIN), enforced the same
@@ -196,24 +190,12 @@ clone_pinned() {
 if [ ! -d "x2000_kernel_6.6/.git" ]; then
 	echo "== cloning x2000_kernel_6.6 (sparse: kernel/kernel-6.6 only) =="
 	git clone --filter=blob:none --sparse \
+		--branch "$KERNEL_BRANCH" \
 		"$KERNEL_REPO" \
 		x2000_kernel_6.6
 	git -C x2000_kernel_6.6 sparse-checkout set kernel/kernel-6.6
-	# Phase 11 (2026-08-15): checkout $KERNEL_PIN directly, not
-	# $KERNEL_BRANCH - a real, previously-latent bug found live doing the
-	# Phase 9-vs-Phase-11 rebuild-and-compare test. openke is a real,
-	# actively-pushed-to branch (kernel changes AND this repo's own docs
-	# both land real commits there - see coreflake1/NebulaOS-kernel's own
-	# README), so checking out the branch NAME lands wherever that branch's
-	# tip happens to be at clone time, not necessarily at KERNEL_PIN -
-	# exactly what happened here: a docs-only commit pushed to openke after
-	# this pin was recorded moved the branch tip past it, and a fresh clone
-	# landed on that newer commit, failing the fail-loud check below (this
-	# check did its job - it's the checkout strategy that was wrong, not
-	# the verification). Checking out the pin directly makes a fresh clone
-	# correct by construction; the verification below stays as defense in
-	# depth for the "already present, skipping clone" branch, where a
-	# previous run could have left the checkout on any ref.
+	# Checkout the immutable pin rather than the moving branch tip. The branch
+	# selects the requested source line; KERNEL_PIN makes the build reproducible.
 	git -C x2000_kernel_6.6 checkout "$KERNEL_PIN"
 else
 	echo "== x2000_kernel_6.6 already present, skipping clone =="
