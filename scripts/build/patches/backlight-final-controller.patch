@@ -100,7 +100,7 @@ index 000000000..6a97fcadc
 + *      backlight on across every previously-qualified image).
 + *   3. The instant &pwm's own default pinctrl state claimed GPC0 for the
 + *      PWM peripheral function, that bootloader state was destroyed - and
-+ *      since channel 0 was never actually pwm_apply_state()'d enabled,
++ *      since channel 0 was never actually pwm_apply_might_sleep()'d enabled,
 + *      the peripheral's inactive-channel output level is low, so the
 + *      backlight went dark.
 + *   4. Live-tested and PROVEN: manually forcing GPC0 to a GPIO output
@@ -403,7 +403,7 @@ index 000000000..6a97fcadc
 + *     pwm-committed at duty X%, wake then calls
 + *     nblc_enter_pwm_active_locked(n, X) - the SAME acquire/apply/verify
 + *     sequence "pwm-active-X" itself uses, never a shortcut around
-+ *     pwm_apply_state()/readback - followed immediately by
++ *     pwm_apply_might_sleep()/readback - followed immediately by
 + *     nblc_commit_pwm_locked(), the same bookkeeping-only commit transition
 + *     "commit-pwm" itself performs (no hardware touched a second time).
 + *     The end result is indistinguishable from having issued
@@ -828,7 +828,7 @@ index 000000000..6a97fcadc
 +
 +		pwm_get_state(n->pwm, &st);
 +		st.enabled = false;
-+		ret = pwm_apply_state(n->pwm, &st);
++		ret = pwm_apply_might_sleep(n->pwm, &st);
 +		if (ret)
 +			dev_err(n->dev, "converge: failed to disable PWM channel 0: %d\n", ret);
 +		pwm_put(n->pwm);
@@ -1181,9 +1181,9 @@ index 000000000..6a97fcadc
 +	st.polarity = PWM_POLARITY_NORMAL;
 +	st.enabled = true;
 +	st.usage_power = false;
-+	ret = pwm_apply_state(n->pwm, &st);
++	ret = pwm_apply_might_sleep(n->pwm, &st);
 +	if (ret) {
-+		dev_err(n->dev, "enter-pwm-active: pwm_apply_state(%u%%) failed: %d\n",
++		dev_err(n->dev, "enter-pwm-active: pwm_apply_might_sleep(%u%%) failed: %d\n",
 +			duty_pct, ret);
 +		goto unwind;
 +	}
@@ -1417,7 +1417,7 @@ index 000000000..6a97fcadc
 + * saved duty, re-enters pwm-active at that duty via
 + * nblc_enter_pwm_active_locked() - the SAME acquire/apply/verify sequence
 + * "pwm-active-<pct>" itself uses, never a shortcut around
-+ * pwm_apply_state()/readback - then immediately performs the identical
++ * pwm_apply_might_sleep()/readback - then immediately performs the identical
 + * bookkeeping-only commit transition nblc_cmd_commit_pwm() itself performs
 + * (see that function - no hardware is touched a second time here; n->pwm/
 + * n->pwm_pinctrl are left exactly as nblc_enter_pwm_active_locked() left
