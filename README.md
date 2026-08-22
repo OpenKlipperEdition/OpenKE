@@ -5,26 +5,26 @@ Creality Ender-3 V3 KE — real mainline-ish kernel, real Klipper, a proper touc
 the stock firmware's binary blobs where we could avoid them.
 
 If you want to build the whole OS, this is the repo you want. The kernel, Klipper, and GuppyScreen
-each live in their own repos; this build follows the latest OKE kernel branch and pins the other
-inputs, then fetches them fresh and puts the whole thing together into something you can flash.
+each live in their own repos; this build follows the latest OKE kernel branch and official upstream
+Klipper master, pins the other inputs, then fetches everything fresh and puts the whole thing
+together into something you can flash.
 
 ```
-NebulaOS-kernel  ─┐
-NebulaOS-klipper ─┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
-NebulaOS-guppyscreen ┘   (this repo)
+OpenKlipperEdition/System ─┐
+Klipper upstream ─────────┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
+NebulaOS-guppyscreen ─────┘   (this repo)
 ```
 
 - [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — Linux 6.6 kernel (`OKE` branch)
-- [`NebulaOS-klipper`](https://github.com/coreflake1/NebulaOS-klipper) — Klipper runtime fork (`master` branch)
+- [`Klipper`](https://github.com/Klipper3d/klipper) — official upstream Klipper runtime (`master` branch)
 - [`NebulaOS-guppyscreen`](https://github.com/coreflake1/NebulaOS-guppyscreen) — touchscreen UI fork (`main` branch)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
-Every dependency this build pulls in — Klipper, GuppyScreen, Buildroot, Moonraker, k1-ustreamer,
-v4l-utils, Mainsail, WiFi firmware, the build container itself — is pinned by exact commit/tag/
-digest and a SHA256 in `manifests/dependencies.conf`. The kernel is the deliberate exception: it
-follows the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch. The build always fetches
-fresh and won't pick up a local checkout of the kernel or Klipper repo sitting next to it, even if you have
-one.
+The build records every external input in `manifests/dependencies.conf`. Immutable sources are
+pinned by exact commit, tag, archive hash, or container digest. The kernel follows the latest remote
+HEAD of OpenKlipperEdition/System's `OKE` branch, and Klipper follows the official upstream
+`master` branch; their exact fetched commits are recorded in `build-manifest.txt`. The build always
+refreshes those moving checkouts and does not use unrelated local clones sitting next to this repo.
 
 ## Building it
 
@@ -43,6 +43,11 @@ no `apt-get install` beforehand, no nested containers, nothing weird.
 Budget ~15GB of disk and a few hours on a normal machine. It needs the network the whole time,
 since everything gets fetched and hash-checked as it goes.
 
+NebulaOS uses official upstream Klipper directly. NebulaOS-specific printer behavior is kept in the
+tracked overlay configuration (`printer.cfg`, `frontend-controls.cfg`, and `moonraker.conf`); there is
+no vendor-specific configuration bundle. The webcam pipeline remains the pinned
+[`pellcorp/k1-ustreamer`](https://github.com/pellcorp/k1-ustreamer) integration.
+
 If you want to see what's actually happening under the hood, `build.sh` runs these in order
 (details in `scripts/build/README.md`):
 
@@ -59,7 +64,9 @@ cd scripts/build
 
 When it's done, you'll have `xImage`, `rootfs.ext2`, and `rootfs.squashfs` in
 `artifacts/buildroot-halley5-v30-image/`, plus `build-manifest.txt` (records exactly what went
-into this build) and `kernel.config`. GuppyScreen's compiled binary shows up separately in
+into this build) and `kernel.config`. `rootfs.ext2` is configured as a 500 MiB filesystem so the
+complete application stack fits reliably; `rootfs.squashfs` is the compressed deployment image.
+GuppyScreen's compiled binary shows up separately in
 `artifacts/guppyscreen-mips/`. The last stage sanity-checks that everything is real, correctly
 architected MIPS32 output — it's not claiming byte-for-byte reproducibility between two separate
 builds (timestamps and a few build-path strings will differ), just that the same code went in and
@@ -67,14 +74,17 @@ came out right.
 
 ## Don't build the other three repos on their own
 
-Cloning `NebulaOS-kernel`, `NebulaOS-klipper`, or `NebulaOS-guppyscreen` by itself and trying to
-build it won't get you a working printer image — none of them do that alone. This repo is the one
-that pulls all three together into something flashable.
+Cloning the kernel, Klipper, or GuppyScreen repository by itself and trying to build it will not
+produce a working printer image — none of those repositories contains the complete board image. This
+repo fetches the kernel, official upstream Klipper, GuppyScreen, Moonraker, the retained
+`k1-ustreamer` webcam stack, Buildroot, and the tracked NebulaOS overlay, then assembles the
+flashable result.
 
 ## How reproducible is this, really
 
-Every immutable pin in `manifests/dependencies.conf` is an exact commit/tag/digest plus a SHA256,
-checked on every run. The kernel's fetched HEAD is recorded in `build-manifest.txt` instead. The 8
+Immutable inputs in `manifests/dependencies.conf` are exact commits, tags, archive hashes, or
+digests and are checked on every run. The kernel's and Klipper's moving-branch commits are recorded
+in `build-manifest.txt` instead. The 8
 kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final
 backlight controller, PWM state readback, the final touch driver, and disabling WiFi roaming) live
@@ -102,6 +112,7 @@ not as a polished installer walkthrough:
 - [`docs/DEVELOPER_RECOVERY.md`](docs/DEVELOPER_RECOVERY.md) — what to do if something goes wrong
 - [`docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md`](docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md) — flipping between stock and custom day to day
 - [`docs/BUILD_PROVENANCE.md`](docs/BUILD_PROVENANCE.md) — figuring out exactly what produced a given build
+- [`docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md`](docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md) — the upstream-Klipper frontend configuration closure
 - [`docs/NEBULAOS_BUILD_ENVIRONMENT.md`](docs/NEBULAOS_BUILD_ENVIRONMENT.md) — what's actually in the build container
 - [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) — the upstream projects and prior work this stands on
 

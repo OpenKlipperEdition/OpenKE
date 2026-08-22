@@ -27,17 +27,8 @@ if [ ! -f "$IMAGES/rootfs.ext2" ]; then
 	exit 1
 fi
 
-# Vendor pin drift check (SimpleAF backend integration, 2026-07-29, see docs/
-# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md) - 00-fetch-vendor-sources.sh only
-# clones+checks-out a pin the FIRST time a vendor/ dir is absent; nothing
-# previously re-verified that an already-present checkout's HEAD still
-# matches its recorded pin (e.g. after a stray `git pull` run by hand inside
-# vendor/, or a stale checkout left over from before a pin was bumped). Keep
-# these SHAs in sync with 00-fetch-vendor-sources.sh's own clone_pinned calls
-# - duplicated here deliberately (same convention as blank_required_option's
-# two copies below) rather than sourcing the fetch script, which also
-# performs real network clones and shouldn't be pulled into a read-only
-# verify pass.
+# Vendor source pin drift checks validate the active pinned and moving
+# repositories without fetching or modifying them.
 echo "=== vendor source pin drift ==="
 # Extended 2026-07-31 (NEBULAOS_CAMERA_USB_RT_SOURCE_ANALYSIS.md's vendor-pin
 # audit): now also verifies the origin remote URL (catches a checkout quietly
@@ -95,8 +86,6 @@ check_vendor_pin klipper "$klipper_remote" \
 	klippy/chelper/c_helper.so
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
-check_vendor_pin pellcorp-creality "$PELLCORP_CREALITY_PIN" \
-	"$PELLCORP_CREALITY_REPO" 0
 # buildroot-x2000: the .mk change and board/halley5-nebulaos-* files are
 # deterministically copied in by 02-configure-buildroot.sh from tracked
 # sources in this repo (scripts/build/vendor-patches/, this project's own
@@ -558,18 +547,9 @@ check_conf_present() {
 		echo "MISS moonraker.conf missing: $desc"
 	fi
 }
-# SimpleAF backend integration (2026-07-29) needs a real, non-empty
-# [file_manager] section (enable_object_processing: True, required for
-# exclude_object polygon data) - this check used to forbid the whole
-# section outright, which conflicts with that legitimate need. The real
-# original worry was narrower: vendor/moonraker/moonraker/components/
-# file_manager/file_manager.py only reads two deprecated path-override
-# options from this section, config_path and log_path (config.get(...,
-# deprecate=True) for both) - anything else here, including
-# enable_object_processing, cannot divert the config root away from
-# -d /opt/printer_data. Scope the check to just those two options,
-# the same way the update_manager section check below scopes to its own
-# reserved-option list rather than forbidding the section itself.
+# [file_manager] must retain enable_object_processing so Moonraker populates
+# exclude_object polygons from sliced-gcode metadata. The verifier only rejects
+# deprecated config_path/log_path overrides that could redirect the config root.
 FILE_MANAGER_SECTION_BODY=$(echo "$MOONRAKER_CONF_CONTENT" | awk "
 	/^\[file_manager\]\$/ { grab=1; next }
 	/^\[/ { grab=0 }
@@ -750,19 +730,11 @@ else
 	echo "MISS /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
 fi
 rm -rf /tmp/printerdata-check
-mkdir -p /tmp/printerdata-check/GuppyScreen /tmp/printerdata-check/simpleaf
+mkdir -p /tmp/printerdata-check/GuppyScreen
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-# SimpleAF backend integration (2026-07-29, see docs/
-# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md) - these 8 files are now what
-# printer.cfg actually includes for the print-control/workflow closure;
-# frontend-controls.cfg is dumped above only because it is still shipped on
-# disk as an unused reference, not because printer.cfg includes it any more.
-for simpleaf_f in homing.cfg useful_macros.cfg fan_control.cfg client.cfg start_end.cfg Line_Purge.cfg Smart_Park.cfg bltouch_macro.cfg; do
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/simpleaf/$simpleaf_f /tmp/printerdata-check/simpleaf/$simpleaf_f" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-done
 if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 	echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
 else
@@ -778,12 +750,9 @@ fi
 # section already lives inside one big single-quoted docker bash -c
 # argument, and a nested single quote here would close that early exactly
 # like the apostrophe bugs found earlier in this same mission.
-# SimpleAF backend integration (2026-07-29): "gcode:" is explicitly excluded
-# below - the gcode_macro directive gcode option is genuinely allowed to be
-# blank (a variable-only macro with no action, e.g. the
-# [gcode_macro _HOMING_PARAMS] section in simpleaf/homing.cfg), confirmed
-# directly against vendor/klipper/klippy/extras/gcode_macro.py, in the
-# load_template() function there, which happily wraps an empty string.
+# Klipper's gcode option is explicitly excluded below because an empty
+# gcode body is valid for variable-only macros. Every other option present
+# without a value must either be a valid multiline list or fail.
 # Every other option name is still caught - keep this in sync with the
 # identical copy in 04-cross-compile-app-stack.sh.
 cat > /tmp/blank-required-option.awk <<'AWKPROG'
@@ -800,16 +769,16 @@ blank_required_option() {
 	awk -f /tmp/blank-required-option.awk "$1"
 }
 blank_found=0
-for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/simpleaf/*.cfg; do
+for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg; do
 	[ -s "$f" ] || continue
 	if ! blank_required_option "$f" >/dev/null; then
 		blank_found=1
 	fi
 done
 if [ "$blank_found" = "1" ]; then
-	echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg/simpleaf/*.cfg seed has an option present but syntactically blank"
+	echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has an option present but syntactically blank"
 else
-	echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg/simpleaf/*.cfg seed has no syntactically blank options"
+	echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has no syntactically blank options"
 fi
 
 # Print-control config closure validation against the actual packaged
@@ -824,16 +793,14 @@ fi
 # blank_required_option note above this same docker bash -c block about
 # why a literal single quote here would break the outer quoting.
 if [ -s /tmp/printerdata-check/printer.cfg ]; then
-	# SimpleAF backend integration (2026-07-29, see docs/
-	# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md): printer.cfg no longer
-	# includes frontend-controls.cfg - simpleaf/client.cfg + simpleaf/
-	# start_end.cfg now provide the same required sections instead.
-	if grep -q "^\[include simpleaf/client\.cfg\]" /tmp/printerdata-check/printer.cfg && grep -q "^\[include simpleaf/start_end\.cfg\]" /tmp/printerdata-check/printer.cfg; then
-		echo "OK   packaged printer.cfg includes simpleaf/client.cfg and simpleaf/start_end.cfg"
+	# printer.cfg must include the NebulaOS-owned frontend controls, which provide
+	# the single virtual_sdcard/pause_resume/display_status/macro closure.
+	if grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/printer.cfg; then
+		echo "OK   packaged printer.cfg includes frontend-controls.cfg"
 	else
-		echo "MISS packaged printer.cfg does not include simpleaf/client.cfg and simpleaf/start_end.cfg"
+		echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
 	fi
-	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/simpleaf/*.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)

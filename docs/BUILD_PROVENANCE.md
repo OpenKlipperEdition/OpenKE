@@ -24,7 +24,7 @@ Here's what's actually in it:
 | `built_at` | UTC timestamp of the build |
 | `build_image_repo` / `build_image_digest` | Which build container actually produced this — we only started recording this during Final Closure; before that, a shipped artifact had no record of which factory built it |
 | `git_commit_main` (+ `_dirty`) | This repo's own commit, and whether the tree was clean when it built |
-| `git_commit_kernel`, `git_commit_buildroot`, `git_commit_klipper`, `git_commit_moonraker`, `git_commit_guppyscreen`, `git_commit_pellcorp_creality`, `git_commit_k1_ustreamer`, `git_commit_v4l_utils` (each with `_dirty`) | Exact commit of every vendored source tree |
+| `git_commit_kernel`, `git_commit_buildroot`, `git_commit_klipper`, `git_commit_moonraker`, `git_commit_guppyscreen`, `git_commit_k1_ustreamer`, `git_commit_v4l_utils` (each with `_dirty`) | Exact commit of every vendored source tree |
 | `git_submodules_k1_ustreamer` | Submodule pins inside that vendor tree |
 | `mainsail_zip_sha256`, `guppyscreen_sha256`, `guppybeep_sha256`, `wifi_firmware_sha256`, `wifi_clm_sha256`, `wifi_nvram_sha256`, `regulatory_db_sha256` | Hashes of the fetched/built binary artifacts |
 | `kernel_config_sha256`, `buildroot_config_sha256`, `device_tree_sha256` | Hashes of the actual build configuration used |

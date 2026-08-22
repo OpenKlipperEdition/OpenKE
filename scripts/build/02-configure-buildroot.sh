@@ -134,8 +134,9 @@ for obsolete_rel in \
 	"etc/init.d/S01tmpfs-datastore" \
 	"etc/init.d/S39wifi" \
 	"etc/init.d/S03nebulaos-factory-seed" \
+	"opt/printer_data/config/simpleaf" \
 	"etc/init.d/S04nebulaos-activate"; do
-	rm -f "$BUILDROOT_DIR/output/target/$obsolete_rel" \
+	rm -rf "$BUILDROOT_DIR/output/target/$obsolete_rel" \
 	      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/$obsolete_rel" 2>/dev/null || true
 done
 rm -rf "$BUILDROOT_DIR/board/halley5-nebulaos-wheels"

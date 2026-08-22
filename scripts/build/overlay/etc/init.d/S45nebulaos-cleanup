@@ -2,7 +2,7 @@
 #
 # NebulaOS mutable-runtime mission, Phase 9: boots the namespace-restricted
 # retention manager (/etc/nebulaos-retention.sh) in the background, same
-# convention as SimpleAF's own real S45cleanup (pellcorp/creality) -
+# following the same non-blocking background convention as the reference cleanup service -
 # backgrounded so it never blocks/delays the rest of boot.
 
 if [ "$1" = "start" ]; then

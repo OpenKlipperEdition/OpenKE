@@ -10,9 +10,6 @@ generic thank-you list.
 A meaningful amount of the groundwork for this project's build and firmware work traces back to
 [Pellcorp's](https://github.com/pellcorp) Creality K1/K1-family tooling. Specifically:
 
-- **[`pellcorp/creality`](https://github.com/pellcorp/creality)** (the SimpleAF project) — NebulaOS's
-  BLTouch probe backend is vendored from here (`PELLCORP_CREALITY_REPO`/`PELLCORP_CREALITY_PIN` in
-  `manifests/dependencies.conf`). This is real vendored logic, not just inspiration.
 - **[`pellcorp/klipper`](https://github.com/pellcorp/klipper)** — used as a reference to verify the
   sign convention in our own probe/Z-compensation code while building `z_compensate.py`.
 - **[`pellcorp/k1-ustreamer`](https://github.com/pellcorp/k1-ustreamer)** — NebulaOS's camera

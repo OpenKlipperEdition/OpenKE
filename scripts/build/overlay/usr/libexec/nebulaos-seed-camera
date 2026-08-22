@@ -52,7 +52,7 @@ CAMERA_NAME = "Nebula"
 # printer - there is no per-model branching here, deliberately.
 #
 # service corrected 2026-07-29: mjpegstreamer-adaptive (originally chosen
-# to match SimpleAF's own pellcorp/creality reference, governing analysis
+# to match the independently investigated camera reference implementation, governing analysis
 # report §10/§16) does not actually work on this real device's camera
 # stream - confirmed directly by the device owner after editing the live
 # database-seeded camera to uv4l-mjpeg to get a working stream, which the

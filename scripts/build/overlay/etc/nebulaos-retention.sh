@@ -1,17 +1,17 @@
 #!/bin/sh
 #
 # NebulaOS mutable-runtime mission, Phase 9: namespace-restricted,
-# update-aware retention manager. Informed by SimpleAF's real, currently-
-# shipping tools/cleanup-files.sh (pellcorp/creality, fetched 2026-07-26 -
+# update-aware retention manager. Informed by reference implementation's real, currently-
+# shipping tools/cleanup-files.sh (fetched 2026-07-26 -
 # full findings in docs/NEBULAOS_RETENTION_POLICY.md sec 1) but NOT a
 # literal port: normal cleanup here is restricted to an explicit allowlist
 # under /usr/data/nebulaos, adds a real active-print/partial-upload check
-# before any emergency gcode deletion (a real gap in SimpleAF's own
+# before any emergency gcode deletion (a real gap in reference implementation's own
 # reference script - it has no such check at all), and never touches USB
 # mounts.
 #
 # Invoked by /etc/init.d/S45nebulaos-cleanup at boot (backgrounded, does
-# not block boot - matches SimpleAF's own S45cleanup convention). Can also
+# not block boot - matches reference implementation's own S45cleanup convention). Can also
 # be invoked manually with --dry-run to preview without deleting anything.
 
 NEBULAOS_ROOT=/usr/data/nebulaos
@@ -19,11 +19,11 @@ LOG="$NEBULAOS_ROOT/maintenance/retention.log"
 LOCKDIR="$NEBULAOS_ROOT/updates/locks"
 SHARED_GCODES=/usr/data/printer_data/gcodes
 
-# Free-space floors on /usr/data, in MB - adapted from SimpleAF's single
+# Free-space floors on /usr/data, in MB - adapted from reference implementation's single
 # 1000MB threshold (docs/NEBULAOS_RETENTION_POLICY.md sec 1/2.3), split
 # into two levels since this mission's own added footprint (~150-250MB per
 # the architecture doc's measured storage budget) is smaller than what
-# SimpleAF's own reference script was originally sized for.
+# reference implementation's own reference script was originally sized for.
 CAUTION_FLOOR_MB=800
 CRITICAL_FLOOR_MB=300
 
@@ -61,14 +61,14 @@ delete() {
 	fi
 }
 
-# Same rationale as SimpleAF's own script (docs/NEBULAOS_RETENTION_POLICY.md
+# Same rationale as reference implementation's own script (docs/NEBULAOS_RETENTION_POLICY.md
 # sec 1/2.6): this board has no RTC, so time reads as an early-2020-ish
 # epoch until NTP finishes syncing after boot. Any mtime-based decision
 # below is wrong until the clock has visibly jumped forward.
 wait_for_clock_sync() {
 	start=$(date +%s)
 	# 2026-07-23 00:00:00 UTC - this project's own earliest possible boot,
-	# used the same way SimpleAF's script uses its own fixed reference date.
+	# used the same way reference implementation's script uses its own fixed reference date.
 	if [ "$start" -lt 1784851200 ]; then
 		log "clock not yet synced (epoch $start) - waiting for NTP jump"
 		i=0
@@ -174,7 +174,7 @@ free_mb() {
 # Never deletes: the active print's own file, a partial/in-progress
 # upload, anything under a USB mount, or anything with ambiguous state -
 # per the mission's own explicit requirement. This is a real, deliberate
-# improvement over SimpleAF's own reference script, which has no such
+# improvement over reference implementation's own reference script, which has no such
 # check at all (docs/NEBULAOS_RETENTION_POLICY.md sec 1).
 gcode_is_protected() {
 	f="$1"
