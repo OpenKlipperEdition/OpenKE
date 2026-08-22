@@ -63,14 +63,18 @@ fi
 mkdir -p "$WORK"
 
 ### 1. Klipper: klippy/ source + a freshly cross-compiled chelper.so
-###    (this fork's own checked-in c_helper.so is a prebuilt MIPS binary of
-###    unknown toolchain/ABI provenance - don't trust it, rebuild it here).
+###    Official upstream builds this helper from the source list in
+###    klippy/chelper/__init__.py; there is no chelper Makefile.
 echo "== cross-compiling Klipper's chelper C extension =="
 (
 	cd "$VENDOR/klipper/klippy/chelper"
 	export PATH="$BUILDROOT_DIR/output/host/bin:$PATH"
-	make clean
-	make CC=mipsel-buildroot-linux-gnu-gcc
+	chelp_sources="pyhelper.c serialqueue.c stepcompress.c steppersync.c itersolve.c trapq.c pollreactor.c msgblock.c trdispatch.c kin_cartesian.c kin_corexy.c kin_corexz.c kin_delta.c kin_deltesian.c kin_polar.c kin_rotary_delta.c kin_winch.c kin_extruder.c kin_shaper.c kin_idex.c kin_generic.c"
+	rm -f c_helper.so _temp_c_helper.so *.o *.a
+	mipsel-buildroot-linux-gnu-gcc -Wall -g -O2 -shared -fPIC \
+		-flto -fwhole-program -fno-use-linker-plugin \
+		-o _temp_c_helper.so $chelp_sources
+	mv -f _temp_c_helper.so c_helper.so
 )
 
 # Production optimization mission, Phase 6 (2026-07-30): c_helper.so shipped
@@ -89,6 +93,9 @@ cp "$VENDOR/klipper/klippy/chelper/c_helper.so" "$WORK/debug-symbols/c_helper.so
 	export PATH="$BUILDROOT_DIR/output/host/bin:$PATH"
 	mipsel-buildroot-linux-gnu-strip --strip-unneeded c_helper.so
 )
+# Klipper rebuilds when any source is newer; make the cross-compiled helper
+# unambiguously newer before copying it into both runtime package paths.
+touch -d "@$(( $(date +%s) + 2 ))" "$VENDOR/klipper/klippy/chelper/c_helper.so"
 
 mkdir -p "$OVERLAY/opt/klipper"
 rm -rf "$OVERLAY/opt/klipper/klippy"
@@ -138,19 +145,9 @@ rm -rf "$OVERLAY/opt/klipper/config" "$OVERLAY/opt/klipper/docs"
 cp -r "$VENDOR/klipper/config" "$OVERLAY/opt/klipper/"
 cp -r "$VENDOR/klipper/docs" "$OVERLAY/opt/klipper/"
 
-# This repo's own klippy_extras/ (prtouch_v2.py, z_compensate.py,
-# guppy_module_loader.py, etc.) used to be a real gap - written and
-# referenced by printer.cfg's own comments, but never actually copied
-# anywhere by this pipeline, since only vendor Klipper's own klippy/extras/
-# ever made it into the overlay above. Fixed at the source instead of here:
-# vendor/klipper now tracks coreflake1/NebulaOS-klipper's `nebulaos` branch
-# (00-fetch-vendor-sources.sh), which has every one of these files committed
-# directly into its own klippy/extras/ - the wholesale `cp -r klippy` above
-# already carries them into the overlay, so no separate copy step is needed
-# here any more. This repo's own klippy_extras/ directory remains the
-# reviewable source of truth for these files' content (edit there, then
-# re-commit into the fork - see docs/NEBULAOS_MUTABLE_RUNTIME_ARCHITECTURE.md
-# sec 1.3), it is just no longer injected at build time as untracked files.
+# Pure upstream Klipper is copied unchanged from the refreshed official
+# checkout. Fork-only NebulaOS/Creality extras are intentionally not
+# injected into the runtime image.
 
 ### 2. Moonraker: source + its Python dependency chain
 echo "== copying Moonraker source =="
@@ -492,13 +489,13 @@ chmod 755 "$OVERLAY/opt/guppyscreen/guppyscreen" "$OVERLAY/opt/guppyscreen/guppy
 # PRIOR APPROACH (removed): each vendor checkout was flattened into a
 # single synthetic orphan commit ("NebulaOS factory seed snapshot of
 # <branch> @ <true_commit>") before bundling, because a plain
-# `git bundle create` of vendor/klipper's shallow clone (1-2 commits deep,
-# 00-fetch-vendor-sources.sh's clone_pinned) produces a bundle that
+# `git bundle create` of vendor/klipper's depth-1 shallow clone
+# (00-fetch-vendor-sources.sh's clone_branch) produces a bundle that
 # `git bundle verify` reports as fine but a real `git clone` of rejects
 # with "Failed to traverse parents of commit ..." / "remote did not send all
 # necessary objects" (confirmed again against git 2.55.0 - a genuine,
 # still-present git limitation, not a syntax mistake). That synthetic
-# commit had no shared ancestry with the real coreflake1/NebulaOS-klipper
+# commit had no shared ancestry with the real Klipper3d/klipper
 # or Arksine/moonraker history on GitHub, which made Moonraker's own
 # `git merge-base --is-ancestor HEAD origin/<branch>` check permanently
 # fail (return code 1) on every freshly-seeded device - HEAD could never
@@ -516,18 +513,12 @@ chmod 755 "$OVERLAY/opt/guppyscreen/guppyscreen" "$OVERLAY/opt/guppyscreen/guppy
 # extracts the tar directly into place - no `git clone` at all, which is
 # also strictly cheaper on this 208MB device than the clone-from-bundle
 # step it replaces (plain tar extraction does no object repacking).
-# vendor/klipper's real "nebulaos" branch commit
-# (b3d5ab2b9484f1558586c3a2ea43d46ff9a473a7) is confirmed genuinely
-# present on GitHub (`git ls-remote nebulaos`) and was additionally pushed
-# as a real "master" branch on the same coreflake1/NebulaOS-klipper fork
-# (see the mission's Phase C) - so after this seed's origin fetch,
-# origin/master is a real ref whose tip HEAD is trivially an ancestor of
-# (currently: identical to). "nebulaos" remains a real branch too, kept as
-# the development/source branch this project keeps building from.
+# vendor/klipper follows the official master branch configured in
+# manifests/dependencies.conf. The archive preserves that real upstream
+# history so Moonraker can fetch and update it normally after first boot.
 # vendor/moonraker is already a full (non-shallow) clone of the official
 # Arksine/moonraker repo with HEAD == origin/master, so it needs no branch
 # surgery at all - only the same archive-instead-of-bundle treatment.
-#
 # make_seed_archive() itself lives in scripts/build/lib/make-seed-archive.sh,
 # shared verbatim with tests/factory-seed-git-tests.sh so the tests exercise
 # this exact function rather than a parallel reimplementation of its rules.
@@ -563,8 +554,8 @@ for stale_dir in "$BUILDROOT_DIR/output/target/opt/nebulaos-seeds" \
 	rm -f "$stale_dir/klipper.bundle" "$stale_dir/moonraker.bundle" \
 	      "$stale_dir/klipper.tar" "$stale_dir/moonraker.tar" 2>/dev/null || true
 done
-klipper_origin="https://github.com/coreflake1/NebulaOS-klipper.git"
-klipper_seed_commit=$(make_seed_archive "$VENDOR/klipper" master \
+klipper_origin="$KLIPPER_REPO"
+klipper_seed_commit=$(make_seed_archive "$VENDOR/klipper" "$KLIPPER_BRANCH" \
 	"$klipper_origin" "$OVERLAY/opt/nebulaos-seeds/klipper.tar.gz" "/lib/" \
 	"$HOST_PYTHON3" "/opt/klipper")
 klipper_is_shallow=$(git -C "$VENDOR/klipper" rev-parse --is-shallow-repository)
@@ -602,13 +593,12 @@ cat > "$OVERLAY/opt/nebulaos-seeds/seed-manifest.json" <<EOF
       "format": "git_repo_archive_real_history",
       "file": "klipper.tar.gz",
       "repository": "$klipper_origin",
-      "branch": "master",
+      "branch": "$KLIPPER_BRANCH",
       "seed_commit": "$klipper_seed_commit",
       "is_shallow": $klipper_is_shallow,
       "sha256": "$(sha256sum "$OVERLAY/opt/nebulaos-seeds/klipper.tar.gz" | cut -d' ' -f1)",
       "compatibility_level": 2,
-      "upstream_base": "pellcorp/klipper @ 386fde4fd38e8eda6999e58bf260eceb00051188",
-      "note": "real, genuinely-rooted shallow history - no synthetic wrapper commit; HEAD is confirmed present on the real coreflake1/NebulaOS-klipper remote as both 'master' and 'nebulaos'"
+      "note": "real upstream Klipper history; checkout follows the official master branch at build time"
     },
     "moonraker": {
       "format": "git_repo_archive_real_history",
@@ -635,7 +625,7 @@ echo "== factory seeds created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/") =="
 # Clean-Update + Virgin Baseline mission, Phase 6 (2026-08-08): a single,
 # immutable, squashfs-resident record of exactly what this image IS -
 # firmware tag/SHA, kernel/GuppyScreen pins - read at runtime by
-# klippy_extras/nebulaos_version.py (see docs/NEBULAOS_PERSISTENT_LIFECYCLE.md
+# the generated /opt/nebulaos-version.json (see docs/NEBULAOS_PERSISTENT_LIFECYCLE.md
 # and docs/NEBULAOS_UPDATE_OWNERSHIP.md) and combined there with the
 # LIVE Klipper checkout's own git state plus $SYSTEM/app-generation.json,
 # so "what's actually running" is always queryable in one place rather

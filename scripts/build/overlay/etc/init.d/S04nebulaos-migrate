@@ -178,7 +178,7 @@ start() {
 	klipper_ok=1
 	moonraker_ok=1
 	if [ -e "$APPS/klipper/.git" ]; then
-		reseed_git_app klipper master "https://github.com/coreflake1/NebulaOS-klipper.git" \
+		reseed_git_app klipper master "https://github.com/Klipper3d/klipper.git" \
 			klippy/chelper/c_helper.so || klipper_ok=0
 	fi
 	if [ -e "$APPS/moonraker/.git" ]; then

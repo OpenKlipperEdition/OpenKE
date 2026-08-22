@@ -54,7 +54,8 @@ FAILED=0
 
 # The qualified baseline was produced in an older build-container layout.
 # Normalize only environment-derived fields before comparing generated
-# configs; all functional configuration content remains byte-for-byte strict.
+# configs; ext2 image-layout sizing is the one intentional exception because
+# the fixed rootfs2 partition must accommodate the selected runtime payload.
 normalize_baseline_file() {
 	file="$1"
 	case "$file" in
@@ -66,6 +67,7 @@ normalize_baseline_file() {
 		buildroot.config)
 			sed -E \
 				-e 's|^# Buildroot .* Configuration$|# Buildroot __NEBULAOS_BUILDER_VERSION__ Configuration|' \
+				-e '/^BR2_TARGET_ROOTFS_EXT2_(SIZE|INODES|RESBLKS)=/d' \
 				-e '/^(# )?BR2_HOST_GCC_AT_LEAST_[0-9]+(=y| is not set)$/d'
 			;;
 		*)

@@ -20,7 +20,7 @@
 # make_seed_archive) - no bundle, no `git clone`, no synthetic commit.
 # This replaces the prior "flattened single-commit snapshot" approach,
 # whose synthetic commit shared no ancestry with the real
-# coreflake1/NebulaOS-klipper or Arksine/moonraker history on GitHub and
+# Klipper3d/klipper or Arksine/moonraker history on GitHub and
 # made Moonraker's `git merge-base --is-ancestor HEAD origin/<branch>`
 # check permanently fail (diverged=true -> is_valid=false), blocking every
 # real update on every freshly-seeded device. The archived HEAD commit is
@@ -397,7 +397,7 @@ start() {
 	# memory is fully released (process exit) before the next begins;
 	# `sync` after each step flushes rather than leaving dirty pages to
 	# compete with the next step's own memory needs.
-	seed_git_app klipper master "https://github.com/coreflake1/NebulaOS-klipper.git" \
+	seed_git_app klipper master "https://github.com/Klipper3d/klipper.git" \
 		klippy/chelper/c_helper.so
 	setup_klipper_env
 	seed_git_app moonraker master "https://github.com/Arksine/moonraker.git"

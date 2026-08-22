@@ -11,13 +11,13 @@
 # PRIOR APPROACH (removed): each vendor checkout was flattened into a
 # single synthetic orphan commit ("NebulaOS factory seed snapshot of
 # <branch> @ <true_commit>") before bundling, because a plain
-# `git bundle create` of vendor/klipper's shallow clone (1-2 commits deep,
-# 00-fetch-vendor-sources.sh's clone_pinned) produces a bundle that
+# `git bundle create` of vendor/klipper's depth-1 shallow clone
+# (00-fetch-vendor-sources.sh's clone_branch) produces a bundle that
 # `git bundle verify` reports as fine but a real `git clone` of rejects
 # with "Failed to traverse parents of commit ..." / "remote did not send
 # all necessary objects" (confirmed again against git 2.55.0 - a genuine,
 # still-present git limitation, not a syntax mistake). That synthetic
-# commit had no shared ancestry with the real coreflake1/NebulaOS-klipper
+# commit had no shared ancestry with the real Klipper3d/klipper
 # or Arksine/moonraker history on GitHub, which made Moonraker's own
 # `git merge-base --is-ancestor HEAD origin/<branch>` check permanently
 # fail (return code 1) on every freshly-seeded device - HEAD could never
@@ -63,6 +63,12 @@ make_seed_archive() {
 		git -C "$tmp" branch "$active_branch"
 	fi
 	git -C "$tmp" checkout -q "$active_branch"
+	# Klipper's upstream runtime checks source mtimes before loading c_helper.so.
+	# Preserve the cross-compiled helper as newer than the archived sources so
+	# first boot never falls back to an unavailable on-device gcc.
+	if [ -f "$tmp/klippy/chelper/c_helper.so" ]; then
+		touch -d "@$(( $(date +%s) + 2 ))" "$tmp/klippy/chelper/c_helper.so"
+	fi
 
 	# Real bug found live (first full first-boot qualification, 2026-07-28):
 	# a plain `tar -xzf` of vendor/klipper's real working tree still has to
@@ -87,7 +93,7 @@ make_seed_archive() {
 	fi
 	# Reset ALL remotes to exactly one "origin" with the standard
 	# wildcard fetch refspec. Real bug found while validating this
-	# against the actual coreflake1/NebulaOS-klipper remote: vendor/
+	# against the actual Klipper3d/klipper remote: vendor/
 	# klipper's own "origin" remote (00-fetch-vendor-sources.sh's
 	# clone_pinned) is scoped to a narrow `+refs/heads/jun2025:
 	# refs/remotes/origin/jun2025` fetch refspec, left over from its
@@ -149,7 +155,7 @@ make_seed_archive() {
 	# else dirty must still fail the check below.
 	#
 	# Final Baseline Closure mission (2026-08-08): c_helper.so is no
-	# longer git-tracked at all as of KLIPPER_PIN 845396f0 (it is a
+	# longer git-tracked at all as of the former Klipper pin (it is a
 	# generated build artifact, not source - see that pin's own commit
 	# message and docs/NEBULAOS_C_HELPER_DIRTY_STATE_FIX.md), so there is
 	# no longer a committed "known good" version for `git checkout` to
@@ -158,7 +164,7 @@ make_seed_archive() {
 	# achieves the same real safety property (never package a
 	# wrong-architecture binary) more directly: a missing c_helper.so
 	# fails loudly downstream (Klippy's own get_ffi() has no on-device
-	# build fallback - see NebulaOS-klipper's klippy/chelper/__init__.py)
+	# build fallback - see Klipper3d/klipper's klippy/chelper/__init__.py)
 	# rather than silently shipping a binary that would have failed just
 	# as loudly, just less predictably.
 	if [ -e "$tmp/klippy/chelper/c_helper.so" ] \

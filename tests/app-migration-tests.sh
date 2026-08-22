@@ -59,7 +59,7 @@ build_bare_remote() {
 # against this exact string, independent of where its objects actually
 # came from (make_seed_archive sets remote.origin.url directly; it is
 # never fetched from during a real device seed).
-KLIPPER_PROD_ORIGIN="https://github.com/coreflake1/NebulaOS-klipper.git"
+KLIPPER_PROD_ORIGIN="https://github.com/Klipper3d/klipper.git"
 
 setup_seeds() {
 	seeds_dir="$1"

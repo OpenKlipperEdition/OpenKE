@@ -1,7 +1,7 @@
 #!/bin/sh
-# Clone/download every third-party source this build needs. All dependencies
-# except the kernel use exact refs; the kernel intentionally follows the
-# latest commit on the configured OKE branch. See FIRMWARE.md for provenance.
+# Clone/download every third-party source this build needs. Immutable
+# dependencies use exact refs; the kernel and Klipper intentionally follow
+# their configured moving branches. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
 # file, manifests/dependencies.conf, sourced below - not scattered as
@@ -20,26 +20,26 @@ MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 }
 . "$MANIFEST"
 
-require_pin() {
+require_setting() {
 	var_name="$1"
 	eval "val=\${$var_name:-}"
 	if [ -z "$val" ] || [ "$val" = "UNPINNED_MUST_SET_BEFORE_BUILD" ]; then
-		echo "FATAL: $var_name is missing or unset in $MANIFEST - every dependency must have a real pin, no defaults" >&2
+		echo "FATAL: $var_name is missing or unset in $MANIFEST - this required setting is missing" >&2
 		exit 1
 	fi
 }
 
 for required in KERNEL_REPO KERNEL_BRANCH BUILDROOT_REPO BUILDROOT_PIN \
-	PELLCORP_CREALITY_REPO PELLCORP_CREALITY_PIN KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN \
+	PELLCORP_CREALITY_REPO PELLCORP_CREALITY_PIN KLIPPER_REPO KLIPPER_BRANCH \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
 	WIFI_FIRMWARE_RELEASE_TAG WIFI_FIRMWARE_RELEASE_URL WIFI_FIRMWARE_ARCHIVE_SHA256 \
 	WIFI_FIRMWARE_TXT_SHA256 WIFI_FIRMWARE_BIN_SHA256 WIFI_FIRMWARE_CLM_SHA256 \
 	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_PIN GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
-	require_pin "$required"
+	require_setting "$required"
 done
-echo "== all required pins present in $MANIFEST =="
+echo "== all required dependency settings present in $MANIFEST =="
 
 # 2026-08-07 baseline-repair mission: wireless-regdb (regulatory.db, its
 # .p7s signature, and its LICENSE) is ISC-licensed and freely fetchable -
@@ -181,6 +181,49 @@ clone_pinned() {
 	echo "== $name pinned commit verified ($expected) =="
 }
 
+# Klipper is deliberately a moving dependency. Refresh the checkout to the
+# current tip of the configured upstream branch on every build, matching the
+# kernel's moving-source workflow. Every refresh also uses --depth 1 so the
+# moving branch never accumulates history. Existing generated files (including the
+# cross-compiled chelper) are discarded before the refresh so a previous
+# build cannot make the source tree appear to be a different revision.
+clone_branch() {
+	name="$1"; url="$2"; branch="$3"
+	if [ -d "$name/.git" ]; then
+		if [ "$(git -C "$name" rev-parse --is-shallow-repository 2>/dev/null || echo false)" != true ]; then
+			echo "== $name is a full checkout; replacing it with a depth-1 shallow clone =="
+			git -C "$name" reset --hard >/dev/null
+			git -C "$name" clean -fdx >/dev/null
+			staging="$VENDOR/.${name}.shallow.$$"
+			if [ -e "$staging" ]; then
+				echo "FATAL: shallow-clone staging path already exists: $staging" >&2
+				exit 1
+			fi
+			git clone --depth 1 --single-branch --branch "$branch" "$url" "$staging"
+			rm -rf "$name"
+			mv "$staging" "$name"
+		else
+			echo "== $name already present, refreshing shallow origin/$branch =="
+			git -C "$name" remote set-url origin "$url"
+			git -C "$name" reset --hard >/dev/null
+			git -C "$name" clean -fdx >/dev/null
+		fi
+	else
+		echo "== cloning $name from $url ($branch, depth 1) =="
+		git clone --depth 1 --single-branch --branch "$branch" "$url" "$name"
+	fi
+	git -C "$name" fetch --prune --depth 1 origin "$branch"
+	git -C "$name" checkout -B "$branch" "origin/$branch"
+	git -C "$name" reset --hard "origin/$branch" >/dev/null
+	actual=$(git -C "$name" rev-parse HEAD)
+	remote=$(git -C "$name" rev-parse "origin/$branch")
+	[ "$actual" = "$remote" ] || {
+		echo "FATAL: vendor/$name did not land on origin/$branch" >&2
+		exit 1
+	}
+	echo "== $name follows latest origin/$branch HEAD ($actual) =="
+}
+
 # X2000 kernel SDK, Open Klipper Edition System (FIRMWARE.md sec 39),
 # sparse-checked-out to kernel/kernel-6.6 only. Unlike every other source,
 # this deliberately tracks the latest remote HEAD of the requested branch.
@@ -239,15 +282,10 @@ clone_pinned buildroot-x2000 "$BUILDROOT_REPO" "$BUILDROOT_PIN"
 # or a different camera architecture than NebulaOS's own database-seeded one.
 clone_pinned pellcorp-creality "$PELLCORP_CREALITY_REPO" "$PELLCORP_CREALITY_PIN"
 
-# NebulaOS's own fork of SimpleAF's Klipper (coreflake1/NebulaOS-klipper,
-# `nebulaos` branch) - Track 1's "SimpleAF + the probe" decision applies here
-# too: pellcorp/klipper @ 386fde4 is still the base this whole app stack
-# targets, but every klippy_extras/ file this project needs (tmcstatus,
-# guppy_config_helper, guppy_module_loader, calibrate_shaper_config,
-# prtouch_v2 + companions, z_compensate) is committed into this fork's own
-# tracked history on top of that commit, instead of being copied in as
-# untracked files by 04-cross-compile-app-stack.sh after every fetch.
-clone_pinned klipper "$KLIPPER_REPO" "$KLIPPER_PIN"
+# Official upstream Klipper. This intentionally follows the latest master
+# tip rather than a reproducible commit; the pure-upstream configuration does
+# not rely on the former NebulaOS fork's extras.
+clone_branch klipper "$KLIPPER_REPO" "$KLIPPER_BRANCH"
 
 # Official Moonraker - not a fork, no reason to deviate.
 clone_pinned moonraker "$MOONRAKER_REPO" "$MOONRAKER_PIN"

@@ -219,7 +219,7 @@ fi
 # pipeline's MIPS output) is discarded from the packaged archive entirely,
 # not silently shipped. Final Baseline Closure mission (2026-08-08): this
 # path used to `git checkout -- ` a committed "known good" fallback, but
-# KLIPPER_PIN 845396f0 untracked c_helper.so entirely (it's a generated
+# the former Klipper pin untracked c_helper.so entirely (it's a generated
 # build artifact, not source - see that commit's own message), so there is
 # no longer a tracked version to fall back to; the fixed behavior is a
 # plain `rm -f`, verified here by committing a real (tracked, so the tree

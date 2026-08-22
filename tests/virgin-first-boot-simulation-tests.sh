@@ -12,9 +12,9 @@
 # Unlike tests/nebulaos-printerdata-seed-tests.sh (which uses a synthetic
 # minimal printer.cfg fixture), this test seeds from the REAL, tracked
 # scripts/build/overlay/opt/printer_data/config/ directly - the actual
-# canonical factory config this build ships, including the [z_compensate]/
-# [prtouch_v2]/[nebulaos_version] sections task 1/2 of this mission wired
-# in. The klipper git archive is still a fixture (a real, throwaway repo
+# canonical factory config this build ships with an upstream-compatible
+# profile; fork-only sections are intentionally not included. The Klipper
+# git archive is still a fixture (a real, throwaway repo
 # standing in for the canonical checkout - same convention as
 # tests/factory-seed-git-tests.sh) since this test is about the
 # provisioning PIPELINE and the REAL printer.cfg, not about re-verifying
@@ -66,7 +66,7 @@ test_virgin_first_boot_produces_valid_klipper_config() {
 	git -C "$klipper_src" add -A
 	git -C "$klipper_src" -c user.email=t@l -c user.name=t commit -q -m "fixture"
 	klipper_commit=$(make_seed_archive "$klipper_src" master \
-		"https://github.com/coreflake1/NebulaOS-klipper.git" "$SEEDS/klipper.tar.gz")
+		"https://github.com/Klipper3d/klipper.git" "$SEEDS/klipper.tar.gz")
 
 	cat > "$SEEDS/seed-manifest.json" <<EOF
 {
@@ -96,7 +96,7 @@ EOF
 	env S04NEBULAOS_FACTORY_SEED_NO_AUTORUN=1 SEEDS="$SEEDS" \
 		APPS="$NEBULAOS_ROOT/apps" SYSTEM="$NEBULAOS_ROOT/system" \
 		sh -c ". '$S04_FACTORY_SEED_SCRIPT'; \
-			seed_git_app klipper master 'https://github.com/coreflake1/NebulaOS-klipper.git' \
+			seed_git_app klipper master 'https://github.com/Klipper3d/klipper.git' \
 				klippy/chelper/c_helper.so; \
 			record_initial_generation" > "$WORK/s04-seed.log" 2>&1
 
@@ -139,48 +139,26 @@ EOF
 		pass "virgin boot: USER OWNED printer_data path never referenced by IMAGE OWNED app seeding"
 	fi
 
-	# 6. The real proof: parse the ACTUALLY-PROVISIONED printer.cfg (not
-	# the source tree) and drive it through real production
-	# PRTouchV2/ZCompensate code, exactly as klippy_extras/
-	# test_printer_cfg_config_validation.py does against the source file -
-	# proving the seeding pipeline didn't corrupt/truncate/mangle
-	# anything on the way from source to a provisioned device.
+	# 6. Parse the ACTUALLY-PROVISIONED printer.cfg (not the source tree)
+	# with the standard library and verify the upstream-compatible profile.
 	provisioned_cfg="$NEBULAOS_ROOT/printer_data/config/printer.cfg"
-	if PYTHONPATH="$REPO_ROOT" python3 - "$provisioned_cfg" <<'PYEOF'
+	if python3 - "$provisioned_cfg" <<'PYEOF'
 import configparser, sys
-sys.path.insert(0, ".")
-from klippy_extras import prtouch_test_support as fake
-from klippy_extras import prtouch_v2, z_compensate
 
-def real_section(text, section):
-    parser = configparser.ConfigParser(interpolation=None, strict=False)
-    marker = "\n[%s]\n" % section
-    start = text.index(marker) + 1
-    nxt = text.find("\n[", start + 1)
-    parser.read_string(text[start:nxt if nxt != -1 else len(text)])
-    return dict(parser[section])
-
-text = open(sys.argv[1]).read()
-prtouch_values = real_section(text, "prtouch_v2")
-printer, mcu, pins, _ = fake.build_environment(prtouch_v2_values=prtouch_values)
-prtouch_config = fake.make_prtouch_v2_config(printer, pins, prtouch_values)
-pv2 = prtouch_v2.PRTouchV2(prtouch_config)
-printer.add_object("prtouch_v2", pv2)
-
-zc_values = real_section(text, "z_compensate")
-zc_config = fake.make_z_compensate_config(printer, zc_values)
-zc = z_compensate.ZCompensate(zc_config)
-
-fake.connect(printer, mcu)
-prtouch_config.assert_all_consumed()
-zc_config.assert_all_consumed()
-assert zc.bed_add_temp == 60.0, zc.bed_add_temp
+parser = configparser.ConfigParser(interpolation=None, strict=False)
+parser.read(sys.argv[1])
+required = {"mcu", "printer", "stepper_x", "stepper_y", "stepper_z", "bltouch"}
+forbidden = {"prtouch_v2", "z_compensate", "nebulaos_version", "tmcstatus"}
+missing = sorted(required - set(parser.sections()))
+found_forbidden = sorted(forbidden & set(parser.sections()))
+if missing or found_forbidden:
+    raise SystemExit("missing=%s forbidden=%s" % (missing, found_forbidden))
 print("VALID")
 PYEOF
 	then
-		pass "virgin boot: provisioned printer.cfg reaches a valid Klipper startup configuration (real config-load validation, zero errors)"
+		pass "virgin boot: provisioned printer.cfg contains the required upstream sections and no fork-only sections"
 	else
-		fail "virgin boot: provisioned printer.cfg failed real Klipper config validation"
+		fail "virgin boot: provisioned printer.cfg failed upstream config validation"
 	fi
 }
 

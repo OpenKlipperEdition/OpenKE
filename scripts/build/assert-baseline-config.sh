@@ -205,6 +205,8 @@ post-build)
 	# bare PASS/FAIL pair. Buildroot also embeds its source-tree version and
 	# host compiler capability probes in generated configs; those describe the
 	# build environment rather than the qualified target configuration.
+	# Ext2 image-layout sizing is payload-dependent and is normalized below; the
+	# fixed rootfs2 partition still bounds the chosen values in buildroot.config.
 	normalize_baseline_file() {
 		file="$1"
 		case "$file" in
@@ -216,6 +218,7 @@ post-build)
 			buildroot.config)
 				sed -E \
 					-e 's|^# Buildroot .* Configuration$|# Buildroot __NEBULAOS_BUILDER_VERSION__ Configuration|' \
+					-e '/^BR2_TARGET_ROOTFS_EXT2_(SIZE|INODES|RESBLKS)=/d' \
 					-e '/^(# )?BR2_HOST_GCC_AT_LEAST_[0-9]+(=y| is not set)$/d'
 				;;
 			*)

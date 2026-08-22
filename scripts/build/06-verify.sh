@@ -88,13 +88,9 @@ check_vendor_pin() {
 		printf '%s\n' "$vp_dirty" | sed 's/^/     /'
 	fi
 }
-# klipper: pin bumped 2026-07-31 to d839d0375 in 00-fetch-vendor-sources.sh
-# (previously stuck one real, already-shipped commit behind - see that
-# script's own comment). `klippy/chelper/c_helper.so` is expected to differ
-# (the correctly cross-compiled MIPS binary vs. whatever's tracked in git -
-# same allowlisted-path convention as make-seed-archive.sh's own dirty-tree
-# guard fix).
-check_vendor_pin klipper "$KLIPPER_PIN" \
+# Klipper follows upstream master; this is intentionally a moving dependency.
+klipper_remote="$(git -C "$REPO_ROOT/vendor/klipper" rev-parse "origin/$KLIPPER_BRANCH" 2>/dev/null || echo unknown)"
+check_vendor_pin klipper "$klipper_remote" \
 	"$KLIPPER_REPO" 0 \
 	klippy/chelper/c_helper.so
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
@@ -463,13 +459,8 @@ check /usr/lib/python3.11/site-packages/numpy
 check /usr/bin/python3.11
 check /opt/klipper/klippy/klippy.py
 check /opt/klipper/klippy/chelper/c_helper.so
-# Clean-Update + Virgin Baseline mission, Phase 6: nebulaos_version.py
-# ships from the forks own klippy/extras/ directory (the earlier cp -r
-# klippy step already carries it, same as z_compensate.py and
-# prtouch_*.py) - this is what catches a forgotten fork sync before the
-# image ever reaches a device, rather than a printer.cfg [nebulaos_version]
-# section that fails to load at boot.
-check /opt/klipper/klippy/extras/nebulaos_version.py
+# Pure upstream Klipper does not ship the NebulaOS-specific version object;
+# build identity remains available in /opt/nebulaos-version.json.
 check /opt/nebulaos-version.json
 check /opt/moonraker/moonraker/server.py
 check /usr/lib/python3.11/site-packages/streaming_form_data
@@ -682,7 +673,7 @@ check_seed_archive() {
 	fi
 	rm -rf /tmp/seed-check /tmp/seed-check.tar
 }
-check_seed_archive /opt/nebulaos-seeds/klipper.tar.gz master "https://github.com/coreflake1/NebulaOS-klipper.git" "klipper"
+check_seed_archive /opt/nebulaos-seeds/klipper.tar.gz "$KLIPPER_BRANCH" "$KLIPPER_REPO" "klipper"
 check_seed_archive /opt/nebulaos-seeds/moonraker.tar.gz master "https://github.com/Arksine/moonraker.git" "moonraker"
 
 # Real bug this catches if regressed: the c_helper.so committed inside
@@ -777,20 +768,8 @@ if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <----------------
 else
 	echo "OK   packaged printer.cfg seed contains no SAVE_CONFIG calibration block"
 fi
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^\[include camera-quality.cfg\]$" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "OK   packaged printer.cfg seed includes camera-quality.cfg"
-else
-	echo "MISS packaged printer.cfg seed does not include camera-quality.cfg"
-fi
-# Clean-Update + Virgin Baseline mission, Phase 6: confirms the seeded
-# printer.cfg actually loads the new version-truth printer object, not
-# just that nebulaos_version.py exists on disk (checked separately above)
-# - a missing config section would leave the file shipped but inert.
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^\[nebulaos_version\]$" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "OK   packaged printer.cfg seed includes [nebulaos_version]"
-else
-	echo "MISS packaged printer.cfg seed does not include [nebulaos_version]"
-fi
+# Pure upstream Klipper does not load the fork-only camera-quality or
+# nebulaos_version configuration sections.
 # A bare "key:" is only actually blank if nothing indented follows on the
 # next line - moonraker.confs own trusted_clients/cors_domains use this
 # multi-line list form legitimately; a naive single-line check flagged
