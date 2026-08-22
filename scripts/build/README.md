@@ -4,8 +4,8 @@ These scripts reproduce everything documented in `FIRMWARE.md` §8-14: a custom 
 kernel + Buildroot rootfs for the Ender 3 V3 KE's Nebula Pad (Ingenic X2000), with touch, display,
 WiFi, Bluetooth, camera, and a full Klipper/Moonraker/nginx/Mainsail/GuppyScreen app stack (Stage 04
 fetches, cross-compiles, and installs GuppyScreen automatically - it was deliberately deferred/manual
-early in this project's history, but that gap was closed 2026-08-07, see `manifests/dependencies.conf`'s
-own `GUPPYSCREEN_PIN` history) - everything except the real-hardware boot test itself (needs the user
+early in this project's history, but that gap was closed 2026-08-07; the
+moving branch setting is documented in `manifests/dependencies.conf`'s `GUPPYSCREEN_BRANCH`) - everything except the real-hardware boot test itself (needs the user
 present, not something a script can do).
 
 **Read this before running anything**: these scripts encode the *correct*, clean sequence -  not a
@@ -72,11 +72,11 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 ## What each stage does
 
-1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs
-   into `vendor/` at the latest `OKE` branch HEAD for the X2000 kernel SDK, then at the exact refs
-   this project used for the Buildroot config (`lone0/buildroot-x2000`), Klipper
-   (`coreflake1/NebulaOS-klipper`), GuppyScreen (`coreflake1/NebulaOS-guppyscreen`), Moonraker
-   (`Arksine/moonraker`, official), `pellcorp/k1-ustreamer`, and Mainsail's latest prebuilt release.
+1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs.
+   into `vendor/`, refreshing the X2000 kernel SDK at the latest `OKE` branch HEAD, official upstream
+   Klipper at `master`, and GuppyScreen at the latest `OKE` branch HEAD. Immutable inputs such as
+   Buildroot (`lone0/buildroot-x2000`), Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`,
+   and Mainsail remain pinned and hash-verified.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125
      WiFi firmware + its own matching CLM blob directly from Infineon's own upstream repo
      (`Infineon/ifx-linux-firmware`, pinned commit, hash-verified) and stages them as

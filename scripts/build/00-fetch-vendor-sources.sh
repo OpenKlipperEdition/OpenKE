@@ -1,6 +1,6 @@
 #!/bin/sh
 # Clone/download every third-party source this build needs. Immutable
-# dependencies use exact refs; the kernel and Klipper intentionally follow
+# dependencies use exact refs; the kernel, Klipper, and GuppyScreen intentionally follow
 # their configured moving branches. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
@@ -36,7 +36,7 @@ for required in KERNEL_REPO KERNEL_BRANCH BUILDROOT_REPO BUILDROOT_PIN \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
 	WIFI_FIRMWARE_RELEASE_TAG WIFI_FIRMWARE_RELEASE_URL WIFI_FIRMWARE_ARCHIVE_SHA256 \
 	WIFI_FIRMWARE_TXT_SHA256 WIFI_FIRMWARE_BIN_SHA256 WIFI_FIRMWARE_CLM_SHA256 \
-	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_PIN GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
+	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
 	require_setting "$required"
 done
 echo "== all required dependency settings present in $MANIFEST =="
@@ -181,12 +181,10 @@ clone_pinned() {
 	echo "== $name pinned commit verified ($expected) =="
 }
 
-# Klipper is deliberately a moving dependency. Refresh the checkout to the
-# current tip of the configured upstream branch on every build, matching the
-# kernel's moving-source workflow. Every refresh also uses --depth 1 so the
-# moving branch never accumulates history. Existing generated files (including the
-# cross-compiled chelper) are discarded before the refresh so a previous
-# build cannot make the source tree appear to be a different revision.
+# Moving-branch dependencies are refreshed on every build.
+# Each checkout follows the current tip of its configured upstream branch.
+# Each refresh uses a depth-1 history so the moving branch never accumulates history.
+# Generated build files are discarded before refresh so stale outputs cannot drift the checkout.
 clone_branch() {
 	name="$1"; url="$2"; branch="$3"
 	if [ -d "$name/.git" ]; then
@@ -194,6 +192,7 @@ clone_branch() {
 			echo "== $name is a full checkout; replacing it with a depth-1 shallow clone =="
 			git -C "$name" reset --hard >/dev/null
 			git -C "$name" clean -fdx >/dev/null
+			git -C "$name" submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
 			staging="$VENDOR/.${name}.shallow.$$"
 			if [ -e "$staging" ]; then
 				echo "FATAL: shallow-clone staging path already exists: $staging" >&2
@@ -207,6 +206,7 @@ clone_branch() {
 			git -C "$name" remote set-url origin "$url"
 			git -C "$name" reset --hard >/dev/null
 			git -C "$name" clean -fdx >/dev/null
+			git -C "$name" submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
 		fi
 	else
 		echo "== cloning $name from $url ($branch, depth 1) =="
@@ -340,8 +340,8 @@ echo "== v4l-utils pinned commit verified ($V4L_UTILS_PIN) =="
 # structured status contract) - previously NOT pinned or fetched by this
 # script at all (see manifests/dependencies.conf's own comment on this gap);
 # the actual cross-compile happens in 04-cross-compile-app-stack.sh, this
-# stage only fetches/verifies the pinned source.
-clone_pinned nebulaos-guppyscreen "$GUPPYSCREEN_REPO" "$GUPPYSCREEN_PIN"
+# stage only fetches and refreshes the moving source.
+clone_branch nebulaos-guppyscreen "$GUPPYSCREEN_REPO" "$GUPPYSCREEN_BRANCH"
 git -C nebulaos-guppyscreen submodule update --init --depth 1
 
 # Submodule patches (this fork's own documented canonical build procedure,
@@ -352,7 +352,7 @@ git -C nebulaos-guppyscreen submodule update --init --depth 1
 # their two patches applied on every fresh checkout, or the MIPS build
 # below silently builds against unpatched fmt/DPI-scaling behavior. Guarded
 # with `git apply --check` first so re-running this script against an
-# already-patched, already-present checkout (clone_pinned's "already
+# already-patched, already-present checkout (clone_branch's "already
 # present" branch) is a safe no-op, not a failure.
 for entry in "0002-spdlog_fmt_initializer_list.patch spdlog" "0003-lvgl-dpi-text-scale.patch lvgl"; do
 	patch_file=${entry% *}

@@ -47,14 +47,14 @@ check_vendor_pin() {
 	shift 4
 	vp_dir="$REPO_ROOT/vendor/$vp_name"
 	if [ ! -d "$vp_dir/.git" ]; then
-		echo "MISS vendor/$vp_name is not a git checkout - cannot verify its pin"
+		echo "MISS vendor/$vp_name is not a git checkout - cannot verify its expected commit"
 		return
 	fi
 	vp_actual=$(git -C "$vp_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
 	if [ "$vp_actual" = "$vp_expected" ]; then
-		echo "OK   vendor/$vp_name HEAD matches its pinned commit ($vp_expected)"
+		echo "OK   vendor/$vp_name HEAD matches its expected commit ($vp_expected)"
 	else
-		echo "MISS vendor/$vp_name HEAD is $vp_actual, expected pinned commit $vp_expected"
+		echo "MISS vendor/$vp_name HEAD is $vp_actual, expected commit $vp_expected"
 	fi
 	if [ -n "$vp_expected_url" ]; then
 		vp_remotes=$(git -C "$vp_dir" remote -v 2>/dev/null)
@@ -151,17 +151,12 @@ else
 	echo "OK   vendor/x2000_kernel_6.6 working tree is dirty, as expected after apply-qualified-baseline.sh:"
 	printf '%s\n' "$kernel_dirty" | sed 's/^/     /'
 fi
-# GuppyScreen: added 2026-08-07 - previously not pin-checked here at all
-# (it was still a manually-copied binary with no vendor checkout to check
-# when this script was last touched). `submodule status` confirms all four
-# submodules stay pinned at their exact recorded commits (no +/- marker) -
-# the three allowlisted below show as modified in the PARENT's own status
-# only because of real, expected in-place content changes: 00-fetch-
-# vendor-sources.sh's two submodule patches (spdlog, lvgl), and libhv's own
-# working-tree state after scripts/build-mips.sh's native/MIPS library
-# swap-and-restore (04-cross-compile-app-stack.sh). Verified empirically
-# against a real build, not assumed.
-check_vendor_pin nebulaos-guppyscreen "$GUPPYSCREEN_PIN" \
+# GuppyScreen follows the configured moving OKE branch. Stage 00 refreshes the
+# shallow checkout to origin/$GUPPYSCREEN_BRANCH; verify both the fetched HEAD
+# and the expected remote URL. The three allowlisted submodules are modified
+# deterministically by the fetch/build stages (spdlog, lvgl, and libhv).
+guppyscreen_remote=$(git -C "$REPO_ROOT/vendor/nebulaos-guppyscreen" rev-parse "origin/$GUPPYSCREEN_BRANCH" 2>/dev/null || echo unknown)
+check_vendor_pin nebulaos-guppyscreen "$guppyscreen_remote" \
 	"$GUPPYSCREEN_REPO" 0 \
 	libhv \
 	lvgl \
@@ -186,14 +181,14 @@ check_artifact_sha256 vendor/mainsail-dist/mainsail.zip \
 	df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
 
 # 2026-08-07: GuppyScreen is no longer a fixed prebuilt binary (see
-# manifests/dependencies.conf's GUPPYSCREEN_PIN and
-# 04-cross-compile-app-stack.sh) - it's rebuilt from pinned source every
+# manifests/dependencies.conf's GUPPYSCREEN_BRANCH and
+# 04-cross-compile-app-stack.sh) - it's rebuilt from the moving OKE source every
 # run, and the resulting bytes are NOT deterministic across builds (the
 # toolchain embeds a build timestamp), even from byte-identical source. A
 # fixed expected hash here would report a false MISS on every correct
 # build. Check self-consistency against THIS run's own build-manifest.txt
 # instead (already-recorded guppyscreen_sha256/guppybeep_sha256, right
-# next to the source pin git_commit_guppyscreen that actually determines
+# next to the source commit git_commit_guppyscreen that actually determines
 # correctness) plus a real MIPS-ELF sanity check.
 check_guppyscreen_binary() {
 	gb_path="$REPO_ROOT/$1"

@@ -17,7 +17,7 @@ New rootfs.squashfs file count: 0
   is the real correctness pin)
 - git_commit_guppyscreen / git_commit_guppyscreen_dirty (2026-08-07: GuppyScreen is now a pinned,
   automatically-built vendor source, not present as a manifest field on the 2026-08-03 baseline
-  at all - see manifests/dependencies.conf's GUPPYSCREEN_PIN)
+  at all - see manifests/dependencies.conf's GUPPYSCREEN_BRANCH)
 - git_commit_klipper / git_commit_klipper_dirty (z_compensate.py structured status contract)
 - rootfs_squashfs_sha256 / rootfs_squashfs_size (grows ~18.6MB vs the 2026-08-03 baseline - traced
   to Buildroot's linux-firmware package pulling in a broader firmware set; every accepted feature

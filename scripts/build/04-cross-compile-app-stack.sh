@@ -14,10 +14,10 @@ set -e
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
-# 2026-08-07: GUPPYSCREEN_VERSION/GUPPYSCREEN_THEME (section 6, below) come
-# from the same authoritative pin manifest 00-fetch-vendor-sources.sh
+# GUPPYSCREEN_VERSION/GUPPYSCREEN_THEME (section 6, below) come
+# from the same authoritative dependency manifest 00-fetch-vendor-sources.sh
 # already sources - see that script/manifests/dependencies.conf's own
-# header for why pins live in one file instead of being hardcoded per-script.
+# header for why dependency settings live in one file instead of being hardcoded per-script.
 MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 [ -f "$MANIFEST" ] || {
 	echo "FATAL: $MANIFEST not found - this is the one authoritative dependency pin file, required to build at all" >&2
@@ -384,27 +384,18 @@ echo "== copying Mainsail static build =="
 mkdir -p "$OVERLAY/usr/share/mainsail"
 cp -r "$VENDOR"/mainsail-dist/dist/* "$OVERLAY/usr/share/mainsail/"
 
-### 6. GuppyScreen (project-specific frontend; consumes the z_compensate
+### 6. GuppyScreen (OpenKlipperEdition frontend on the moving OKE branch; consumes the z_compensate
 # structured status contract - see docs/z_compensate_status_api.md)
 #
-# 2026-08-07 baseline-repair mission: this used to be built by hand in a
-# separate checkout (nebulaos-guppyscreen/, outside this repo) and its two
-# binaries `cp`'d in manually - done twice across the earlier baseline-
-# repair/canonicalization mission, with no record of which source commit
-# produced the binary actually running on the printer (see
-# manifests/dependencies.conf's own GUPPYSCREEN_PIN comment for that
-# history, and docs/NEBULAOS_QUALIFIED_BASELINE_VARIANT_AUDIT.md). Fetched
-# and pinned by 00-fetch-vendor-sources.sh; built here with the exact
-# toolchain image and script this fork's own docs use
-# (wiki/Building-from-Source.md's "4b. Cross-compile for the Ender-3 V3 KE
-# (MIPS)" section, scripts/build-mips.sh) rather than reinventing the build
-# steps - GUPPY_SMALL_SCREEN=1 is already hardcoded inside that script, not
-# passed in from here.
+# GuppyScreen follows the configured OpenKlipperEdition OKE branch. The checkout
+# is refreshed by stage 00, then built here with the exact MIPS toolchain and
+# upstream build script; the fetched commit is recorded in build-manifest.txt.
 GUPPYSCREEN_SRC="$VENDOR/nebulaos-guppyscreen"
 if [ ! -d "$GUPPYSCREEN_SRC" ]; then
 	echo "FATAL: $GUPPYSCREEN_SRC not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
+GUPPYSCREEN_COMMIT=$(git -C "$GUPPYSCREEN_SRC" rev-parse HEAD)
 echo "== cross-compiling GuppyScreen (Migration A: Bootlin mips32el-musl toolchain, now baked into this image - see build-env/versions.env) =="
 rm -rf "$GUPPYSCREEN_SRC/build"
 (
@@ -578,7 +569,7 @@ build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # compares with plain string equality on-device with no history lookup
 # needed. Not a security hash - just a stable, cheap "does the installed
 # generation match what THIS image expects" fingerprint.
-migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${GUPPYSCREEN_PIN:-unknown}" | sha256sum | cut -c1-16)
+migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${GUPPYSCREEN_COMMIT:-unknown}" | sha256sum | cut -c1-16)
 firmware_head=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
 
 cat > "$OVERLAY/opt/nebulaos-seeds/seed-manifest.json" <<EOF
@@ -587,7 +578,7 @@ cat > "$OVERLAY/opt/nebulaos-seeds/seed-manifest.json" <<EOF
   "build_date": "$build_date",
   "migration_version": "$migration_version",
   "firmware_head": "$firmware_head",
-  "guppyscreen_pin": "${GUPPYSCREEN_PIN:-unknown}",
+  "guppyscreen_commit": "${GUPPYSCREEN_COMMIT:-unknown}",
   "seeds": {
     "klipper": {
       "format": "git_repo_archive_real_history",
@@ -624,7 +615,7 @@ echo "== factory seeds created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/") =="
 
 # Clean-Update + Virgin Baseline mission, Phase 6 (2026-08-08): a single,
 # immutable, squashfs-resident record of exactly what this image IS -
-# firmware tag/SHA, kernel/GuppyScreen pins - read at runtime by
+# firmware tag/SHA, kernel/GuppyScreen commit IDs - read at runtime by
 # the generated /opt/nebulaos-version.json (see docs/NEBULAOS_PERSISTENT_LIFECYCLE.md
 # and docs/NEBULAOS_UPDATE_OWNERSHIP.md) and combined there with the
 # LIVE Klipper checkout's own git state plus $SYSTEM/app-generation.json,
@@ -654,7 +645,7 @@ cat > "$OVERLAY/opt/nebulaos-version.json" <<EOF
   "firmware_tag": "$firmware_tag",
   "firmware_sha": "$firmware_head",
   "kernel_sha": "$kernel_sha",
-  "guppyscreen_sha": "${GUPPYSCREEN_PIN:-unknown}"
+  "guppyscreen_sha": "${GUPPYSCREEN_COMMIT:-unknown}"
 }
 EOF
 echo "== wrote /opt/nebulaos-version.json: $(cat "$OVERLAY/opt/nebulaos-version.json") =="

@@ -19,8 +19,8 @@ See `build-env/Dockerfile` and `build-env/versions.env` for the exact, current, 
 ## What does it NOT contain?
 
 - **Project source.** `NebulaOS-firmware`, `NebulaOS-kernel`, `NebulaOS-klipper`,
-  `NebulaOS-guppyscreen`, Buildroot, Moonraker, kernel source — all fetched fresh by
-  `00-fetch-vendor-sources.sh` at build time, pinned in `manifests/dependencies.conf`. The image is
+  `OpenKlipperEdition/GuppyScreen`, Buildroot, Moonraker, kernel source — all fetched fresh by
+  `00-fetch-vendor-sources.sh` at build time; moving branches and immutable inputs are configured in `manifests/dependencies.conf`. The image is
   the factory; the manifest is the material list; unchanged by this migration.
 - **The kernel/rootfs/native-app target compiler.** `mipsel-buildroot-linux-gnu-*` is Buildroot's own
   self-bootstrapped toolchain, built from source during Stage 03 from the project's pinned Buildroot
@@ -77,7 +77,7 @@ Only after **all** of:
 1. The candidate image is built from tracked `build-env/Dockerfile` content and pushed to GHCR.
 2. Its digest is known and recorded.
 3. A fresh clone is rebuilt using the accepted immutable source refs and the current `OKE` kernel
-   branch HEAD (`KLIPPER_PIN`/`GUPPYSCREEN_PIN` remain pinned; OKE is intentionally moving).
+   branch HEAD (`KLIPPER_BRANCH` and `GUPPYSCREEN_BRANCH` follow moving heads; OKE is intentionally moving).
 4. That rebuild's output is strictly compared against the accepted reference artifacts (hashes,
    `build-manifest.txt` fields, `06-verify.sh`'s full content checks) — see the Phase 11 final report
    for this project's own worked example of that comparison.
@@ -119,6 +119,6 @@ references `pellcorp/k1-bash-build` or `ghcr.io/coreflake1/guppydev` as a live d
 longer — see the Phase 11 report and the Final Closure report for the full evidence chain
 (repeatability comparison, physical hardware qualification) behind that promotion.
 
-`NebulaOS-guppyscreen`'s own separate CI (`.github/workflows/build.yml`) is a distinct, not-yet-
+`OpenKlipperEdition/GuppyScreen`'s own separate CI (`.github/workflows/build.yml`) is a distinct, not-yet-
 migrated dependency on `ghcr.io/coreflake1/guppydev:latest` in a different repository - out of
 scope for this image's own promotion, tracked separately.

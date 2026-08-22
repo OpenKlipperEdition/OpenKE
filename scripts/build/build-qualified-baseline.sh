@@ -11,7 +11,7 @@
 # along, in the order they must run, with the baseline-composition and
 # assertion steps at the points that actually matter:
 #
-#   00-fetch-vendor-sources.sh    fetch every pinned source (fails loudly on
+#   00-fetch-vendor-sources.sh    fetch every required source (fails loudly on
 #                                  any unpushed/unresolvable pin - see
 #                                  manifests/dependencies.conf)
 #   apply-qualified-baseline.sh   compose all 8 accepted kernel variants
@@ -37,7 +37,7 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-echo "=== build-qualified-baseline: fetching every pinned source ==="
+echo "=== build-qualified-baseline: fetching every required source ==="
 sh "$SCRIPT_DIR/00-fetch-vendor-sources.sh"
 
 echo "=== build-qualified-baseline: composing all 8 accepted kernel variants ==="

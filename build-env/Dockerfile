@@ -123,7 +123,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # --- Migration A: GuppyScreen's exact current toolchain, preserved --------
-# Identical pin to NebulaOS-guppyscreen/docker/Dockerfile's own ARGs (see
+# Identical pin to OpenKlipperEdition/GuppyScreen/docker/Dockerfile's own ARGs (see
 # build-env/versions.env - single source of truth for these values, kept in
 # sync with that Dockerfile by inspection, not by import, since they live in
 # different repos). Migration A's proof is that ONLY container ownership
