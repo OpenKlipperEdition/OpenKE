@@ -35,12 +35,12 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/pwm-state-readback-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 PATCH="$REPO_ROOT/scripts/build/patches/pwm-ingenic-v2-get-state.patch"
 AFFECTED_FILES="kernel/kernel-6.6/module_drivers/drivers/pwm/Kconfig kernel/kernel-6.6/module_drivers/drivers/pwm/pwm-ingenic-v2.c"
-PWMC="$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/pwm/pwm-ingenic-v2.c"
-PWM_KCONFIG="$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/pwm/Kconfig"
+PWMC="$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/pwm/pwm-ingenic-v2.c"
+PWM_KCONFIG="$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/pwm/Kconfig"
 
 PASS=0
 FAIL=0
@@ -55,13 +55,13 @@ cp "$FRAGMENT" "$PRETEST_FRAGMENT"
 PRETEST_KERNEL_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 
 cleanup() {
 	cp "$PRETEST_FRAGMENT" "$FRAGMENT"
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	rm -f "$PRETEST_FRAGMENT"
 	rm -rf "$PRETEST_KERNEL_SNAPSHOT"
@@ -73,10 +73,10 @@ trap 'exit 143' TERM
 # --- Test 1: GETSTATE0 leaves the affected files git-clean and no
 # fragment block/marker. ---
 sh "$VARIANT_SCRIPT" GETSTATE0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "GETSTATE0 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "GETSTATE0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_PWM_INGENIC_V2_GET_STATE' "$FRAGMENT"; then
 	fail "GETSTATE0 left CONFIG_PWM_INGENIC_V2_GET_STATE in the fragment"
@@ -217,10 +217,10 @@ fi
 # --- Test 11: switching from GETSTATE1 back to GETSTATE0 restores clean
 # affected files and an empty fragment block. ---
 sh "$VARIANT_SCRIPT" GETSTATE0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "switching from GETSTATE1 back to GETSTATE0 left the affected files modified: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "switching from GETSTATE1 back to GETSTATE0 left the affected files modified: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_PWM_INGENIC_V2_GET_STATE' "$FRAGMENT"; then
 	fail "switching from GETSTATE1 back to GETSTATE0 left CONFIG_PWM_INGENIC_V2_GET_STATE in the fragment"
@@ -238,8 +238,8 @@ fi
 
 # --- Test 13: the patch applies cleanly from a pristine checkout (a
 # direct git apply --check, independent of the toggle script). ---
-git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
-if git -C "$KERNEL_DIR" apply --check "$PATCH" 2>/dev/null; then
+git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
+if git -C "$SYSTEM_DIR" apply --check "$PATCH" 2>/dev/null; then
 	pass
 else
 	fail "$PATCH does not apply cleanly to a pristine checkout"

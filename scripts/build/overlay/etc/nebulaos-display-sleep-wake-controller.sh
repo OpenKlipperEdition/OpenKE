@@ -16,7 +16,7 @@
 #
 # The backlight driver's debugfs status file gaining a "sleep"/"wake"-
 # capable asleep state is being added CONCURRENTLY by a different agent
-# working in vendor/x2000_kernel_6.6, not yet visible from this checkout.
+# working in vendor/system, not yet visible from this checkout.
 # This file was written against the command names `sleep`/`wake` and
 # assumes the status file reports the asleep condition as the literal line
 #     state: asleep
@@ -52,7 +52,7 @@
 
 # Poll interval, in (possibly fractional) seconds - this image's BusyBox
 # `sleep` is built with CONFIG_FLOAT_DURATION=y (see
-# vendor/buildroot-x2000/package/busybox/busybox.config), so a sub-second
+# vendor/system/buildroot/package/busybox/busybox.config), so a sub-second
 # value is safe to pass directly. 0.2s (200ms) is the chosen value: fast
 # enough that a human touching the screen while it is asleep perceives the
 # wake as immediate (a few hundred ms is well under the threshold where a

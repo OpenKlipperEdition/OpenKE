@@ -28,8 +28,8 @@ flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-buil
 # Phase 11 (2026-08-15): the orphaned-container-cleanup loop and per-call
 # `--label openke-build-pid=$$` that used to live here are gone - see
 # 02-configure-buildroot.sh's own Phase 11 note.
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
-KERNEL_MOUNT="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
+KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 
 # 2026-07-23: source-fingerprint check - refuse to package an image built
 # from a source tree that changed mid-build (a real risk in this project:
@@ -50,7 +50,7 @@ source_fingerprint() {
 	(
 		cd "$REPO_ROOT" && git rev-parse HEAD && \
 			git status --porcelain=v2 -- . ":(exclude)artifacts/buildroot-halley5-v30-image/"
-		cd "$REPO_ROOT/vendor/x2000_kernel_6.6" && git rev-parse HEAD && git status --porcelain=v2
+		cd "$REPO_ROOT/vendor/system" && git rev-parse HEAD && git status --porcelain=v2
 	) | sha256sum | awk '{print $1}'
 }
 FINGERPRINT_BEFORE=$(source_fingerprint)
@@ -127,8 +127,7 @@ artifact_sha256() {
 	echo "build_image_repo=${BUILD_IMAGE_REPO:-absent}"
 	echo "build_image_digest=${BUILD_IMAGE_DIGEST:-absent}"
 	git_field git_commit_main ""
-	git_field git_commit_kernel vendor/x2000_kernel_6.6
-	git_field git_commit_buildroot vendor/buildroot-x2000
+	git_field git_commit_system vendor/system
 	git_field git_commit_klipper vendor/klipper
 	git_field git_commit_moonraker vendor/moonraker
 	git_field git_commit_guppyscreen vendor/nebulaos-guppyscreen

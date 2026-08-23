@@ -63,7 +63,7 @@
 #     default/off value. Not invoked.
 #
 # Usage: sh scripts/build/apply-qualified-baseline.sh
-# Run AFTER 00-fetch-vendor-sources.sh (needs a real vendor/x2000_kernel_6.6
+# Run AFTER 00-fetch-vendor-sources.sh (needs a real vendor/system
 # checkout) and BEFORE 02-configure-buildroot.sh, exactly like any other
 # variant script.
 

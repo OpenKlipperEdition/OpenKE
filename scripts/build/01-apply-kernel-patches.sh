@@ -15,31 +15,31 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 
 [ -f "$DEPS_MANIFEST" ] || { echo "FATAL: $DEPS_MANIFEST not found" >&2; exit 1; }
 . "$DEPS_MANIFEST"
 
-if [ ! -d "$KERNEL_DIR/.git" ]; then
-	echo "vendor/x2000_kernel_6.6 not found - run 00-fetch-vendor-sources.sh first" >&2
+if [ ! -d "$SYSTEM_DIR/.git" ]; then
+	echo "vendor/system not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
 
-cd "$KERNEL_DIR"
+cd "$SYSTEM_DIR"
 
 # Defense in depth: stage 00 fetched and reset the checkout, but verify here
 # that the build is still on the configured branch and exactly at its fetched
 # remote HEAD before composing the accepted variants.
 ACTUAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || true)
-if [ "$ACTUAL_BRANCH" != "$KERNEL_BRANCH" ]; then
-	echo "vendor/x2000_kernel_6.6 is on '$ACTUAL_BRANCH', expected branch '$KERNEL_BRANCH' - re-run 00-fetch-vendor-sources.sh" >&2
+if [ "$ACTUAL_BRANCH" != "$SYSTEM_BRANCH" ]; then
+	echo "vendor/system is on '$ACTUAL_BRANCH', expected branch '$SYSTEM_BRANCH' - re-run 00-fetch-vendor-sources.sh" >&2
 	exit 1
 fi
 ACTUAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse "origin/$KERNEL_BRANCH")
+REMOTE_SHA=$(git rev-parse "origin/$SYSTEM_BRANCH")
 if [ "$ACTUAL_SHA" != "$REMOTE_SHA" ]; then
-	echo "vendor/x2000_kernel_6.6 HEAD is $ACTUAL_SHA, expected latest origin/$KERNEL_BRANCH HEAD $REMOTE_SHA - re-run 00-fetch-vendor-sources.sh" >&2
+	echo "vendor/system HEAD is $ACTUAL_SHA, expected latest origin/$SYSTEM_BRANCH HEAD $REMOTE_SHA - re-run 00-fetch-vendor-sources.sh" >&2
 	exit 1
 fi
 

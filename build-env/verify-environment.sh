@@ -67,7 +67,7 @@ echo ""
 echo "=== Deliberately NOT expected here (Buildroot builds these itself) ==="
 if command -v mipsel-buildroot-linux-gnu-gcc >/dev/null 2>&1; then
 	echo "NOTE: mipsel-buildroot-linux-gnu-gcc found on PATH - only expected AFTER a real build has" \
-	     "run Stage 03 and put vendor/buildroot-x2000/output/host/bin on PATH; if this is a fresh" \
+	     "run Stage 03 and put vendor/system/buildroot/output/host/bin on PATH; if this is a fresh" \
 	     "image with no build yet, that's unexpected."
 else
 	echo "OK: mipsel-buildroot-linux-gnu-gcc correctly absent (bootstrapped at build time, not baked in)"

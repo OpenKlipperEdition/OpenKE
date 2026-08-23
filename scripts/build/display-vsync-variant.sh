@@ -50,7 +50,7 @@ set -eu
 VARIANT="${1:?usage: $0 <V0|V1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/display-vsync-gate.patch"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 MARKER="$REPO_ROOT/build-work/display-vsync-variant-applied.txt"
@@ -88,7 +88,7 @@ esac
 # which each only ever touch one shared DTS - here we scope narrowly since
 # other in-flight variant selections, e.g. wifi-sdio-variant.sh's own DTS
 # edits, may legitimately coexist and must not be discarded by this script).
-git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES
+git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES
 
 # Strip any previously-applied fragment block first, unconditionally -
 # same idempotent pattern as preempt-variant.sh. Marker text here has no
@@ -100,7 +100,7 @@ if grep -qF "$BEGIN_MARK" "$FRAGMENT"; then
 fi
 
 if [ "$VARIANT" = "V1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 	{
 		echo "$BEGIN_MARK"
 		echo "# Display investigation mission (2026-08-01) - DISPLAY-V1"

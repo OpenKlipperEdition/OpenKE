@@ -77,7 +77,7 @@ set -eu
 VARIANT="${1:?usage: $0 <FIX0|FIX1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/pinctrl-ownership-fix.patch"
 MARKER="$REPO_ROOT/build-work/pinctrl-ownership-fix-variant-applied.txt"
 
@@ -99,10 +99,10 @@ esac
 	exit 1
 }
 
-git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES
+git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES
 
 if [ "$VARIANT" = "FIX1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 fi
 
 mkdir -p "$(dirname "$MARKER")"

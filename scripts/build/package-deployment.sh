@@ -37,7 +37,7 @@ cp "$ARTIFACT_DIR/build-manifest.txt" "$PKG_DIR/build-manifest.txt"
 cp "$REPO_ROOT/baseline-difference.txt" "$PKG_DIR/baseline-difference.txt"
 
 echo "== decompiling DTB for package inclusion =="
-DTB_SRC="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
+DTB_SRC="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
 if [ -f "$DTB_SRC" ]; then
 	cp "$DTB_SRC" "$PKG_DIR/halley5_v30.dtb"
 	{ command -v dtc >/dev/null 2>&1 && dtc -I dtb -O dts "$PKG_DIR/halley5_v30.dtb" -o "$PKG_DIR/halley5_v30.decompiled.dts" 2>/dev/null || echo "dtc not available in this environment" >&2; } \

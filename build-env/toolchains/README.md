@@ -16,12 +16,12 @@
 
 ## Kernel / rootfs / native apps: Buildroot's own self-bootstrapped toolchain (NOT bundled)
 
-`mipsel-buildroot-linux-gnu-*` — built from source during `scripts/build/03-build-kernel-and-rootfs.sh`,
-from this project's own pinned Buildroot revision (`BUILDROOT_PIN` in `manifests/dependencies.conf`).
-This image does not bundle it and never will — bundling a pre-built copy would mean the toolchain
-stops being reproducible *from the pinned Buildroot source*, which is the actual point of pinning
-Buildroot in the first place. This image only supplies the *host* compiler (system gcc/g++) Buildroot
-itself needs to build its own target toolchain.
+`mipsel-buildroot-linux-gnu-*` — built from source during
+`scripts/build/03-build-kernel-and-rootfs.sh`, from the `buildroot/` subtree of the moving OKE
+System checkout (`vendor/system/buildroot`). The fetched System commit is recorded in
+`build-manifest.txt`. This image does not bundle it and never will — the build keeps the toolchain
+traceable to that System checkout. The image only supplies the host compiler (system gcc/g++)
+Buildroot itself needs to build its target toolchain.
 
 ## What pellcorp/k1-bash-build bundled that this image deliberately does NOT reproduce
 

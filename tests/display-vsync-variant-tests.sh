@@ -16,7 +16,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/display-vsync-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 AFFECTED_FILES="kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/Kconfig kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/ingenicfb.c kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/include/ingenicfb.h"
 
@@ -33,13 +33,13 @@ cp "$FRAGMENT" "$PRETEST_FRAGMENT"
 PRETEST_KERNEL_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 
 cleanup() {
 	cp "$PRETEST_FRAGMENT" "$FRAGMENT"
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	rm -f "$PRETEST_FRAGMENT"
 	rm -rf "$PRETEST_KERNEL_SNAPSHOT"
@@ -51,10 +51,10 @@ trap 'exit 143' TERM
 # --- Test 1: V0 leaves the vendor kernel checkout git-clean on the 3
 # affected files, and leaves no fragment block. ---
 sh "$VARIANT_SCRIPT" V0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "V0 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "V0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_FB_INGENIC_PAN_VSYNC_GATE' "$FRAGMENT"; then
 	fail "V0 left CONFIG_FB_INGENIC_PAN_VSYNC_GATE in the fragment"
@@ -65,7 +65,7 @@ fi
 # --- Test 2: V1 applies the patch (new Kconfig symbol present in source)
 # and selects it in the fragment exactly once. ---
 sh "$VARIANT_SCRIPT" V1 >/dev/null
-if grep -q 'config FB_INGENIC_PAN_VSYNC_GATE' "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/Kconfig"; then
+if grep -q 'config FB_INGENIC_PAN_VSYNC_GATE' "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/Kconfig"; then
 	pass
 else
 	fail "V1 did not add the FB_INGENIC_PAN_VSYNC_GATE Kconfig option to source"
@@ -79,12 +79,12 @@ fi
 
 # --- Test 3: V1's patch adds the new struct fields and the pan_display
 # bounds check (an independent, always-on correctness fix). ---
-if grep -q 'pan_vsync_seq' "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/include/ingenicfb.h"; then
+if grep -q 'pan_vsync_seq' "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/include/ingenicfb.h"; then
 	pass
 else
 	fail "V1 did not add the pan_vsync_seq field to ingenicfb.h"
 fi
-if grep -q 'out of range' "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/ingenicfb.c"; then
+if grep -q 'out of range' "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/fb_stage/ingenicfb.c"; then
 	pass
 else
 	fail "V1 did not add the next_frm bounds check to ingenicfb_pan_display()"
@@ -107,10 +107,10 @@ fi
 # --- Test 5: switching from V1 back to V0 restores clean affected files
 # and an empty fragment block. ---
 sh "$VARIANT_SCRIPT" V0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "switching from V1 back to V0 left the affected files modified: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "switching from V1 back to V0 left the affected files modified: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_FB_INGENIC_PAN_VSYNC_GATE' "$FRAGMENT"; then
 	fail "switching from V1 back to V0 left CONFIG_FB_INGENIC_PAN_VSYNC_GATE in the fragment"

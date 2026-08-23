@@ -20,7 +20,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-final-qualification-variant.sh"
 QUAL_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-qualification-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 
 KCONFIG_REL="kernel/kernel-6.6/drivers/input/touchscreen/Kconfig"
@@ -29,9 +29,9 @@ NS2009_REL="kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
 NEWFILE_REL="kernel/kernel-6.6/drivers/input/touchscreen/ns2009_final_qualification.c"
 AFFECTED_FILES="$KCONFIG_REL $MAKEFILE_REL $NS2009_REL"
 
-NS2009="$KERNEL_DIR/$NS2009_REL"
-NFQ="$KERNEL_DIR/$NEWFILE_REL"
-MAKEFILE="$KERNEL_DIR/$MAKEFILE_REL"
+NS2009="$SYSTEM_DIR/$NS2009_REL"
+NFQ="$SYSTEM_DIR/$NEWFILE_REL"
+MAKEFILE="$SYSTEM_DIR/$MAKEFILE_REL"
 FINAL_PATCH="$REPO_ROOT/scripts/build/patches/touch-final-qualification.patch"
 QUAL_PATCH="$REPO_ROOT/scripts/build/patches/touch-qualification-unified.patch"
 
@@ -48,7 +48,7 @@ cp "$FRAGMENT" "$PRETEST_FRAGMENT"
 PRETEST_KERNEL_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 PRETEST_NEWFILE_PRESENT=0
 [ -f "$NFQ" ] && PRETEST_NEWFILE_PRESENT=1
@@ -56,7 +56,7 @@ PRETEST_NEWFILE_PRESENT=0
 cleanup() {
 	cp "$PRETEST_FRAGMENT" "$FRAGMENT"
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	if [ "$PRETEST_NEWFILE_PRESENT" = "0" ]; then
 		rm -f "$NFQ"
@@ -71,10 +71,10 @@ trap 'exit 143' TERM
 # --- Test 1: FINALQUAL0 leaves the affected files git-clean and no
 # fragment block/marker. ---
 sh "$VARIANT_SCRIPT" FINALQUAL0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
 	pass
 else
-	fail "FINALQUAL0 did not produce clean affected files: $(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)"
+	fail "FINALQUAL0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)"
 fi
 if grep -q 'CONFIG_TOUCHSCREEN_NS2009_FINAL_QUALIFICATION' "$FRAGMENT"; then
 	fail "FINALQUAL0 left CONFIG_TOUCHSCREEN_NS2009_FINAL_QUALIFICATION in the fragment"
@@ -90,7 +90,7 @@ fi
 # against a torn-down tree. ---
 sh "$VARIANT_SCRIPT" FINALQUAL1 >/dev/null
 if grep -q 'config TOUCHSCREEN_NS2009_FINAL_QUALIFICATION' \
-	"$KERNEL_DIR/$KCONFIG_REL"; then
+	"$SYSTEM_DIR/$KCONFIG_REL"; then
 	pass
 else
 	fail "FINALQUAL1 did not add the TOUCHSCREEN_NS2009_FINAL_QUALIFICATION Kconfig option to source"
@@ -407,9 +407,9 @@ fi
 
 # --- Test 24: the patch applies cleanly to a pristine checkout (a direct
 # git apply --check, independent of the toggle script). ---
-git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
+git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
 rm -f "$NFQ"
-if git -C "$KERNEL_DIR" apply --check "$FINAL_PATCH" 2>/dev/null; then
+if git -C "$SYSTEM_DIR" apply --check "$FINAL_PATCH" 2>/dev/null; then
 	pass
 else
 	fail "$FINAL_PATCH does not apply cleanly to a pristine checkout"
@@ -419,23 +419,23 @@ fi
 # CONFIG_TOUCHSCREEN_NS2009_QUALIFICATION patch - directly verified in BOTH
 # apply orders, not merely assumed. Only run if that patch is present. ---
 if [ -f "$QUAL_PATCH" ]; then
-	git -C "$KERNEL_DIR" apply "$QUAL_PATCH"
-	if git -C "$KERNEL_DIR" apply --check "$FINAL_PATCH" 2>/dev/null; then
+	git -C "$SYSTEM_DIR" apply "$QUAL_PATCH"
+	if git -C "$SYSTEM_DIR" apply --check "$FINAL_PATCH" 2>/dev/null; then
 		pass
 	else
 		fail "FINALQUAL patch does not apply cleanly on top of the existing QUALIFICATION patch"
 	fi
-	git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
+	git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
 
-	git -C "$KERNEL_DIR" apply "$FINAL_PATCH"
-	if git -C "$KERNEL_DIR" apply --check "$QUAL_PATCH" 2>/dev/null; then
+	git -C "$SYSTEM_DIR" apply "$FINAL_PATCH"
+	if git -C "$SYSTEM_DIR" apply --check "$QUAL_PATCH" 2>/dev/null; then
 		pass
 	else
 		fail "the existing QUALIFICATION patch does not apply cleanly on top of the FINALQUAL patch"
 	fi
-	git -C "$KERNEL_DIR" apply -R "$FINAL_PATCH"
+	git -C "$SYSTEM_DIR" apply -R "$FINAL_PATCH"
 	rm -f "$NFQ"
-	git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
+	git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
 else
 	echo "SKIP: $QUAL_PATCH not present - skipping the two composability tests"
 fi
@@ -460,7 +460,7 @@ fi
 # --- Test 28: switching from FINALQUAL1 back to FINALQUAL0 restores clean
 # affected files and an empty fragment block. ---
 sh "$VARIANT_SCRIPT" FINALQUAL0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
 	pass
 else
 	fail "switching from FINALQUAL1 back to FINALQUAL0 left files modified"
@@ -504,7 +504,7 @@ if [ -f "$QUAL_VARIANT_SCRIPT" ]; then
 	fi
 	sh "$VARIANT_SCRIPT" FINALQUAL0 >/dev/null
 	sh "$QUAL_VARIANT_SCRIPT" QUAL0 >/dev/null
-	if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
+	if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
 		pass
 	else
 		fail "cleanup after the self-healing test left the tree dirty"

@@ -1,5 +1,5 @@
 # Baseline difference report
-# Generated: 2026-08-22T03:18:15Z
+# Generated: 2026-08-23T01:42:13Z
 # Baseline tag: nebulaos-canonical-baseline-2026-08-21-oke-6.6.152-prtouch-qualified (d8df982a879d6eb366715c2360cb2316e8e13b96)
 
 ## Tracked config/DTS artifacts (must be byte-identical)
@@ -14,8 +14,8 @@ New rootfs.squashfs file count: 0
 ## Allowed differences (expected, not flagged as failures)
 - guppyscreen_sha256 / guppybeep_sha256 (rebuilt GuppyScreen binary - the toolchain embeds a build
   timestamp, so bytes differ every build even from identical source; git_commit_guppyscreen below
-  is the real correctness pin)
-- git_commit_guppyscreen / git_commit_guppyscreen_dirty (2026-08-07: GuppyScreen is now a pinned,
+  is the source commit recorded by this build)
+- git_commit_guppyscreen / git_commit_guppyscreen_dirty (2026-08-07: GuppyScreen now follows the moving OKE branch,
   automatically-built vendor source, not present as a manifest field on the 2026-08-03 baseline
   at all - see manifests/dependencies.conf's GUPPYSCREEN_BRANCH)
 - git_commit_klipper / git_commit_klipper_dirty (z_compensate.py structured status contract)
@@ -30,48 +30,57 @@ New rootfs.squashfs file count: 0
 
 ## build-manifest.txt full diff (for reference, not a pass/fail signal by itself)
 diff --git a/artifacts/buildroot-halley5-v30-image/build-manifest.txt b/artifacts/buildroot-halley5-v30-image/build-manifest.txt
-index a4cb731..096ec26 100644
+index a4cb731..533c8ab 100644
 --- a/artifacts/buildroot-halley5-v30-image/build-manifest.txt
 +++ b/artifacts/buildroot-halley5-v30-image/build-manifest.txt
-@@ -1,20 +1,18 @@
+@@ -1,36 +1,32 @@
 -built_at=2026-08-20T17:44:55Z
-+built_at=2026-08-22T03:17:40Z
++built_at=2026-08-22T21:53:17Z
  build_image_repo=ghcr.io/coreflake1/nebulaos-build
  build_image_digest=sha256:a6ba57c69fa1ea630b037a1d1f55cf0c044a7f5a403bde9b155ea54bca1cceba
 -git_commit_main=a018dff5c735b4ba41d6ab3a622fe3c8d6d496a9
-+git_commit_main=ec013e597acb3953b13e7ea3a8a8857ebc9ab714
++git_commit_main=856441fee773d19f287f0ade11ceaa78cea6cfb6
  git_commit_main_dirty=yes
 -git_commit_kernel=ed5bc26c9b6f3cbbc01c9f9902838083c641d58d
-+git_commit_kernel=591bd3414e65004fb21b10ba7a2182e5bdd915f2
- git_commit_kernel_dirty=yes
- git_commit_buildroot=74d020081096972857acdb9e76c6c5335455d430
- git_commit_buildroot_dirty=yes
+-git_commit_kernel_dirty=yes
+-git_commit_buildroot=74d020081096972857acdb9e76c6c5335455d430
+-git_commit_buildroot_dirty=yes
 -git_commit_klipper=9ccb2e5d2da1c94694d277a605e7e0144c5d6884
++git_commit_system=864b2864ccea1b149061de366db6bfe5025c53ec
++git_commit_system_dirty=yes
 +git_commit_klipper=ac2a7f8b0e1ba61afe51e7e25583772d6e65e1fa
  git_commit_klipper_dirty=no
  git_commit_moonraker=d5ee17128bb88434aacdab90c2e9e990e2b64e4a
  git_commit_moonraker_dirty=no
- git_commit_guppyscreen=b15ad7f6cce9c40b61c0e5f678e3895b989deb13
+-git_commit_guppyscreen=b15ad7f6cce9c40b61c0e5f678e3895b989deb13
++git_commit_guppyscreen=1d4a7bcda57a1237befe9e996a2c450a42b818be
  git_commit_guppyscreen_dirty=yes
 -git_commit_pellcorp_creality=d18d354456a89c20507e574feaa34d6389e679ca
 -git_commit_pellcorp_creality_dirty=no
  git_commit_k1_ustreamer=18e30bb313d54b1b01dd995bd31ce5a3d5adffd6
  git_commit_k1_ustreamer_dirty=no
  git_commit_v4l_utils=3b22ab02b960e4d1e90618e9fce9b7c8a80d814a
-@@ -27,10 +25,10 @@ wifi_firmware_sha256=82ed67a211877efa47aff4aab83d6d2d1ccf3d5d0f5c396df97f292ade0
+ git_commit_v4l_utils_dirty=yes
+ git_submodules_k1_ustreamer=jpeg-9d@541f5a573b5cf1c2a1b67c33a6c83e964e6a1913;ustreamer@7fe8c873b382777da015dc475a706a04c1e3200b;
+ mainsail_zip_sha256=df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
+-guppyscreen_sha256=dd005d789ae0abf3c03f028cb1eba8b255032652c69b7ae9696b6be21a2e0f7f
+-guppybeep_sha256=0ff22357b38c365a77cc7a92260477150c9f435e649f5a02a2450d46e315355f
++guppyscreen_sha256=00b4cc00a71d11db149f9a1586d8b27b37e9aa920eae23a137cddbe595abffd8
++guppybeep_sha256=fe2a7d3b37aadfdb19f8357ca25efb37e776d785ca270f4553800d3002b1702c
+ wifi_firmware_sha256=82ed67a211877efa47aff4aab83d6d2d1ccf3d5d0f5c396df97f292ade01de9e
  wifi_clm_sha256=1dbe1a396b68786bb189b7c255318ae546fd2e9d15f70ccc8ecbdc52b6cd4c47
  wifi_nvram_sha256=78fee458ab69c0a66ea462f6d6769e15b36f73582693f4dbb5a0e8e8be3cfb0a
  regulatory_db_sha256=0a4abd7ae20d07bb70642937ccb2293a72a6504730eea45a698882599f586368
 -kernel_config_sha256=e4b840af30569b1fc4f5c76f862de9efc5907146a2a7973c9be3ec78c9be1d63
 -buildroot_config_sha256=fe95305b3643077e80f0396d00142c27f362de20a7b6b8f2b028047fd00c40b8
-+kernel_config_sha256=0759ecca83f1b109e36beb15e23272fa35883c63336602a5ce195db7e474f62a
-+buildroot_config_sha256=99ef55536ef64d036ded5b82907454e91fa7d0c7d5510bc615722a2ac0e2eb08
++kernel_config_sha256=9e5d2604297ab6a964ad88f46b8a3ea2a2e3d5c1c4c1568cfb4ce3b0b6e1fcd6
++buildroot_config_sha256=df64953f39f25093a71271be53d3e95863f0437d4c47ece2ba6c8171d055ddc5
  device_tree_sha256=d1ea79935327ff8755013e017b17d5cf39edac47037630e60019022a81090232
 -xImage_sha256=da7196833f7f695ca6b3f879a67b5236e9d69687b319409ed00227d31131e886
 -xImage_size=5500992
 -rootfs_squashfs_sha256=df838bc056322b0327dcef3111ecace1325015db2200533602ef02c6bffc59e1
 -rootfs_squashfs_size=119513088
-+xImage_sha256=3daf9d5cc5fdc0d29885ad744762ca9261194ee87d27e12039daadb5f4703c6a
++xImage_sha256=5eab49953043b6d5d59f559d312dc5e023ec61bc1b573f321779e30e2716a5ac
 +xImage_size=5541952
-+rootfs_squashfs_sha256=5ab53942ff981fa4ffb24b754df9fa5d980bf5c39e849c75b571861baf6a61d1
-+rootfs_squashfs_size=99483648
++rootfs_squashfs_sha256=7e60b5e544fba7516d06faf8cfd1c19a8e2ca28e0434b6c671496ee868f9ab44
++rootfs_squashfs_size=97378304

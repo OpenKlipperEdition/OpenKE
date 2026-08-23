@@ -22,13 +22,14 @@ GuppyScreen's Bootlin mips32el-musl cross-toolchain directly (Migration A — se
 
 ## What this image does NOT contain
 
-- **Project source.** `NebulaOS-firmware`, `NebulaOS-kernel`, `NebulaOS-klipper`,
-  `OpenKlipperEdition/GuppyScreen`, Buildroot, Moonraker — all fetched fresh by
-  `00-fetch-vendor-sources.sh` at build time; moving branches and immutable pins are configured in `manifests/dependencies.conf`. The image is
-  the factory; `dependencies.conf` is the material list.
+- **Project source.** `NebulaOS-firmware`, the full `OpenKlipperEdition/System` checkout,
+  `OpenKlipperEdition/GuppyScreen`, Klipper, and Moonraker — all fetched fresh by
+  `00-fetch-vendor-sources.sh` at build time; moving branches and immutable pins are configured in
+  `manifests/dependencies.conf`. The image is the factory; `dependencies.conf` is the material list.
 - **The kernel/rootfs/native-app target compiler.** That's Buildroot's own
-  `mipsel-buildroot-linux-gnu-*` toolchain, self-bootstrapped from source during Stage 03 from this
-  project's pinned Buildroot revision. This image supplies the *host* tools Buildroot needs to build
+  `mipsel-buildroot-linux-gnu-*` toolchain, self-bootstrapped from source during Stage 03 from the
+  moving OKE System `buildroot/` subtree; the fetched System commit is recorded in
+  `build-manifest.txt`. This image supplies the *host* tools Buildroot needs to build
   that toolchain, not the toolchain itself.
 
 ## Migration A vs. Migration B

@@ -32,11 +32,11 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/pinctrl-ownership-fix-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 C_REL="kernel/kernel-6.6/module_drivers/drivers/pinctrl/pinctrl-ingenic.c"
 H_REL="kernel/kernel-6.6/module_drivers/drivers/pinctrl/pinctrl-ingenic.h"
-C_FILE="$KERNEL_DIR/$C_REL"
-H_FILE="$KERNEL_DIR/$H_REL"
+C_FILE="$SYSTEM_DIR/$C_REL"
+H_FILE="$SYSTEM_DIR/$H_REL"
 AFFECTED_FILES="$C_REL $H_REL"
 
 PASS=0
@@ -46,16 +46,16 @@ fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 pass() { PASS=$((PASS + 1)); }
 
 [ -f "$VARIANT_SCRIPT" ] || { echo "SKIP: $VARIANT_SCRIPT not present"; exit 0; }
-[ -d "$KERNEL_DIR/.git" ] || { echo "SKIP: $KERNEL_DIR not a git checkout - run 00-fetch-vendor-sources.sh first"; exit 0; }
+[ -d "$SYSTEM_DIR/.git" ] || { echo "SKIP: $SYSTEM_DIR not a git checkout - run 00-fetch-vendor-sources.sh first"; exit 0; }
 
 PRETEST_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_SNAPSHOT/$f"
 done
 cleanup() {
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	rm -rf "$PRETEST_SNAPSHOT"
 }
@@ -65,10 +65,10 @@ trap 'exit 143' TERM
 
 # --- Test 1: FIX0 leaves the affected files git-clean. ---
 sh "$VARIANT_SCRIPT" FIX0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "FIX0 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "FIX0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 
 # --- Test 2: FIX0 (pristine) reproduces the actual root cause - the
@@ -177,10 +177,10 @@ fi
 # (idempotent switching, the same convention every sibling variant
 # script follows). ---
 sh "$VARIANT_SCRIPT" FIX0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "FIX0 after FIX1 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "FIX0 after FIX1 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 
 echo ""

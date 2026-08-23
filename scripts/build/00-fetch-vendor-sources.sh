@@ -29,7 +29,7 @@ require_setting() {
 	fi
 }
 
-for required in KERNEL_REPO KERNEL_BRANCH BUILDROOT_REPO BUILDROOT_PIN \
+for required in SYSTEM_REPO SYSTEM_BRANCH \
 	KLIPPER_REPO KLIPPER_BRANCH \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
@@ -121,28 +121,24 @@ echo "== WiFi firmware + CLM + NVRAM present and pin-verified =="
 mkdir -p "$VENDOR"
 cd "$VENDOR"
 
+# The former standalone Buildroot checkout is obsolete now that the full OKE
+# System repository supplies both the kernel and Buildroot. It is generated
+# vendor state, so remove only this explicit legacy checkout before proceeding.
+if [ -d "buildroot-x2000" ] || [ -L "buildroot-x2000" ]; then
+	echo "== removing obsolete standalone vendor/buildroot-x2000 checkout =="
+	rm -rf -- "buildroot-x2000"
+fi
+
 clone_pinned() {
 	name="$1"; url="$2"; ref="$3"; extra="$4"
-	staged_output=
 	if [ -d "$name/.git" ]; then
 		echo "== $name already present, verifying pin (not re-cloning) =="
 	else
-		# The CI cache can restore vendor/buildroot-x2000/output before the
-		# pinned source checkout exists. It can also restore an empty
-		# vendor/buildroot-x2000 parent left by a failed first clone. Do not
-		# let either cache-only shape make the real clone fail with Git's
-		# "destination path already exists and is not an empty directory"
-		# error. Preserve a real output tree while cloning, but reject any
-		# other unexpected contents instead of deleting them.
 		if [ -e "$name" ]; then
 			unexpected=$(find "$name" -mindepth 1 -maxdepth 1 ! -name output -print -quit)
 			if [ -n "$unexpected" ]; then
 				echo "FATAL: vendor/$name exists but is not a pinned git checkout and contains unexpected content: $unexpected" >&2
 				exit 1
-			fi
-			if [ "$name" = "buildroot-x2000" ] && [ -d "$name/output" ]; then
-				staged_output=$(mktemp -d "$VENDOR/.buildroot-output.XXXXXX")
-				mv "$name/output" "$staged_output/output"
 			fi
 			rmdir "$name" || {
 				echo "FATAL: vendor/$name could not be cleared safely before cloning" >&2
@@ -153,11 +149,6 @@ clone_pinned() {
 		git clone $extra "$url" "$name"
 		git -C "$name" fetch origin "$ref" 2>/dev/null || true
 		git -C "$name" checkout "$ref"
-		if [ -n "$staged_output" ]; then
-			mv "$staged_output/output" "$name/output"
-			rmdir "$staged_output"
-			echo "== restored cached $name/output after cloning =="
-		fi
 	fi
 	# Pin enforcement (2026-07-31, NEBULAOS_CAMERA_USB_RT_SOURCE_ANALYSIS.md's
 	# vendor-pin audit): previously this function only checked out the pinned
@@ -224,40 +215,51 @@ clone_branch() {
 	echo "== $name follows latest origin/$branch HEAD ($actual) =="
 }
 
-# X2000 kernel SDK, Open Klipper Edition System (FIRMWARE.md sec 39),
-# sparse-checked-out to kernel/kernel-6.6 only. Unlike every other source,
-# this deliberately tracks the latest remote HEAD of the requested branch.
-#
-# Special-cased (not clone_pinned) because of the sparse-checkout step and
-# moving-branch behavior. The vendor checkout is generated state: discard any
-# prior composed variants/build products, fetch OKE, and reset to origin/OKE.
-if [ ! -d "x2000_kernel_6.6/.git" ]; then
-	echo "== cloning x2000_kernel_6.6 (sparse: kernel/kernel-6.6 only) =="
-	git clone --filter=blob:none --sparse \
-		--branch "$KERNEL_BRANCH" \
-		"$KERNEL_REPO" \
-		x2000_kernel_6.6
-	git -C x2000_kernel_6.6 sparse-checkout set kernel/kernel-6.6
-else
-	echo "== x2000_kernel_6.6 already present, refreshing OKE =="
+# Open Klipper Edition System (FIRMWARE.md sec 39). The full OKE checkout
+# supplies both the Linux kernel and the Buildroot tree used by this build.
+# It deliberately follows the latest remote HEAD of the moving branch; the
+# exact commit is recorded once in build-manifest.txt for both consumers.
+legacy_system_dir=x2000_kernel_6.6
+if [ ! -e "system" ] && [ -d "$legacy_system_dir/.git" ]; then
+	echo "== migrating legacy $legacy_system_dir checkout to system =="
+	mv -- "$legacy_system_dir" system
+elif [ -e "$legacy_system_dir" ]; then
+	echo "FATAL: legacy vendor/$legacy_system_dir exists alongside vendor/system; remove or rename it before building" >&2
+	exit 1
 fi
-# The kernel checkout contains generated variant edits after a build. Reset
-# those before fetching so a moving branch can advance cleanly on the next run.
-git -C x2000_kernel_6.6 reset --hard >/dev/null
-git -C x2000_kernel_6.6 clean -fdx >/dev/null
-git -C x2000_kernel_6.6 fetch --prune origin "$KERNEL_BRANCH"
-git -C x2000_kernel_6.6 checkout -B "$KERNEL_BRANCH" "origin/$KERNEL_BRANCH"
-git -C x2000_kernel_6.6 reset --hard "origin/$KERNEL_BRANCH" >/dev/null
-kernel_actual=$(git -C x2000_kernel_6.6 rev-parse HEAD)
-kernel_remote=$(git -C x2000_kernel_6.6 rev-parse "origin/$KERNEL_BRANCH")
-[ "$kernel_actual" = "$kernel_remote" ] || {
-	echo "FATAL: vendor/x2000_kernel_6.6 did not land on origin/$KERNEL_BRANCH" >&2
+if [ ! -d "system/.git" ]; then
+	echo "== cloning full OpenKlipperEdition/System into system (depth 1) =="
+	git clone --depth 1 --single-branch \
+		--branch "$SYSTEM_BRANCH" \
+		"$SYSTEM_REPO" \
+		system
+else
+	echo "== system already present, refreshing full OKE System checkout =="
+	git -C system remote set-url origin "$SYSTEM_REPO"
+fi
+# Existing checkouts from the former sparse layout must be expanded before
+# reset/fetch so both System subtrees are available to the build.
+git -C system sparse-checkout disable 2>/dev/null || true
+git -C system reset --hard >/dev/null
+git -C system clean -fdx >/dev/null
+git -C system fetch --prune --depth 1 origin "$SYSTEM_BRANCH"
+git -C system checkout -B "$SYSTEM_BRANCH" "origin/$SYSTEM_BRANCH"
+git -C system reset --hard "origin/$SYSTEM_BRANCH" >/dev/null
+system_actual=$(git -C system rev-parse HEAD)
+system_remote=$(git -C system rev-parse "origin/$SYSTEM_BRANCH")
+[ "$system_actual" = "$system_remote" ] || {
+	echo "FATAL: vendor/system did not land on origin/$SYSTEM_BRANCH" >&2
 	exit 1
 }
-echo "== x2000_kernel_6.6 follows latest $KERNEL_BRANCH HEAD ($kernel_actual) =="
-
-# Buildroot config for this board family (Phase 0's find).
-clone_pinned buildroot-x2000 "$BUILDROOT_REPO" "$BUILDROOT_PIN"
+[ -f "system/buildroot/Makefile" ] || {
+	echo "FATAL: full OpenKlipperEdition/System checkout is missing buildroot/Makefile" >&2
+	exit 1
+}
+[ -f "system/kernel/kernel-6.6/Makefile" ] || {
+	echo "FATAL: full OpenKlipperEdition/System checkout is missing kernel/kernel-6.6/Makefile" >&2
+	exit 1
+}
+echo "== system follows latest $SYSTEM_BRANCH HEAD ($system_actual); kernel + buildroot present =="
 
 
 # Official upstream Klipper. This intentionally follows the latest master

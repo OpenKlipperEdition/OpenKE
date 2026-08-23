@@ -8,8 +8,8 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-IMAGES="$REPO_ROOT/vendor/buildroot-x2000/output/images"
-KERNEL_CONFIG="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/.config"
+IMAGES="$REPO_ROOT/vendor/system/buildroot/output/images"
+KERNEL_CONFIG="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/.config"
 MANIFEST_FILE="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/build-manifest.txt"
 
 # 2026-08-07: source the same manifests/dependencies.conf every other pin-
@@ -34,7 +34,8 @@ echo "=== vendor source pin drift ==="
 # audit): now also verifies the origin remote URL (catches a checkout quietly
 # repointed at a fork/mirror) and working-tree cleanliness against an
 # explicit per-repo allowlist of paths this project's own build scripts
-# deterministically modify (e.g. buildroot-x2000's vendor-patches copy-in) -
+# deterministically modify (e.g. the OKE System Buildroot subtree's generated
+# config-layer copy-in) -
 # an allowed path showing as different is NOT silently ignored as "fine
 # either way", it's explicitly named so a reader knows exactly why it's
 # expected, same convention as the rest of this project's "corrected in
@@ -86,18 +87,15 @@ check_vendor_pin klipper "$klipper_remote" \
 	klippy/chelper/c_helper.so
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
-# buildroot-x2000: the .mk change and board/halley5-nebulaos-* files are
-# deterministically copied in by 02-configure-buildroot.sh from tracked
-# sources in this repo (scripts/build/vendor-patches/, this project's own
-# config layer) - expected every time, not accidental drift.
-check_vendor_pin buildroot-x2000 "$BUILDROOT_PIN" \
-	"$BUILDROOT_REPO" 0 \
-	package/python-matplotlib/python-matplotlib.mk \
-	board/halley5-nebulaos-busybox-fragment.config \
-	board/halley5-nebulaos-fragment.config \
-	board/halley5-nebulaos-overlay/ \
-	board/halley5-nebulaos-wheels/ \
-	local.mk
+# Buildroot is the `buildroot/` subtree of the same OKE System checkout as
+# the kernel. The shared checkout is validated above; verify the subtree is
+# present and has the expected Buildroot entry point after configuration.
+buildroot_dir="$REPO_ROOT/vendor/system/buildroot"
+if [ -f "$buildroot_dir/Makefile" ]; then
+	echo "OK   vendor/system/buildroot is the active OKE Buildroot subtree"
+else
+	echo "MISS vendor/system/buildroot is missing its Buildroot Makefile"
+fi
 check_vendor_pin k1-ustreamer "$K1_USTREAMER_PIN" \
 	"$K1_USTREAMER_REPO" 0
 # k1-ustreamer's own real git submodules (jpeg-9d, ustreamer) - pinned via
@@ -120,8 +118,8 @@ fi
 check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 	"$V4L_UTILS_REPO" 0 \
 	messages.mo
-# x2000_kernel_6.6: deliberate moving dependency. Stage 00 refreshes it to
-# the latest remote HEAD of KERNEL_BRANCH, and stage 01 independently checks
+# system: deliberate moving dependency. Stage 00 refreshes it to
+# the latest remote HEAD of SYSTEM_BRANCH, and stage 01 independently checks
 # that branch/remote-HEAD invariant before variants are composed.
 #
 # bulk_dirty_expected=1: this checkout is DELIBERATELY left dirty by
@@ -129,27 +127,27 @@ check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 # the fetched branch HEAD) by the time this verify step runs - not drift.
 # assert-baseline-config.sh (run earlier in the pipeline) is the real,
 # precise content-level check of what that dirt should contain.
-kernel_dir="$REPO_ROOT/vendor/x2000_kernel_6.6"
-kernel_branch=$(git -C "$kernel_dir" symbolic-ref --short HEAD 2>/dev/null || echo "unknown")
-kernel_actual=$(git -C "$kernel_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
-kernel_remote=$(git -C "$kernel_dir" rev-parse "origin/$KERNEL_BRANCH" 2>/dev/null || echo "unknown")
-if [ "$kernel_branch" = "$KERNEL_BRANCH" ] && [ "$kernel_actual" = "$kernel_remote" ]; then
-	echo "OK   vendor/x2000_kernel_6.6 follows latest $KERNEL_BRANCH HEAD ($kernel_actual)"
+system_dir="$REPO_ROOT/vendor/system"
+system_branch=$(git -C "$system_dir" symbolic-ref --short HEAD 2>/dev/null || echo "unknown")
+system_actual=$(git -C "$system_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
+system_remote=$(git -C "$system_dir" rev-parse "origin/$SYSTEM_BRANCH" 2>/dev/null || echo "unknown")
+if [ "$system_branch" = "$SYSTEM_BRANCH" ] && [ "$system_actual" = "$system_remote" ]; then
+	echo "OK   vendor/system follows latest $SYSTEM_BRANCH HEAD ($system_actual)"
 else
-	echo "MISS vendor/x2000_kernel_6.6 is branch=$kernel_branch HEAD=$kernel_actual, expected $KERNEL_BRANCH at origin/$KERNEL_BRANCH=$kernel_remote"
+	echo "MISS vendor/system is branch=$system_branch HEAD=$system_actual, expected $SYSTEM_BRANCH at origin/$SYSTEM_BRANCH=$system_remote"
 fi
-kernel_remotes=$(git -C "$kernel_dir" remote -v 2>/dev/null)
-if printf '%s\n' "$kernel_remotes" | grep -qF "$KERNEL_REPO"; then
-	echo "OK   vendor/x2000_kernel_6.6 has a remote matching $KERNEL_REPO"
+system_remotes=$(git -C "$system_dir" remote -v 2>/dev/null)
+if printf '%s\n' "$system_remotes" | grep -qF "$SYSTEM_REPO"; then
+	echo "OK   vendor/system has a remote matching $SYSTEM_REPO"
 else
-	echo "MISS vendor/x2000_kernel_6.6 has no remote matching expected URL $KERNEL_REPO"
+	echo "MISS vendor/system has no remote matching expected URL $SYSTEM_REPO"
 fi
-kernel_dirty=$(git -C "$kernel_dir" status --porcelain -uall 2>/dev/null)
-if [ -z "$kernel_dirty" ]; then
-	echo "OK   vendor/x2000_kernel_6.6 working tree has no unexplained changes"
+system_dirty=$(git -C "$system_dir" status --porcelain -uall 2>/dev/null)
+if [ -z "$system_dirty" ]; then
+	echo "OK   vendor/system working tree has no unexplained changes"
 else
-	echo "OK   vendor/x2000_kernel_6.6 working tree is dirty, as expected after apply-qualified-baseline.sh:"
-	printf '%s\n' "$kernel_dirty" | sed 's/^/     /'
+	echo "OK   vendor/system working tree is dirty, as expected after apply-qualified-baseline.sh:"
+	printf '%s\n' "$system_dirty" | sed 's/^/     /'
 fi
 # GuppyScreen follows the configured moving OKE branch. Stage 00 refreshes the
 # shallow checkout to origin/$GUPPYSCREEN_BRANCH; verify both the fetched HEAD
@@ -288,8 +286,8 @@ fi
 # intentionally-disabled reference-design block disabled, and every required
 # product device enabled. Decompiles with the dtc host tool Buildroot already
 # builds (output/host/bin/dtc) - no Docker/network needed for this check.
-DTB="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
-DTC="$REPO_ROOT/vendor/buildroot-x2000/output/host/bin/dtc"
+DTB="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
+DTC="$REPO_ROOT/vendor/system/buildroot/output/host/bin/dtc"
 echo "=== production DTB capability assertions ==="
 if [ -f "$DTB" ] && [ -x "$DTC" ]; then
 	DECOMPILED=$(mktemp)

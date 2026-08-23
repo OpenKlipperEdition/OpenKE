@@ -4,7 +4,7 @@
 # (pre-qualification mission Phase A4, 2026-07-31).
 #
 # Unlike this repo's other offline test suites, this one operates
-# against the real vendor/x2000_kernel_6.6 checkout rather than a
+# against the real vendor/system checkout rather than a
 # fixture - the script's whole job is editing that real file via git-
 # scoped sed ranges, and a fixture DTS would need to duplicate its exact
 # msc0/msc1 structure to be meaningful, risking drifting out of sync with
@@ -23,7 +23,7 @@
 # before any mutation, restore exactly those bytes on exit (success,
 # failure, or signal) - never assume W0 was the starting state.
 #
-# Skips (not fails) if vendor/x2000_kernel_6.6 isn't fetched yet.
+# Skips (not fails) if vendor/system isn't fetched yet.
 #
 # Usage: sh tests/wifi-sdio-variant-tests.sh
 
@@ -32,8 +32,8 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/wifi-sdio-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
-DTS="$KERNEL_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
+DTS="$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
 
 if [ ! -f "$DTS" ]; then
 	echo "SKIP: $DTS not present - run 00-fetch-vendor-sources.sh first to exercise this suite"
@@ -88,7 +88,7 @@ msc0_baseline=$(msc0_props)
 
 # --- Test 1: W0 leaves the tree git-clean. ---
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain)" ]; then
 	pass
 else
 	fail "W0 did not produce a git-clean tree"
@@ -151,7 +151,7 @@ fi
 # byte-identical, git-clean baseline. ---
 sh "$VARIANT_SCRIPT" W3 >/dev/null
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain)" ]; then
 	pass
 else
 	fail "switching from W3 back to W0 did not produce a git-clean tree"

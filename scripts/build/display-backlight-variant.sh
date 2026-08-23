@@ -49,9 +49,9 @@ set -eu
 VARIANT="${1:?usage: $0 <S0|S1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
+DTS="$SYSTEM_DIR/$DTS_REL"
 MARKER="$REPO_ROOT/build-work/display-backlight-variant-applied.txt"
 
 case "$VARIANT" in
@@ -88,7 +88,7 @@ fi
 # other uncommitted change to this file, which is exactly why the guard
 # above exists: this script is no longer the only thing editing this file
 # outside of a reviewed commit now that FINAL1 is a real, accepted variant.
-git -C "$KERNEL_DIR" checkout -- "$DTS_REL"
+git -C "$SYSTEM_DIR" checkout -- "$DTS_REL"
 
 if ! grep -q '^&pwm {' "$DTS"; then
 	echo "FATAL: could not find the &pwm node in $DTS - has the board DTS changed?" >&2

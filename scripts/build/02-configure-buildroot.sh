@@ -17,7 +17,7 @@
 # or the kernel fragment/buildroot.config artifacts, and before 03/05 - a real
 # bug this session (FIRMWARE.md sec 24): editing the git-tracked overlay
 # template alone does nothing, since Buildroot only ever reads from
-# vendor/buildroot-x2000/board/halley5-nebulaos-overlay/ (gitignored), which
+# vendor/system/buildroot/board/halley5-nebulaos-overlay/ (gitignored), which
 # this script is what syncs the template into. A rebuild after only touching
 # the template, without re-running this first, silently uses whatever this
 # script last copied there.
@@ -39,7 +39,7 @@
 # elsewhere and do not get invalidated by removing target files directly, so
 # deleting output/target/ alone leaves it mostly empty instead of clean) - a
 # renamed or deleted overlay file must also be removed by hand from
-# vendor/buildroot-x2000/output/target/ before the next 05-final-build.sh, or
+# vendor/system/buildroot/output/target/ before the next 05-final-build.sh, or
 # the build needs a full clean. 06-verify.sh also cannot catch this on its
 # own: it only inspects rootfs.ext2, and both rootfs.ext2 and rootfs.squashfs
 # are built from this same stale output/target/, so a leftover file is wrong
@@ -70,18 +70,18 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 . "$DEPS_MANIFEST"
 
 # 2026-07-23: this and the other numbered build stages all write into the
-# same shared vendor/buildroot-x2000 tree - running two of these at once
+# same shared vendor/system/buildroot tree - running two of these at once
 # (e.g. from two terminals) would silently interleave writes. Cheap
 # insurance: a single exclusive lock file, held for the whole script.
 exec 9>"$REPO_ROOT/.nebulaos-build.lock"
 flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
 
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 ARTIFACTS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
-KERNEL_SRCDIR="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+KERNEL_SRCDIR="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 
-if [ ! -d "$BUILDROOT_DIR/.git" ]; then
-	echo "vendor/buildroot-x2000 not found - run 00-fetch-vendor-sources.sh first" >&2
+if [ ! -f "$BUILDROOT_DIR/Makefile" ]; then
+	echo "vendor/system/buildroot not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
 

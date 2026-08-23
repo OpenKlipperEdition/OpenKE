@@ -62,7 +62,7 @@ set -eu
 VARIANT="${1:?usage: $0 <QUAL0|QUAL1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/touch-qualification-unified.patch"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 MARKER="$REPO_ROOT/build-work/touch-qualification-variant-applied.txt"
@@ -101,21 +101,21 @@ esac
 # checkout below would silently wipe FINALQUAL1's Kconfig symbol and
 # ns2009.c changes with zero error - refuse instead.
 if grep -qF "config TOUCHSCREEN_NS2009_FINAL_QUALIFICATION" \
-	"$KERNEL_DIR/kernel/kernel-6.6/drivers/input/touchscreen/Kconfig" 2>/dev/null; then
+	"$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/Kconfig" 2>/dev/null; then
 	echo "FATAL: touch-final-qualification-variant.sh's accepted FINALQUAL1 state is already applied." >&2
 	echo "This script (a superseded prototype) would silently discard it. Refusing to run." >&2
 	echo "Start from a pristine checkout (00-fetch-vendor-sources.sh only) if you genuinely need QUAL1." >&2
 	exit 1
 fi
 
-git -C "$KERNEL_DIR" checkout -- $AFFECTED_FILES
+git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES
 
 if grep -qF "$BEGIN_MARK" "$FRAGMENT"; then
 	sed -i "/^${BEGIN_MARK}\$/,/^${END_MARK}\$/d" "$FRAGMENT"
 fi
 
 if [ "$VARIANT" = "QUAL1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 	{
 		echo "$BEGIN_MARK"
 		echo "# Display/touch investigation mission unification (2026-08-01+) -"

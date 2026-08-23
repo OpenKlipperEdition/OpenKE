@@ -8,7 +8,7 @@
 # docs/BOOT_WARNING_AUDIT.md's regulatory.db entry for the full trace.
 #
 # Deliberately mirrors the exact version Buildroot's own wireless-regdb
-# package pins (vendor/buildroot-x2000/package/wireless-regdb/wireless-regdb.mk,
+# package pins (vendor/system/buildroot/package/wireless-regdb/wireless-regdb.mk,
 # WIRELESS_REGDB_VERSION), fetched from the same BR2_KERNEL_MIRROR-relative
 # path, so the copy staged here and the copy Buildroot installs into the
 # rootfs are byte-identical - not two independently-sourced regulatory
@@ -31,7 +31,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 DEST="$REPO_ROOT/scripts/build/overlay/lib/firmware"
 
-# Pinned to match vendor/buildroot-x2000/package/wireless-regdb/wireless-regdb.mk
+# Pinned to match vendor/system/buildroot/package/wireless-regdb/wireless-regdb.mk
 # exactly - keep these two in sync if that package's version ever changes.
 REGDB_VERSION="2023.09.01"
 REGDB_MIRROR="https://cdn.kernel.org/pub/software/network/wireless-regdb"

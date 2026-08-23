@@ -45,9 +45,9 @@ set -eu
 VARIANT="${1:?usage: $0 <W0|W1|W2|W3>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
+DTS="$SYSTEM_DIR/$DTS_REL"
 MARKER="$REPO_ROOT/build-work/wifi-sdio-variant-applied.txt"
 
 case "$VARIANT" in

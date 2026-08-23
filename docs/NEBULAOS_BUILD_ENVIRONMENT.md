@@ -18,14 +18,15 @@ See `build-env/Dockerfile` and `build-env/versions.env` for the exact, current, 
 
 ## What does it NOT contain?
 
-- **Project source.** `NebulaOS-firmware`, `NebulaOS-kernel`, `NebulaOS-klipper`,
-  `OpenKlipperEdition/GuppyScreen`, Buildroot, Moonraker, kernel source — all fetched fresh by
-  `00-fetch-vendor-sources.sh` at build time; moving branches and immutable inputs are configured in `manifests/dependencies.conf`. The image is
-  the factory; the manifest is the material list; unchanged by this migration.
+- **Project source.** `NebulaOS-firmware`, the full `OpenKlipperEdition/System` checkout,
+  `OpenKlipperEdition/GuppyScreen`, Klipper, and Moonraker — all fetched fresh by
+  `00-fetch-vendor-sources.sh` at build time; moving branches and immutable inputs are configured in
+  `manifests/dependencies.conf`. The image is the factory; the manifest is the material list.
 - **The kernel/rootfs/native-app target compiler.** `mipsel-buildroot-linux-gnu-*` is Buildroot's own
-  self-bootstrapped toolchain, built from source during Stage 03 from the project's pinned Buildroot
-  revision. Bundling a pre-built copy would break the actual point of pinning Buildroot in the first
-  place — this image supplies only the *host* compiler Buildroot itself needs to build it.
+  self-bootstrapped toolchain, built from source during Stage 03 from the moving OKE System
+  `buildroot/` subtree (the fetched System commit is recorded in `build-manifest.txt`). Bundling a
+  pre-built copy would break the source traceability of the compiler — this image supplies only the
+  *host* compiler Buildroot itself needs to build it.
 
 ## Why is it pinned by digest, not a tag?
 
@@ -38,7 +39,7 @@ one place this is recorded; `build.sh` reads it directly, never a tag.
 
 ## Why does Buildroot still generate the target toolchain?
 
-Because that's what makes the *kernel and rootfs* reproducible from the pinned Buildroot source —
+Because that's what makes the *kernel and rootfs* reproducible from the fetched OKE System source —
 baking a pre-built `mipsel-buildroot-linux-gnu-gcc` into the build image would mean the actual
 compiler producing NebulaOS's kernel/rootfs/native-app binaries is no longer traceable to a pinned,
 auditable source. The unified image changes *where the build runs*, not *what Buildroot itself

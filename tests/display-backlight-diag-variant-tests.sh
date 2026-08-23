@@ -27,12 +27,12 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/display-backlight-diag-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
+DTS="$SYSTEM_DIR/$DTS_REL"
 DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_probe_diag.c"
-DRIVER="$KERNEL_DIR/$DRIVER_REL"
+DRIVER="$SYSTEM_DIR/$DRIVER_REL"
 AFFECTED_FILES="kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig kernel/kernel-6.6/module_drivers/drivers/misc/Makefile $DTS_REL"
 
 PASS=0
@@ -48,7 +48,7 @@ cp "$FRAGMENT" "$PRETEST_FRAGMENT"
 PRETEST_KERNEL_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 PRETEST_DRIVER_EXISTED=0
 [ -f "$DRIVER" ] && PRETEST_DRIVER_EXISTED=1
@@ -56,7 +56,7 @@ PRETEST_DRIVER_EXISTED=0
 cleanup() {
 	cp "$PRETEST_FRAGMENT" "$FRAGMENT"
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	if [ "$PRETEST_DRIVER_EXISTED" = "0" ]; then
 		rm -f "$DRIVER"
@@ -71,10 +71,10 @@ trap 'exit 143' TERM
 # --- Test 1: DIAG0 leaves the affected files git-clean, no driver file,
 # no fragment block. ---
 sh "$VARIANT_SCRIPT" DIAG0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "DIAG0 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "DIAG0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if [ -f "$DRIVER" ]; then
 	fail "DIAG0 left the diagnostic driver file present"
@@ -96,7 +96,7 @@ else
 	fail "DIAG1 did not create $DRIVER_REL"
 fi
 if grep -q 'config NEBULAOS_BACKLIGHT_PROBE_DIAG' \
-	"$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig"; then
+	"$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig"; then
 	pass
 else
 	fail "DIAG1 did not add the NEBULAOS_BACKLIGHT_PROBE_DIAG Kconfig option to source"
@@ -549,10 +549,10 @@ fi
 # --- Test 18: switching from DIAG1 back to DIAG0 restores clean affected
 # files, removes the driver file, and empties the fragment block. ---
 sh "$VARIANT_SCRIPT" DIAG0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "switching from DIAG1 back to DIAG0 left the affected files modified: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "switching from DIAG1 back to DIAG0 left the affected files modified: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if [ -f "$DRIVER" ]; then
 	fail "switching from DIAG1 back to DIAG0 left the diagnostic driver file present"

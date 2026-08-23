@@ -10,7 +10,7 @@
  * keep this a single-variable test against the exact same ABI/libc busybox
  * itself was built with:
  *   docker run --rm --user root \
- *     -v vendor/buildroot-x2000:/src -v scripts/build:/out \
+ *     -v vendor/system/buildroot:/src -v scripts/build:/out \
  *     pellcorp/k1-bash-build bash -c \
  *     'PATH=/src/output/host/bin:$PATH mipsel-buildroot-linux-gnu-gcc \
  *      -static -Os -o /out/overlay/diag_init /out/diag_init.c'

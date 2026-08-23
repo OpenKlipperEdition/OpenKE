@@ -62,7 +62,7 @@ replacing the running OS.
   write, separate deliberate marker-flip step) exists specifically to be
   the *only* way the running kernel/rootfs changes. There is no git
   checkout of kernel or Buildroot source anywhere on the live device -
-  `vendor/x2000_kernel_6.6` and `vendor/buildroot-x2000` are build-host-
+  the full `vendor/system` OKE System checkout (including its `buildroot/` subtree) is build-host-
   only, gitignored, never shipped to the printer.
 - Formalized here as a standing rule for the same reason as GuppyScreen's
   entry above: any future convenience script that tries to "quick-patch"

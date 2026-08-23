@@ -34,7 +34,7 @@ flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-buil
 # this script spawns a nested container of its own any more to leak (see
 # 02-configure-buildroot.sh's own Phase 11 note for the full rationale).
 VENDOR="$REPO_ROOT/vendor"
-BUILDROOT_DIR="$VENDOR/buildroot-x2000"
+BUILDROOT_DIR="$VENDOR/system/buildroot"
 OVERLAY="$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
 TOOLCHAIN_HOST="$BUILDROOT_DIR/output/host"
 SYSROOT="$TOOLCHAIN_HOST/mipsel-buildroot-linux-gnu/sysroot"
@@ -49,7 +49,7 @@ fi
 # HOST-built python3 - identical CPython 3.11 version/build to the target,
 # so bytecode magic numbers match exactly, the same tool
 # BR2_PACKAGE_PYTHON3_PYC_ONLY already uses for system packages (see
-# vendor/buildroot-x2000/package/python3/python3.mk). Used below to
+# vendor/system/buildroot/package/python3/python3.mk). Used below to
 # precompile Klipper/Moonraker's own Python source, which - unlike system
 # Buildroot packages - was never routed through that mechanism. Degrade to
 # source-only (no precompiled .pyc) rather than failing the build if
@@ -638,7 +638,7 @@ echo "== factory seeds created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/") =="
 # wifi-firmware-v1.0.0) is not - restricting the match pattern is what
 # actually fixes this, not a coincidence of current tag names.
 firmware_tag=$(git -C "$REPO_ROOT" describe --tags --match 'nebulaos-*' 2>/dev/null || echo "unknown")
-kernel_sha=$(git -C "$VENDOR/x2000_kernel_6.6" rev-parse HEAD 2>/dev/null || echo "unknown")
+kernel_sha=$(git -C "$VENDOR/system" rev-parse HEAD 2>/dev/null || echo "unknown")
 cat > "$OVERLAY/opt/nebulaos-version.json" <<EOF
 {
   "build_date": "$build_date",

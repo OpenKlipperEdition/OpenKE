@@ -2,7 +2,7 @@
 #
 # Regression tests proving tests/wifi-sdio-variant-tests.sh and
 # tests/preempt-variant-tests.sh preserve the REAL pre-test state of the
-# real files they operate on (vendor/x2000_kernel_6.6's DTS and the
+# real files they operate on (vendor/system's DTS and the
 # tracked buildroot Kconfig fragment), rather than resetting to a
 # hardcoded W0/R0 baseline - the real defect found live during the alpha
 # baseline freeze mission (2026-08-01): applying W3+R1 and then running
@@ -22,7 +22,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
 WIFI_SUITE="$REPO_ROOT/tests/wifi-sdio-variant-tests.sh"
 WIFI_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/wifi-sdio-variant.sh"
-DTS="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
+DTS="$REPO_ROOT/vendor/system/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
 
 PREEMPT_SUITE="$REPO_ROOT/tests/preempt-variant-tests.sh"
 PREEMPT_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/preempt-variant.sh"
@@ -188,11 +188,11 @@ fi
 sh "$WIFI_VARIANT_SCRIPT" W3 >/dev/null 2>&1
 sh "$PREEMPT_VARIANT_SCRIPT" R1 >/dev/null 2>&1
 main_status_before=$(git -C "$REPO_ROOT" status --porcelain -- . ":!$FRAGMENT")
-kernel_status_before=$(git -C "$REPO_ROOT/vendor/x2000_kernel_6.6" status --porcelain -- . ":!kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts")
+kernel_status_before=$(git -C "$REPO_ROOT/vendor/system" status --porcelain -- . ":!kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts")
 sh "$WIFI_SUITE" >/dev/null 2>&1
 sh "$PREEMPT_SUITE" >/dev/null 2>&1
 main_status_after=$(git -C "$REPO_ROOT" status --porcelain -- . ":!$FRAGMENT")
-kernel_status_after=$(git -C "$REPO_ROOT/vendor/x2000_kernel_6.6" status --porcelain -- . ":!kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts")
+kernel_status_after=$(git -C "$REPO_ROOT/vendor/system" status --porcelain -- . ":!kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts")
 if [ "$main_status_before" = "$main_status_after" ] && [ "$kernel_status_before" = "$kernel_status_after" ]; then
 	pass
 else
@@ -201,7 +201,7 @@ fi
 # And the target files themselves must still show the W3/R1 selection
 # these suites were never supposed to disturb.
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- "$FRAGMENT")" ] \
-	&& [ -n "$(git -C "$REPO_ROOT/vendor/x2000_kernel_6.6" status --porcelain -- kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts)" ]; then
+	&& [ -n "$(git -C "$REPO_ROOT/vendor/system" status --porcelain -- kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts)" ]; then
 	pass
 else
 	fail "W3/R1 selection was lost by the time both suites finished (expected both target files to still show as modified)"

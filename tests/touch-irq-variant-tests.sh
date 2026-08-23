@@ -15,7 +15,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-irq-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 AFFECTED_FILES="kernel/kernel-6.6/drivers/input/touchscreen/Kconfig kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
 
@@ -32,13 +32,13 @@ cp "$FRAGMENT" "$PRETEST_FRAGMENT"
 PRETEST_KERNEL_SNAPSHOT=$(mktemp -d)
 for f in $AFFECTED_FILES; do
 	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$f")"
-	cp "$KERNEL_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
+	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 
 cleanup() {
 	cp "$PRETEST_FRAGMENT" "$FRAGMENT"
 	for f in $AFFECTED_FILES; do
-		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$KERNEL_DIR/$f"
+		cp "$PRETEST_KERNEL_SNAPSHOT/$f" "$SYSTEM_DIR/$f"
 	done
 	rm -f "$PRETEST_FRAGMENT"
 	rm -rf "$PRETEST_KERNEL_SNAPSHOT"
@@ -49,10 +49,10 @@ trap 'exit 143' TERM
 
 # --- Test 1: I0 leaves the affected files git-clean and no fragment block. ---
 sh "$VARIANT_SCRIPT" I0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "I0 did not produce clean affected files: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "I0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_TOUCHSCREEN_NS2009_PENDOWN_IRQ' "$FRAGMENT"; then
 	fail "I0 left CONFIG_TOUCHSCREEN_NS2009_PENDOWN_IRQ in the fragment"
@@ -62,7 +62,7 @@ fi
 
 # --- Test 2: I1 applies the patch and selects the option exactly once. ---
 sh "$VARIANT_SCRIPT" I1 >/dev/null
-if grep -q 'config TOUCHSCREEN_NS2009_PENDOWN_IRQ' "$KERNEL_DIR/kernel/kernel-6.6/drivers/input/touchscreen/Kconfig"; then
+if grep -q 'config TOUCHSCREEN_NS2009_PENDOWN_IRQ' "$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/Kconfig"; then
 	pass
 else
 	fail "I1 did not add the TOUCHSCREEN_NS2009_PENDOWN_IRQ Kconfig option to source"
@@ -77,7 +77,7 @@ fi
 # --- Test 3: I1's patch adds the threaded IRQ handler, both-edges trigger
 # flags, and storm-protection logic, and leaves the existing poll path
 # structurally intact (input_setup_polling call still present unmodified). ---
-NS2009="$KERNEL_DIR/kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
+NS2009="$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
 if grep -q 'ns2009_pendown_irq_thread' "$NS2009"; then
 	pass
 else
@@ -114,10 +114,10 @@ fi
 # --- Test 5: switching from I1 back to I0 restores clean affected files
 # and an empty fragment block. ---
 sh "$VARIANT_SCRIPT" I0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
 	pass
 else
-	fail "switching from I1 back to I0 left the affected files modified: $(git -C "$KERNEL_DIR" diff -- $AFFECTED_FILES)"
+	fail "switching from I1 back to I0 left the affected files modified: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
 fi
 if grep -q 'CONFIG_TOUCHSCREEN_NS2009_PENDOWN_IRQ' "$FRAGMENT"; then
 	fail "switching from I1 back to I0 left CONFIG_TOUCHSCREEN_NS2009_PENDOWN_IRQ in the fragment"

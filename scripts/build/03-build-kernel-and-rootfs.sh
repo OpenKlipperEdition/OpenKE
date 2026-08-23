@@ -7,7 +7,7 @@
 # IMPORTANT: never move/rename this checkout mid-build. A real bug this
 # session (FIRMWARE.md sec 14): several of Buildroot's own host tools (e.g.
 # glib-compile-schemas) get built with their RUNPATH hardcoded to whatever
-# absolute path buildroot-x2000/ was actually AT the first time they were
+# absolute path vendor/system/buildroot/ was actually AT the first time they were
 # built - a later stage run against a relocated/renamed checkout will fail
 # with "cannot open shared object file" even though nothing about the build
 # itself changed. Pick a checkout location and never move it mid-build.
@@ -82,8 +82,8 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 exec 9>"$REPO_ROOT/.nebulaos-build.lock"
 flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
 
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
-KERNEL_MOUNT="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
+KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 
 if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 	echo "buildroot not configured - run 02-configure-buildroot.sh first" >&2
@@ -92,7 +92,7 @@ fi
 
 # Stale-config purge (2026-07-31, per the NEBULAOS_CAMERA_USB_RT_SOURCE
 # _ANALYSIS.md vendor-pin audit): a real, previously-undetected gotcha was
-# found on this exact checkout - vendor/x2000_kernel_6.6/kernel/kernel-6.6/
+# found on this exact checkout - vendor/system/kernel/kernel-6.6/
 # .config and .config.old, dated well before a real Kconfig fragment fix
 # (the BCMDHD-disable change), sitting stale in the mounted kernel source
 # tree. Whether `make linux-dirclean` below reliably wipes an

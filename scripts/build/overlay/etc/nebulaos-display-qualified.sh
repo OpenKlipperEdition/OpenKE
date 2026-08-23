@@ -165,7 +165,7 @@ ndq_compute_expected_checksum() {
 # durable.
 #
 # File-content fsync: BusyBox's `dd conv=fsync` (CONFIG_DD=y, confirmed in
-# vendor/buildroot-x2000/package/busybox/busybox.config) calls fsync() on
+# vendor/system/buildroot/package/busybox/busybox.config) calls fsync() on
 # its output file before exiting - already the established idiom in this
 # codebase for exactly this (S03nebulaos-diskswap uses `dd ... conv=fsync`
 # to durably write the swapfile). Reused here rather than inventing a new

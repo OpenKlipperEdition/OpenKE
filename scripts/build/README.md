@@ -73,10 +73,10 @@ Buildroot's own overlay dir). No manual step, no real device required.
 ## What each stage does
 
 1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs.
-   into `vendor/`, refreshing the X2000 kernel SDK at the latest `OKE` branch HEAD, official upstream
+   into `vendor/`, refreshing the full OpenKlipperEdition/System OKE checkout (kernel + Buildroot), official upstream
    Klipper at `master`, and GuppyScreen at the latest `OKE` branch HEAD. Immutable inputs such as
-   Buildroot (`lone0/buildroot-x2000`), Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`,
-   and Mainsail remain pinned and hash-verified.
+   Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`, and Mainsail remain pinned and
+   hash-verified.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125
      WiFi firmware + its own matching CLM blob directly from Infineon's own upstream repo
      (`Infineon/ifx-linux-firmware`, pinned commit, hash-verified) and stages them as
@@ -119,7 +119,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 ## Output
 
-`vendor/buildroot-x2000/output/images/{xImage,rootfs.ext2,rootfs.squashfs}` (this stage's own
+`vendor/system/buildroot/output/images/{xImage,rootfs.ext2,rootfs.squashfs}` (this stage's own
 `05-final-build.sh` already copies these into `artifacts/buildroot-halley5-v30-image/` for you -
 confirmed against a real fresh-clone build 2026-08-14; this section previously said `uImage`, which
 does not match this project's actual output filename)

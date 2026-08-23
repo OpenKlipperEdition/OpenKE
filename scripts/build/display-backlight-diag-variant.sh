@@ -77,10 +77,10 @@ set -eu
 VARIANT="${1:?usage: $0 <DIAG0|DIAG1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/display-backlight-probe-diag.patch"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
+DTS="$SYSTEM_DIR/$DTS_REL"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 MARKER="$REPO_ROOT/build-work/display-backlight-diag-variant-applied.txt"
 
@@ -132,10 +132,10 @@ esac
 # `git checkout --` on it alone would fail with "did not match any
 # files" - remove it directly instead, then let a fresh `git apply`
 # recreate it if DIAG1 was requested.
-git -C "$KERNEL_DIR" checkout -- \
+git -C "$SYSTEM_DIR" checkout -- \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Makefile
-rm -f "$KERNEL_DIR/$NEW_DRIVER_REL"
+rm -f "$SYSTEM_DIR/$NEW_DRIVER_REL"
 
 # The DTS is different - it's ALSO touched by wifi-sdio-variant.sh (an
 # unrelated &msc1 node). Deliberately NOT a blanket
@@ -167,7 +167,7 @@ if grep -qF "$BEGIN_MARK" "$FRAGMENT"; then
 fi
 
 if [ "$VARIANT" = "DIAG1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 
 	# Repoint the existing &pwm node from the unused channel-1 pin to
 	# the real candidate backlight channel-0 pin - same repointing

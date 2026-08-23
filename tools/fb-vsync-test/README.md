@@ -30,14 +30,14 @@ tool's own `--output-report` reflects that limitation directly.
 ## Build (cross-compile for the printer's MIPS target)
 
 ```sh
-vendor/buildroot-x2000/output/host/bin/mipsel-buildroot-linux-gnu-gcc \
+vendor/system/buildroot/output/host/bin/mipsel-buildroot-linux-gnu-gcc \
     -O2 -Wall -Wextra -o tools/fb-vsync-test/fb-vsync-test \
     tools/fb-vsync-test/fb-vsync-test.c
 ```
 
 Requires the project's own Buildroot toolchain to already be built (i.e.
 after running the normal `scripts/build/*.sh` pipeline at least once, or
-having `vendor/buildroot-x2000/output/host/bin/` populated some other way).
+having `vendor/system/buildroot/output/host/bin/` populated some other way).
 Produces a small (~a few hundred KB, dynamically linked) MIPS32 executable.
 Not committed to the repo - only the source and this README are tracked;
 rebuild it locally whenever it's needed.

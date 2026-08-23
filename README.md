@@ -4,10 +4,10 @@ This is where NebulaOS actually gets built. NebulaOS is a custom Linux + Klipper
 Creality Ender-3 V3 KE — real mainline-ish kernel, real Klipper, a proper touchscreen UI, none of
 the stock firmware's binary blobs where we could avoid them.
 
-If you want to build the whole OS, this is the repo you want. The kernel, Klipper, and GuppyScreen
-each live in their own repos; this build follows the latest OKE kernel branch, official upstream
-Klipper master, and the OpenKlipperEdition/GuppyScreen OKE branch, then pins the other inputs, fetches
-everything fresh, and puts the whole thing together into something you can flash.
+If you want to build the whole OS, this is the repo you want. The full OpenKlipperEdition/System
+OKE checkout supplies both the kernel and Buildroot; official upstream Klipper and the
+OpenKlipperEdition/GuppyScreen OKE branch supply the application stack. The build refreshes moving
+sources, verifies immutable inputs, and puts the whole thing together into something you can flash.
 
 ```
 OpenKlipperEdition/System ─┐
@@ -15,16 +15,15 @@ Klipper upstream ─────────┼─►  NebulaOS-firmware  ─►
 GuppyScreen (OKE) ───────┘   (this repo)
 ```
 
-- [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — Linux 6.6 kernel (`OKE` branch)
+- [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — full OKE checkout providing Linux 6.6 (`kernel/kernel-6.6`) and Buildroot (`buildroot/`)
 - [`Klipper`](https://github.com/Klipper3d/klipper) — official upstream Klipper runtime (`master` branch)
 - [`GuppyScreen`](https://github.com/OpenKlipperEdition/GuppyScreen) — touchscreen UI (`OKE` branch)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
 The build records every external input in `manifests/dependencies.conf`. Immutable sources are
-pinned by exact commit, tag, archive hash, or container digest. The kernel follows the latest remote
-HEAD of OpenKlipperEdition/System's `OKE` branch, Klipper follows official upstream `master`, and
-GuppyScreen follows OpenKlipperEdition/GuppyScreen's `OKE` branch; their exact fetched commits are
-recorded in `build-manifest.txt`. The build always refreshes those moving checkouts and does not use
+pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while Klipper follows official upstream `master` and GuppyScreen follows
+OpenKlipperEdition/GuppyScreen's `OKE` branch. The exact fetched commits are recorded in
+`build-manifest.txt`. The build always refreshes those moving checkouts and does not use
 unrelated local clones sitting next to this repo.
 
 ## Building it

@@ -105,7 +105,7 @@ set -eu
 VARIANT="${1:?usage: $0 <FINALQUAL0|FINALQUAL1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/touch-final-qualification.patch"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
 MARKER="$REPO_ROOT/build-work/touch-final-qualification-variant-applied.txt"
@@ -148,32 +148,32 @@ esac
 
 apply_file_hunk() {
 	rel="$1"
-	git -C "$KERNEL_DIR" apply --include="$rel" "$PATCH"
+	git -C "$SYSTEM_DIR" apply --include="$rel" "$PATCH"
 }
 
 revert_file_hunk() {
 	rel="$1"
-	git -C "$KERNEL_DIR" apply -R --include="$rel" "$PATCH"
+	git -C "$SYSTEM_DIR" apply -R --include="$rel" "$PATCH"
 }
 
 if [ "$VARIANT" = "FINALQUAL0" ]; then
 	# New file: purely ours, always safe to just remove outright.
-	rm -f "$KERNEL_DIR/$NEWFILE_REL"
+	rm -f "$SYSTEM_DIR/$NEWFILE_REL"
 
 	# Makefile: never touched by any other touch-*-variant.sh script -
 	# still handled marker-first (not a blanket checkout) for the same
 	# self-healing consistency as the two shared files below.
-	if grep -qF "$MAKEFILE_MARKER" "$KERNEL_DIR/$MAKEFILE_REL" 2>/dev/null; then
+	if grep -qF "$MAKEFILE_MARKER" "$SYSTEM_DIR/$MAKEFILE_REL" 2>/dev/null; then
 		revert_file_hunk "$MAKEFILE_REL"
 	fi
 
 	# Kconfig/ns2009.c: shared with touch-qualification-variant.sh. Only
 	# revert if THIS patch's own marker is actually present right now -
 	# never assume based on what a previous invocation of this script did.
-	if grep -qF "$KCONFIG_MARKER" "$KERNEL_DIR/$KCONFIG_REL" 2>/dev/null; then
+	if grep -qF "$KCONFIG_MARKER" "$SYSTEM_DIR/$KCONFIG_REL" 2>/dev/null; then
 		revert_file_hunk "$KCONFIG_REL"
 	fi
-	if grep -qF "$NS2009_MARKER" "$KERNEL_DIR/$NS2009_REL" 2>/dev/null; then
+	if grep -qF "$NS2009_MARKER" "$SYSTEM_DIR/$NS2009_REL" 2>/dev/null; then
 		revert_file_hunk "$NS2009_REL"
 	fi
 
@@ -181,16 +181,16 @@ if [ "$VARIANT" = "FINALQUAL0" ]; then
 		sed -i "/^${BEGIN_MARK}\$/,/^${END_MARK}\$/d" "$FRAGMENT"
 	fi
 else
-	if ! grep -qF "$KCONFIG_MARKER" "$KERNEL_DIR/$KCONFIG_REL" 2>/dev/null; then
+	if ! grep -qF "$KCONFIG_MARKER" "$SYSTEM_DIR/$KCONFIG_REL" 2>/dev/null; then
 		apply_file_hunk "$KCONFIG_REL"
 	fi
-	if ! grep -qF "$NS2009_MARKER" "$KERNEL_DIR/$NS2009_REL" 2>/dev/null; then
+	if ! grep -qF "$NS2009_MARKER" "$SYSTEM_DIR/$NS2009_REL" 2>/dev/null; then
 		apply_file_hunk "$NS2009_REL"
 	fi
-	if ! grep -qF "$MAKEFILE_MARKER" "$KERNEL_DIR/$MAKEFILE_REL" 2>/dev/null; then
+	if ! grep -qF "$MAKEFILE_MARKER" "$SYSTEM_DIR/$MAKEFILE_REL" 2>/dev/null; then
 		apply_file_hunk "$MAKEFILE_REL"
 	fi
-	if [ ! -f "$KERNEL_DIR/$NEWFILE_REL" ]; then
+	if [ ! -f "$SYSTEM_DIR/$NEWFILE_REL" ]; then
 		apply_file_hunk "$NEWFILE_REL"
 	fi
 
