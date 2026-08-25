@@ -35,7 +35,7 @@ cd NebulaOS-firmware
 ```
 
 That's genuinely it. `build.sh` pulls one build container
-(`ghcr.io/coreflake1/nebulaos-build`, digest-pinned) and runs the whole pipeline inside it —
+(`ghcr.io/openklipperedition/openke-build`, digest-pinned) and runs the whole pipeline inside it —
 fetches every dependency, applies the 8 accepted kernel variants, builds the kernel/rootfs/app
 stack, and checks the result actually looks right. You need Docker or Podman and not much else —
 no `apt-get install` beforehand, no nested containers, nothing weird.

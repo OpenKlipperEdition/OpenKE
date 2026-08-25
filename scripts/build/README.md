@@ -19,7 +19,7 @@ rootfs-overlay deletion gotcha) are all documented there with root causes, not j
 ## Prerequisites
 
 - Docker or Podman - `./build.sh` pulls the single, digest-pinned
-  `ghcr.io/coreflake1/nebulaos-build` image (`manifests/dependencies.conf`'s own
+  `ghcr.io/openklipperedition/openke-build` image (`manifests/dependencies.conf`'s own
   `BUILD_IMAGE_REPO`/`BUILD_IMAGE_DIGEST`, never a mutable `:latest` tag) and runs the whole
   `00`-`06` pipeline inside it. That image already contains every host build tool these scripts
   need (see `build-env/Dockerfile`) - no separate `apt-get install`, no nested container, no
