@@ -61,9 +61,9 @@ jobs:
             rsync -a .cache/nebulaos/vendor/ vendor/
           fi
 
-          if [[ -d .cache/nebulaos/buildroot-dl ]]; then
-            mkdir -p vendor/buildroot-x2000/output/dl
-            rsync -a .cache/nebulaos/buildroot-dl/ vendor/buildroot-x2000/output/dl/
+          if [[ -d .cache/nebulaos/buildroot-dl && -d vendor/system/.git ]]; then
+            mkdir -p vendor/system/buildroot/output/dl
+            rsync -a .cache/nebulaos/buildroot-dl/ vendor/system/buildroot/output/dl/
           fi
 
           if [[ -d .cache/nebulaos/vendor-downloads ]]; then
@@ -83,17 +83,26 @@ jobs:
 
       # Preserve the generated Buildroot state separately so a later run of
       # the same build inputs can resume after an incomplete toolchain or
-      # package build. Run this after dependency materialization so a cache
-      # miss cannot pre-create vendor/buildroot-x2000 before the pinned clone.
+      # package build. Only prepare this path when the dependency cache already
+      # supplied vendor/system; on a cold cache, Stage 00 must clone into an
+      # empty destination first.
       - name: Prepare Buildroot output cache directory
+        id: prepare-build-cache
         shell: bash
-        run: mkdir -p vendor/buildroot-x2000/output
+        run: |
+          if [[ -d vendor/system/.git ]]; then
+            mkdir -p vendor/system/buildroot/output
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Restore Buildroot output cache
         id: build-cache
+        if: steps.prepare-build-cache.outputs.available == 'true'
         uses: actions/cache/restore@v4
         with:
-          path: vendor/buildroot-x2000/output
+          path: vendor/system/buildroot/output
           # Assertion-only changes do not invalidate the compiled Buildroot
           # state, so a comparator fix can reuse the failed run's output.
           key: nebulaos-build-v2-${{ runner.os }}-${{ hashFiles('build.sh', 'scripts/build/00-*.sh', 'scripts/build/01-*.sh', 'scripts/build/02-*.sh', 'scripts/build/03-*.sh', 'scripts/build/04-*.sh', 'scripts/build/05-*.sh', 'scripts/build/apply-qualified-baseline.sh', 'scripts/build/*-variant.sh', 'scripts/build/overlay/etc/**', '!scripts/build/overlay/etc/default/dropbear', 'scripts/build/overlay/opt/printer_data/**', 'scripts/build/overlay/opt/nebulaos/**', 'scripts/build/overlay/opt/guppyscreen/guppyconfig.json', 'scripts/build/overlay/opt/guppyscreen/themes/**', 'scripts/build/overlay/usr/**', 'scripts/build/vendor-wheels/**', 'scripts/build/vendor-patches/**', 'artifacts/buildroot-halley5-v30-image/*.config', 'artifacts/buildroot-halley5-v30-image/*.dts', 'manifests/dependencies.conf') }}-${{ github.run_id }}
@@ -120,12 +129,12 @@ jobs:
           # Preserve source checkouts and git metadata, but omit the generated
           # Buildroot output tree. It is rebuilt by the canonical pipeline.
           if [[ -d vendor ]]; then
-            rsync -a --exclude='buildroot-x2000/output/' vendor/ .cache/nebulaos/vendor/
+            rsync -a --exclude='system/buildroot/output/' vendor/ .cache/nebulaos/vendor/
           fi
 
-          if [[ -d vendor/buildroot-x2000/output/dl ]]; then
+          if [[ -d vendor/system/buildroot/output/dl ]]; then
             mkdir -p .cache/nebulaos/buildroot-dl
-            rsync -a vendor/buildroot-x2000/output/dl/ .cache/nebulaos/buildroot-dl/
+            rsync -a vendor/system/buildroot/output/dl/ .cache/nebulaos/buildroot-dl/
           fi
 
           if [[ -d vendor-downloads ]]; then
@@ -152,11 +161,11 @@ jobs:
           key: nebulaos-dependencies-v2-${{ runner.os }}-${{ hashFiles('manifests/dependencies.conf') }}-${{ github.run_id }}
 
       - name: Save Buildroot output cache
-        if: always()
+        if: ${{ always() && hashFiles('vendor/system/HEAD') != '' }}
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
-          path: vendor/buildroot-x2000/output
+          path: vendor/system/buildroot/output
           key: nebulaos-build-v2-${{ runner.os }}-${{ hashFiles('build.sh', 'scripts/build/00-*.sh', 'scripts/build/01-*.sh', 'scripts/build/02-*.sh', 'scripts/build/03-*.sh', 'scripts/build/04-*.sh', 'scripts/build/05-*.sh', 'scripts/build/apply-qualified-baseline.sh', 'scripts/build/*-variant.sh', 'scripts/build/overlay/etc/**', '!scripts/build/overlay/etc/default/dropbear', 'scripts/build/overlay/opt/printer_data/**', 'scripts/build/overlay/opt/nebulaos/**', 'scripts/build/overlay/opt/guppyscreen/guppyconfig.json', 'scripts/build/overlay/opt/guppyscreen/themes/**', 'scripts/build/overlay/usr/**', 'scripts/build/vendor-wheels/**', 'scripts/build/vendor-patches/**', 'artifacts/buildroot-halley5-v30-image/*.config', 'artifacts/buildroot-halley5-v30-image/*.dts', 'manifests/dependencies.conf') }}-${{ github.run_id }}
 
       - name: Collect failure diagnostics
@@ -175,7 +184,7 @@ jobs:
             fi
           done
           git status --short > ci-diagnostics/git-status.txt
-          du -sh vendor/buildroot-x2000/output 2>/dev/null > ci-diagnostics/buildroot-output-size.txt || true
+          du -sh vendor/system/buildroot/output 2>/dev/null > ci-diagnostics/buildroot-output-size.txt || true
 
       - name: Upload failure diagnostics
         if: ${{ always() && steps.build.outcome == 'failure' }}
