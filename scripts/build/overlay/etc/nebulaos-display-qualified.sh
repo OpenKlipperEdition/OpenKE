@@ -656,7 +656,7 @@ ndq_apply_backlight() {
 #
 # sleep_enabled=1 does NOT put the display to sleep here - that would be a
 # strange thing for a boot-time apply step to do unprompted (a human or
-# GuppyScreen's own idle timer decides WHEN to sleep; that mechanism is out
+# HelixScreen's own idle timer decides WHEN to sleep; that mechanism is out
 # of scope for this mission - see this file's own header and the mission
 # spec). What sleep_enabled=1 actually gates is starting the touch-wake
 # watcher daemon (nebulaos-display-sleep-wake-controller.sh via its

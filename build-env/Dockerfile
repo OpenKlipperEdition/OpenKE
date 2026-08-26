@@ -2,7 +2,7 @@
 #
 # Replaces two previously-nested container dependencies with one:
 #   - pellcorp/k1-bash-build (the outer Buildroot/kernel/rootfs environment)
-#   - ghcr.io/coreflake1/guppydev (the GuppyScreen cross-compile toolchain)
+#   - the former standalone touchscreen cross-compile environment
 #
 # ...and replaces this file's own PREVIOUS role too: this used to be a thin
 # orchestrator that talked to the host's Docker socket to launch those two
@@ -23,22 +23,20 @@
 # (gcc, make, python3, ...) Buildroot's own build process needs to bootstrap
 # that target toolchain itself, not the target toolchain directly.
 #
-# The one target toolchain this image DOES bundle directly is GuppyScreen's
-# Bootlin mips32el-musl cross-compiler (see "Migration A" section below) -
-# Migration A's whole point is preserving that exact toolchain unchanged,
-# not converging it onto Buildroot's target toolchain (that's Migration B,
-# a separate, not-yet-executed experiment - see
-# docs/NEBULAOS_BUILD_ENVIRONMENT.md).
+# The image retains HelixScreen's pinned Bootlin SDK for compatibility and
+# diagnostics, but the production K1 build uses Buildroot's target compiler
+# after Stage 03.  That keeps the UI's libc, ABI, and static libraries aligned
+# with the rootfs that will run it.
 #
 # Audited (Phase 11, Task 2): pellcorp/k1-bash-build ALSO bundled an Ingenic
 # mips-gcc720-glibc229 toolchain at /opt/toolchains/ - confirmed unused by
 # any current build script (every kernel/rootfs/native-app compile already
-# goes through Buildroot's own toolchain or GuppyScreen's Bootlin one). Not
+# goes through Buildroot's own toolchain). Not
 # reproduced here - it was never load-bearing.
 
 FROM ubuntu@sha256:3b06811b2afd352be909dd088a004166d665dc76d38b13eada33522a9d915c6f
 # = docker.io/library/ubuntu:22.04 at the time this was pinned (2026-08-15).
-# See versions.env for why 22.04 (matches the already-audited guppydev base).
+# See versions.env for why 22.04 is used as the audited build base.
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -122,25 +120,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		coreutils \
 	&& rm -rf /var/lib/apt/lists/*
 
-# --- Migration A: GuppyScreen's exact current toolchain, preserved --------
-# Identical pin to OpenKlipperEdition/GuppyScreen/docker/Dockerfile's own ARGs (see
+# --- HelixScreen K1 MIPS toolchain -----------------------------------------
+# The exact Bootlin release used by HelixScreen's K1 target.
 # build-env/versions.env - single source of truth for these values, kept in
 # sync with that Dockerfile by inspection, not by import, since they live in
 # different repos). Migration A's proof is that ONLY container ownership
-# changes here - the compiler, libc, and linkage model GuppyScreen actually
+# changes here - the compiler, libc, and linkage model HelixScreen actually
 # gets stay byte-for-byte the same.
-ARG GUPPYSCREEN_MIPS_TOOLCHAIN=mips32el--musl--stable-2024.02-1
-ARG GUPPYSCREEN_MIPS_URL=https://toolchains.bootlin.com/downloads/releases/toolchains/mips32el/tarballs/mips32el--musl--stable-2024.02-1.tar.bz2
-ARG GUPPYSCREEN_MIPS_SHA256=25c0b3217df1bf1a7bae2cc4f56cdeab9fec98b172bbf0b336b2e8fe41d3ee4e
+ARG HELIXSCREEN_MIPS_TOOLCHAIN=mips32el--musl--stable-2024.02-1
+ARG HELIXSCREEN_MIPS_URL=https://toolchains.bootlin.com/downloads/releases/toolchains/mips32el/tarballs/mips32el--musl--stable-2024.02-1.tar.bz2
+ARG HELIXSCREEN_MIPS_SHA256=25c0b3217df1bf1a7bae2cc4f56cdeab9fec98b172bbf0b336b2e8fe41d3ee4e
 
 WORKDIR /toolchains
-RUN wget -q "$GUPPYSCREEN_MIPS_URL" -O mips.tar.bz2 \
-	&& echo "${GUPPYSCREEN_MIPS_SHA256}  mips.tar.bz2" | sha256sum -c - \
+RUN wget -q "$HELIXSCREEN_MIPS_URL" -O mips.tar.bz2 \
+	&& echo "${HELIXSCREEN_MIPS_SHA256}  mips.tar.bz2" | sha256sum -c - \
 	&& tar xjf mips.tar.bz2 \
 	&& rm mips.tar.bz2
 
 # Deliberately NOT put on the image's default PATH (unlike the old
-# ghcr.io/coreflake1/guppydev image, where it safely could be - that
+# the former standalone UI build image, where it safely could be - that
 # container never ran anything else). Found live while testing this image
 # with build-env/verify-environment.sh: the Bootlin toolchain ships its own
 # bundled `autoreconf`/`automake`/`aclocal` (for building target-side
@@ -153,13 +151,13 @@ RUN wget -q "$GUPPYSCREEN_MIPS_URL" -O mips.tar.bz2 \
 # is the identical failure mode from the OTHER toolchain this image also
 # bundles. v4l2-ctl's `autoreconf -fiv` step would silently break if this
 # were on PATH globally. Instead, scripts/build/04-cross-compile-app-stack.sh's
-# own GuppyScreen section adds it to PATH itself, scoped to just that step.
-ENV GUPPYSCREEN_TOOLCHAIN_BIN=/toolchains/${GUPPYSCREEN_MIPS_TOOLCHAIN}/bin
+# own HelixScreen section adds it to PATH itself, scoped to just that step.
+ENV HELIXSCREEN_MIPS_TOOLCHAIN_BIN=/toolchains/${HELIXSCREEN_MIPS_TOOLCHAIN}/bin
 
 WORKDIR /work
 
 LABEL org.opencontainers.image.source="https://github.com/coreflake1/NebulaOS-firmware" \
       org.opencontainers.image.title="NebulaOS Build Environment" \
-      org.opencontainers.image.description="Canonical unified build environment for NebulaOS - replaces pellcorp/k1-bash-build and ghcr.io/coreflake1/guppydev with one NebulaOS-owned, digest-pinned image. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
+      org.opencontainers.image.description="Canonical unified build environment for NebulaOS - one NebulaOS-owned, digest-pinned image for the HelixScreen K1 and firmware build. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
 
 ENTRYPOINT ["sh", "-c"]

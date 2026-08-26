@@ -17,16 +17,15 @@ verifiable than it is.
 | Origin | `https://github.com/mainsail-crew/mainsail/releases/download/v2.18.2/mainsail.zip` — a real, official GitHub release asset from the `mainsail-crew/mainsail` project |
 | Reconstruction | Fully reconstructable — download the same tagged release asset from the URL above and verify the SHA-256 matches. **This was previously not pinned at all** — the fetch script downloaded from `.../releases/latest/...`, a URL that silently follows whatever GitHub considers "latest" at fetch time. Fixed 2026-07-31 to pin the exact tag and verify the downloaded archive's hash, failing loudly on either a wrong tag or a byte-different artifact under that tag. |
 
-## GuppyScreen binaries
+## HelixScreen K1 binary
 
 | Field | Value |
 |---|---|
-| Path | `artifacts/guppyscreen-mips/guppyscreen`, `artifacts/guppyscreen-mips/guppybeep` (git-tracked, but now a build-time-overwritten snapshot, not the source of truth) |
-| Origin (pre-2026-08-07) | Prebuilt MIPS binaries with no fetch-script entry, no declared source commit, no download URL anywhere in this repo. |
-| Origin (2026-08-07+) | **Fixed.** `GUPPYSCREEN_REPO`/`GUPPYSCREEN_BRANCH` in `manifests/dependencies.conf` follow the latest OKE branch and record the exact fetched commit (`OpenKlipperEdition/GuppyScreen`); `00-fetch-vendor-sources.sh` refreshes and verifies the branch tip, `04-cross-compile-app-stack.sh` cross-builds it for MIPS and overwrites these two tracked files with the freshly-built, freshly-stripped result every build. The old hashes above are a historical snapshot only — a real build produces different (but source-traceable) bytes; `05-final-build.sh`'s manifest records both the source commit (`git_commit_guppyscreen`) and the resulting binary hash (`guppyscreen_sha256`/`guppybeep_sha256`) so the two are never ambiguous. |
-| Toolchain (pre-2026-08-15) | Built via the standalone `ghcr.io/coreflake1/guppydev` container. |
-| Toolchain (2026-08-15+) | Now builds inside the same unified, digest-pinned `ghcr.io/openklipperedition/openke-build` image every other build stage uses (`manifests/dependencies.conf`'s `BUILD_IMAGE_REPO`/`BUILD_IMAGE_DIGEST`) — it's the same Bootlin `mips32el--musl` toolchain `guppydev` provided, just living on a non-default `PATH` entry (`GUPPYSCREEN_TOOLCHAIN_BIN`) instead of a separate container. See `docs/NEBULAOS_BUILD_ENVIRONMENT.md`. |
-| Reconstruction | Fully reconstructable from source as of 2026-08-07 — no longer the least-reproducible artifact in the build. |
+| Path | `vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/helixscreen/bin/helix-screen` (generated during Stage 04) |
+| Origin | Pinned `prestonbrown/helixscreen` commit `ca9e5ecf9a7d6418cbf79b68f28bf87dbf14c0ff`, built with `PLATFORM_TARGET=k1` and staged with the upstream install target. |
+| Runtime bundle | `/opt/helixscreen` contains the static MIPS binary, launcher, XML UI, fonts, images, sounds, and configuration assets; `/etc/init.d/S58helixscreen` supplies the BusyBox boot integration. |
+| Toolchain | Hash-verified Bootlin `mips32el--musl--stable-2024.02-1`, bundled by the unified build image as `HELIXSCREEN_MIPS_TOOLCHAIN_BIN`. |
+| Reconstruction | Fully reconstructable from the pinned source and the build manifest; Stage 05 records `git_commit_helixscreen` and `helixscreen_sha256`. |
 
 ## Wi-Fi firmware and calibration
 

@@ -6,7 +6,7 @@
 #   cd NebulaOS-firmware
 #   ./build.sh
 #
-# Fetches every pinned dependency (kernel, Klipper, GuppyScreen, Moonraker,
+# Fetches every pinned dependency (kernel, Klipper, HelixScreen, Moonraker,
 # Buildroot, ustreamer, Mainsail, wireless-regdb, WiFi firmware - see
 # manifests/dependencies.conf), composes all 8 accepted baseline variants,
 # builds the kernel/rootfs/app-stack, and verifies the result against the
@@ -18,7 +18,7 @@
 # have two modes - run directly on a host with git/curl/etc already
 # installed, or `--containerized` to get those from a thin wrapper image
 # that then launched TWO MORE nested containers (pellcorp/k1-bash-build,
-# ghcr.io/coreflake1/guppydev) via the host's own Docker socket for the
+# the former standalone UI builder) via the host's own Docker socket for the
 # actual work. That nested-container design is gone. There is now exactly
 # ONE container, pinned by digest in manifests/dependencies.conf
 # (BUILD_IMAGE_REPO/BUILD_IMAGE_DIGEST) - it already contains every host
@@ -72,7 +72,7 @@ echo "== build.sh: pulling pinned build environment $IMAGE_REF (engine: $ENGINE)
 # path (which varies - different developers, different clone locations,
 # even the same developer's own repeated test directories in this
 # session) leaks straight into the build. CONFIG_EXTRA_FIRMWARE_DIR
-# embedded it directly; GuppyScreen's binary carried ~770KB of diff
+# embedded it directly; the touchscreen UI carried its own generated diff
 # traced to embedded absolute build-path strings, purely because the
 # container saw a different host path on every separate clone. Two
 # builds of byte-identical source, in the byte-identical image, produced

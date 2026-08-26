@@ -2,10 +2,8 @@
 
 These scripts reproduce everything documented in `FIRMWARE.md` §8-14: a custom Linux 6.6.18-rt23
 kernel + Buildroot rootfs for the Ender 3 V3 KE's Nebula Pad (Ingenic X2000), with touch, display,
-WiFi, Bluetooth, camera, and a full Klipper/Moonraker/nginx/Mainsail/GuppyScreen app stack (Stage 04
-fetches, cross-compiles, and installs GuppyScreen automatically - it was deliberately deferred/manual
-early in this project's history, but that gap was closed 2026-08-07; the
-moving branch setting is documented in `manifests/dependencies.conf`'s `GUPPYSCREEN_BRANCH`) - everything except the real-hardware boot test itself (needs the user
+WiFi, Bluetooth, camera, and a full Klipper/Moonraker/nginx/Mainsail/HelixScreen app stack (Stage 04
+fetches, cross-compiles the pinned HelixScreen K1 target, and installs it) - everything except the real-hardware boot test itself (needs the user
 present, not something a script can do).
 
 **Read this before running anything**: these scripts encode the *correct*, clean sequence -  not a
@@ -27,7 +25,7 @@ rootfs-overlay deletion gotcha) are all documented there with root causes, not j
   toolchain that actually builds the kernel/rootfs/native app stack is unrelated to this image -
   Buildroot builds that itself, from source, during Stage 03 (see `docs/
   NEBULAOS_BUILD_ENVIRONMENT.md` for the full "what's in/out of the image and why" breakdown).
-  This replaces the old `pellcorp/k1-bash-build` + `ghcr.io/coreflake1/guppydev` nested-container
+  This replaces the old nested-container
   setup (Migration A + Final Closure mission, 2026-08-15) - retained for history in `FIRMWARE.md`,
   no longer how a build actually runs.
 - ~15GB free disk (kernel source, Buildroot's own internal toolchain build, and the final images
@@ -74,7 +72,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs.
    into `vendor/`, refreshing the full OpenKlipperEdition/System OKE checkout (kernel + Buildroot), official upstream
-   Klipper at `master`, and GuppyScreen at the latest `OKE` branch HEAD. Immutable inputs such as
+   Klipper at `master`, and the pinned HelixScreen K1 source. Immutable inputs such as
    Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`, and Mainsail remain pinned and
    hash-verified.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125

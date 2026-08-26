@@ -8,7 +8,7 @@
 #
 # Direct single-process Python<->C++ linking is impractical for this small, stable
 # four-field contract (see docs/z_compensate_status_api.md's versioning note); this file
-# and its nebulaos-guppyscreen counterpart (tests/test_integration_harness.cpp) instead
+# and its frontend counterpart (tests/test_integration_harness.cpp) instead
 # share a documented *serialized-fixture boundary*: this file writes the real backend's
 # actual get_status() output at each step to docs/z_compensate_integration_trace_
 # {success,failure}.json, and the C++ side replays those exact snapshots through the real

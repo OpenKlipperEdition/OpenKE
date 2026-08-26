@@ -1,7 +1,7 @@
 #!/bin/sh
 # Phase 5 baseline-difference gate. Compares the just-built package against
 # the pinned qualified baseline package and hard-stops on any unexplained
-# difference. Allowed differences are exactly: the GuppyScreen binary/hash,
+# difference. Allowed differences are exactly: the HelixScreen binary/hash,
 # z_compensate.py, explicit build/version metadata, and associated tests/
 # manifests - everything else must be byte-identical to the baseline tag.
 #
@@ -147,12 +147,11 @@ compare_baseline_file() {
 
 	echo ""
 	echo "## Allowed differences (expected, not flagged as failures)"
-	echo "- guppyscreen_sha256 / guppybeep_sha256 (rebuilt GuppyScreen binary - the toolchain embeds a build"
-	echo "  timestamp, so bytes differ every build even from identical source; git_commit_guppyscreen below"
+	echo "- helixscreen_sha256 (rebuilt HelixScreen K1 binary - the toolchain embeds a build"
+	echo "  timestamp, so bytes differ every build even from identical source; git_commit_helixscreen below"
 	echo "  is the source commit recorded by this build)"
-	echo "- git_commit_guppyscreen / git_commit_guppyscreen_dirty (2026-08-07: GuppyScreen now follows the moving OKE branch,"
-	echo "  automatically-built vendor source, not present as a manifest field on the 2026-08-03 baseline"
-	echo "  at all - see manifests/dependencies.conf's GUPPYSCREEN_BRANCH)"
+	echo "- git_commit_helixscreen / git_commit_helixscreen_dirty (pinned HelixScreen K1 source,"
+	echo "  not present as a manifest field on the older baseline)"
 	echo "- git_commit_klipper / git_commit_klipper_dirty (z_compensate.py structured status contract)"
 	echo "- rootfs_squashfs_sha256 / rootfs_squashfs_size (grows ~18.6MB vs the 2026-08-03 baseline - traced"
 	echo "  to Buildroot's linux-firmware package pulling in a broader firmware set; every accepted feature"

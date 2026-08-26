@@ -16,7 +16,7 @@
 # Resolves every [include ...] starting from a given config file, relative
 # to a config source directory, into a single flat file - this project's
 # configs only ever use plain literal filenames in includes (one level of
-# GuppyScreen/ nesting), never glob patterns, so this is a deliberately
+# nested config/ nesting), never glob patterns, so this is a deliberately
 # simple closure builder, not a general Klipper config parser.
 #
 # Usage: frontend_controls_resolve_closure <config_src_dir> <entry_file> <closure_out_file>
@@ -30,18 +30,18 @@ frontend_controls_resolve_closure() {
 
 _frontend_controls_resolve_one() {
 	# Every one of these must be `local` - this function recurses for nested
-	# includes (e.g. GuppyScreen/guppy_cmd.cfg or another nested config file), and plain
+	# includes (e.g. another nested config file), and plain
 	# (non-local) shell variables are shared across recursive calls, not
 	# call-scoped. A prior version of this function used plain assignment
-	# here, which meant a recursive call's rc_dirname (e.g. "GuppyScreen",
+	# here, which meant a recursive call's rc_dirname,
 	# set while resolving a nested include) silently overwrote the caller's
 	# own rc_dirname (e.g. "." while resolving printer.cfg's own top-level
 	# includes) once the recursive call returned - invisible for years
 	# because printer.cfg only ever had ONE nested-dir include, always last,
 	# so there was never a "next top-level include" for the clobbered value
 	# to corrupt. Adding a second nested-dir include after
-	# GuppyScreen/guppy_cmd.cfg exposed it immediately: every subsequent
-	# top-level include got silently misresolved as GuppyScreen/<name>.
+	# nested include exposed it immediately: every subsequent top-level
+	# include got silently misresolved below the nested directory.
 	local rc_src="$1"
 	local rc_rel="$2"
 	local rc_out="$3"

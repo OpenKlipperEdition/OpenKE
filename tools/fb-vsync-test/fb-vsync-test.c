@@ -8,7 +8,7 @@
  * real /dev/fb0 device, on a fixed cadence, for a bounded number of frames,
  * measuring ioctl latency directly. It does NOT modify panel timing, pixel
  * format, or any driver/module source - it only calls existing, already-
- * supported ioctls from userspace, the same way GuppyScreen (or any fbdev
+ * supported ioctls from userspace, the same way HelixScreen (or any fbdev
  * client) already does.
  *
  * IMPORTANT, found while preparing this tool (2026-08-01): the DISPLAY-V1

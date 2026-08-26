@@ -18,7 +18,7 @@
 # klippy_connection._get_service_info(), called unconditionally from
 # _do_connect() before the ready/registration flow even starts) broke
 # Moonraker's entire Klippy connection sequence: no printer.* endpoints
-# ever registered, GuppyScreen's "can't connect" error, and
+# ever registered, the UI's "can't connect" error, and
 # S99confirm-good's own /server/info klippy_state poll never seeing
 # "ready" - which is what caused the printer to revert to stock on every
 # warm reboot until this was fixed.

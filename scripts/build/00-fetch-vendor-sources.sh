@@ -1,6 +1,6 @@
 #!/bin/sh
 # Clone/download every third-party source this build needs. Immutable
-# dependencies use exact refs; the kernel, Klipper, and GuppyScreen intentionally follow
+# dependencies use exact refs; the kernel and Klipper intentionally follow
 # their configured moving branches. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
@@ -37,7 +37,7 @@ for required in SYSTEM_REPO SYSTEM_BRANCH \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
 	WIFI_FIRMWARE_RELEASE_TAG WIFI_FIRMWARE_RELEASE_URL WIFI_FIRMWARE_ARCHIVE_SHA256 \
 	WIFI_FIRMWARE_TXT_SHA256 WIFI_FIRMWARE_BIN_SHA256 WIFI_FIRMWARE_CLM_SHA256 \
-	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
+	HELIXSCREEN_REPO HELIXSCREEN_PIN HELIXSCREEN_VERSION HELIXSCREEN_TARGET; do
 	require_setting "$required"
 done
 echo "== all required dependency settings present in $MANIFEST =="
@@ -131,7 +131,7 @@ if [ -d "buildroot-x2000" ] || [ -L "buildroot-x2000" ]; then
 fi
 
 clone_pinned() {
-	name="$1"; url="$2"; ref="$3"; extra="$4"
+	name="$1"; url="$2"; ref="$3"; extra="${4:-}"
 	if [ -d "$name/.git" ]; then
 		echo "== $name already present, verifying pin (not re-cloning) =="
 	else
@@ -340,35 +340,10 @@ if [ "$v4l_utils_origin" != "$V4L_UTILS_REPO" ]; then
 fi
 echo "== v4l-utils pinned commit verified ($V4L_UTILS_PIN) =="
 
-# GuppyScreen (project-specific frontend, consumes the z_compensate
-# structured status contract) - previously NOT pinned or fetched by this
-# script at all (see manifests/dependencies.conf's own comment on this gap);
-# the actual cross-compile happens in 04-cross-compile-app-stack.sh, this
-# stage only fetches and refreshes the moving source.
-clone_branch nebulaos-guppyscreen "$GUPPYSCREEN_REPO" "$GUPPYSCREEN_BRANCH"
-git -C nebulaos-guppyscreen submodule update --init --depth 1
-
-# Submodule patches (this fork's own documented canonical build procedure,
-# wiki/Building-from-Source.md step 2) - lv_drivers' framebuffer-ioctls fix
-# is already folded into coreflake1/lv_drivers (a real fork the .gitmodules
-# above points at, not upstream), so no patch file for it ships in patches/
-# any more; spdlog and lvgl are still plain upstream submodules and need
-# their two patches applied on every fresh checkout, or the MIPS build
-# below silently builds against unpatched fmt/DPI-scaling behavior. Guarded
-# with `git apply --check` first so re-running this script against an
-# already-patched, already-present checkout (clone_branch's "already
-# present" branch) is a safe no-op, not a failure.
-for entry in "0002-spdlog_fmt_initializer_list.patch spdlog" "0003-lvgl-dpi-text-scale.patch lvgl"; do
-	patch_file=${entry% *}
-	submodule=${entry#* }
-	patch_path="$PWD/nebulaos-guppyscreen/patches/$patch_file"
-	if git -C "nebulaos-guppyscreen/$submodule" apply --check "$patch_path" 2>/dev/null; then
-		echo "== applying $patch_file to nebulaos-guppyscreen/$submodule =="
-		git -C "nebulaos-guppyscreen/$submodule" apply "$patch_path"
-	else
-		echo "== $patch_file already applied (or does not cleanly apply) to nebulaos-guppyscreen/$submodule, skipping =="
-	fi
-done
+# HelixScreen's upstream K1 target is built in 04-cross-compile-app-stack.sh;
+# this stage only materializes the exact source tree and its submodules.
+clone_pinned helixscreen "$HELIXSCREEN_REPO" "$HELIXSCREEN_PIN"
+git -C helixscreen submodule update --init --recursive
 
 # Mainsail - a built Vue app, fetched as a real release archive, not built
 # from source here (no Node.js toolchain needed for this build at all).

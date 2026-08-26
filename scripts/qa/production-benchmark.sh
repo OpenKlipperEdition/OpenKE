@@ -142,7 +142,7 @@ SOCKET_COUNT=$(ss -tln 2>/dev/null | tail -n +2 | wc -l)
 
 KLIPPY_RSS=$(rss_for "klippy.py")
 MOONRAKER_RSS=$(rss_for "moonraker.py")
-GUPPYSCREEN_RSS=$(rss_for "/opt/guppyscreen/guppyscreen")
+HELIXSCREEN_RSS=$(rss_for "/opt/helixscreen/bin/helix-screen")
 USTREAMER_RSS=$(rss_for "ustreamer")
 NGINX_RSS=$(rss_for "nginx: master")
 DROPBEAR_RSS=$(rss_for "/usr/sbin/dropbear -R")
@@ -266,14 +266,14 @@ fi
 
 TSV="$BASENAME.tsv"
 if [ ! -e "$OUTDIR/summary.tsv" ]; then
-	printf 'timestamp\tlabel\tuptime_s\tload1\tload5\tload15\tthreads\tmem_total_mb\tmem_used_mb\tmem_free_mb\tmem_buffcache_mb\tmem_available_mb\tswap_total_mb\tswap_used_mb\tcpu_pct\tctxt_per_sec\totg_irq_per_sec\tsocket_count\tklippy_rss_kb\tmoonraker_rss_kb\tguppyscreen_rss_kb\tustreamer_rss_kb\tnginx_rss_kb\tdropbear_rss_kb\tmodemmanager_rss_kb\tdbus_rss_kb\tustreamer_cpu_ticks\n' \
+	printf 'timestamp\tlabel\tuptime_s\tload1\tload5\tload15\tthreads\tmem_total_mb\tmem_used_mb\tmem_free_mb\tmem_buffcache_mb\tmem_available_mb\tswap_total_mb\tswap_used_mb\tcpu_pct\tctxt_per_sec\totg_irq_per_sec\tsocket_count\tklippy_rss_kb\tmoonraker_rss_kb\thelixscreen_rss_kb\tustreamer_rss_kb\tnginx_rss_kb\tdropbear_rss_kb\tmodemmanager_rss_kb\tdbus_rss_kb\tustreamer_cpu_ticks\n' \
 		> "$OUTDIR/summary.tsv"
 fi
 ROW=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
 	"$TS" "$LABEL" "$UPTIME_S" "$LOAD1" "$LOAD5" "$LOAD15" "$THREAD_COUNT" \
 	"$MEM_TOTAL" "$MEM_USED" "$MEM_FREE" "$MEM_BUFFCACHE" "$MEM_AVAILABLE" \
 	"$SWAP_TOTAL" "$SWAP_USED" "$CPU_PCT" "$CTXT_RATE" "$OTG_RATE" "$SOCKET_COUNT" \
-	"$KLIPPY_RSS" "$MOONRAKER_RSS" "$GUPPYSCREEN_RSS" "$USTREAMER_RSS" "$NGINX_RSS" \
+	"$KLIPPY_RSS" "$MOONRAKER_RSS" "$HELIXSCREEN_RSS" "$USTREAMER_RSS" "$NGINX_RSS" \
 	"$DROPBEAR_RSS" "$MODEMMANAGER_RSS" "$DBUS_RSS" "${USTREAMER_CPU_STAT:-0}")
 printf '%s\n' "$ROW" >> "$OUTDIR/summary.tsv"
 printf '%s\n' "$ROW" > "$TSV"
@@ -297,7 +297,7 @@ SUMMARY="$BASENAME.txt"
 	echo "preemption model: $PREEMPT_MODEL"
 	echo "root device (active slot): ${ROOT_DEVICE:-unknown}"
 	echo
-	echo "RSS (kB): klippy=$KLIPPY_RSS moonraker=$MOONRAKER_RSS guppyscreen=$GUPPYSCREEN_RSS ustreamer=$USTREAMER_RSS nginx=$NGINX_RSS dropbear=$DROPBEAR_RSS modemmanager=$MODEMMANAGER_RSS dbus=$DBUS_RSS"
+	echo "RSS (kB): klippy=$KLIPPY_RSS moonraker=$MOONRAKER_RSS helixscreen=$HELIXSCREEN_RSS ustreamer=$USTREAMER_RSS nginx=$NGINX_RSS dropbear=$DROPBEAR_RSS modemmanager=$MODEMMANAGER_RSS dbus=$DBUS_RSS"
 	echo "ustreamer cumulative cpu ticks (utime+stime): ${USTREAMER_CPU_STAT:-n/a}"
 	echo
 	echo "=== Wi-Fi ==="

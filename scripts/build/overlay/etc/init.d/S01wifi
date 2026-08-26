@@ -10,7 +10,7 @@
 # history, two Python venvs) and can legitimately take several minutes on
 # this hardware. With WiFi gated behind that, a device had zero network/
 # SSH reachability for the entire factory-seed window - the only way in
-# was GuppyScreen's touchscreen, and its own WiFi panel needs
+# is the touchscreen, and its own WiFi panel needs
 # wpa_supplicant already running to configure anything, a real chicken-
 # and-egg lockout. Two real hard-reboots happened live specifically
 # because of this - an operator with no way to check progress assumed the
@@ -34,7 +34,7 @@
 # as a real belt-and-suspenders rather than relying on ordering alone).
 #
 # ctrl_interface=/var/run/wpa_supplicant in the config already matches what
-# GuppyScreen's own guppyconfig.json expects for its WiFi panel (confirmed
+# the touch UI expects for its WiFi panel (confirmed
 # directly from its own config key and wpa_event.cpp's directory-scan logic,
 # not guessed).
 #
@@ -55,9 +55,9 @@
 # GUI workstream sec 60: the original version of this script skipped
 # starting wpa_supplicant entirely when $CONF didn't exist yet - correct
 # for a placeholder-safety default on an untested image, but backwards for
-# a device meant to be configured through GuppyScreen's own WiFi panel: the
-# daemon must be running (with no saved network) before GuppyScreen can
-# scan, and SAVE_CONFIG (which GuppyScreen sends after ADD_NETWORK/
+# a device meant to be configured through the touch UI's WiFi panel: the
+# daemon must be running (with no saved network) before the UI can
+# scan, and SAVE_CONFIG (which the UI sends after ADD_NETWORK/
 # SET_NETWORK/ENABLE_NETWORK - confirmed from wifi_panel.cpp) silently does
 # nothing unless update_config=1 is already in the config file. Seeds a
 # minimal, credential-free default config on first boot only (never

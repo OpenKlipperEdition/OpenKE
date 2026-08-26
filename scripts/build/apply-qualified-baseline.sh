@@ -32,7 +32,7 @@
 # that reproduces "every ACCEPTED variant, all at once, from a clean
 # checkout" - running the base 00-06 pipeline alone silently regresses to
 # pre-variant defaults, which is exactly the bug this script closes (found
-# live 2026-08-06 attempting a routine GuppyScreen-only rebuild: PREEMPT_RT,
+# live 2026-08-06 attempting a routine touchscreen-only rebuild: PREEMPT_RT,
 # the backlight-final-controller DT node, and the touch final-qualification
 # driver all silently disappeared from a "clean" rebuild).
 #

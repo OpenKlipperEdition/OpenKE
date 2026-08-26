@@ -42,7 +42,7 @@ GATE_LIB="${GATE_LIB:-/etc/nebulaos-maintenance-gate.sh}"
 
 # NebulaOS Memory Resilience Gate (docs/NEBULAOS_MEMORY_RESILIENCE.md): this
 # is the "most expendable during maintenance" process tier - it should be
-# the OOM-killer's first choice, well before Klipper/Moonraker/GuppyScreen.
+# the OOM-killer's first choice, well before Klipper/Moonraker/HelixScreen.
 # Applied to this shell itself so every child (git, cp) inherits it.
 echo 500 > "/proc/self/oom_score_adj" 2>/dev/null
 
@@ -75,15 +75,15 @@ log() {
 . "$GATE_LIB"
 
 pause_expendable_services() {
-	log "pausing expendable services for memory-heavy seeding (guppyscreen, webcam)"
-	/etc/init.d/S58guppyscreen stop 2>/dev/null
+	log "pausing expendable services for memory-heavy seeding (helixscreen, webcam)"
+	/etc/init.d/S58helixscreen stop 2>/dev/null
 	/etc/init.d/S50webcam stop 2>/dev/null
 }
 
 resume_expendable_services() {
 	log "resuming paused services"
 	/etc/init.d/S50webcam start 2>/dev/null
-	/etc/init.d/S58guppyscreen start 2>/dev/null
+	/etc/init.d/S58helixscreen start 2>/dev/null
 }
 
 seed_git_app() {

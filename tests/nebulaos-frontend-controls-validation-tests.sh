@@ -75,10 +75,10 @@ check_scenario() {
 write_clean_fixture() {
 	dir="$1"
 	rm -rf "$dir"
-	mkdir -p "$dir/GuppyScreen"
+	mkdir -p "$dir/NestedUI"
 	cat > "$dir/printer.cfg" <<'EOF'
 [include frontend-controls.cfg]
-[include GuppyScreen/guppy_cmd.cfg]
+[include NestedUI/nested.cfg]
 
 [printer]
 kinematics: cartesian
@@ -107,7 +107,7 @@ rename_existing: BASE_CANCEL_PRINT
 gcode:
   BASE_CANCEL_PRINT
 EOF
-	echo "[respond]" > "$dir/GuppyScreen/guppy_cmd.cfg"
+	echo "[respond]" > "$dir/NestedUI/nested.cfg"
 }
 
 # --- Scenario 1: clean valid config passes -----------------------------
@@ -119,7 +119,7 @@ check_scenario "clean valid config passes" "$d" printer.cfg 0 0
 
 d="$WORK/s2"; write_clean_fixture "$d"
 cat > "$d/printer.cfg" <<'EOF'
-[include GuppyScreen/guppy_cmd.cfg]
+[include NestedUI/nested.cfg]
 
 [printer]
 kinematics: cartesian
@@ -208,7 +208,7 @@ rename_existing: BASE_PAUSE
 gcode:
   BASE_PAUSE
 EOF
-echo "" >> "$d/GuppyScreen/guppy_cmd.cfg"
+echo "" >> "$d/NestedUI/nested.cfg"
 cat >> "$d/printer.cfg" <<'EOF'
 
 [gcode_macro PAUSE]
@@ -247,23 +247,22 @@ gcode:
 EOF
 check_scenario "recursive rename_existing chain is rejected" "$d" printer.cfg 0 1
 
-# --- Scenario 10: clean valid config supplies exactly what GuppyScreen ---
-# --- actually calls (strings-confirmed against the real guppyscreen ------
-# --- binary in docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md sec 4 Level 3) ---
+# --- Scenario 10: clean valid config supplies the frontend control objects -
+# --- virtual_sdcard, pause_resume, and display_status --------------------
 
 d="$WORK/s10"; write_clean_fixture "$d"
 closure="$WORK/s10-closure.txt"
 frontend_controls_resolve_closure "$d" printer.cfg "$closure" >/dev/null 2>&1
-guppy_needs_ok=1
+frontend_needs_ok=1
 for pattern in "virtual_sdcard" "pause_resume" "display_status"; do
 	if ! grep -q -i -E "^\[[[:space:]]*$pattern([[:space:]]|\])" "$closure"; then
-		guppy_needs_ok=0
+		frontend_needs_ok=0
 	fi
 done
-if [ "$guppy_needs_ok" = "1" ]; then
-	pass "clean config supplies every object GuppyScreen's binary references (virtual_sdcard/pause_resume/display_status)"
+if [ "$frontend_needs_ok" = "1" ]; then
+	pass "clean config supplies every object required by the frontend controls (virtual_sdcard/pause_resume/display_status)"
 else
-	fail "clean config is missing an object GuppyScreen's binary references"
+	fail "clean config is missing an object required by the frontend controls"
 fi
 
 # --- Scenario 11: no Creality/OpenKE-specific fallback was added --------

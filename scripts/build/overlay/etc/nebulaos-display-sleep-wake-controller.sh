@@ -158,7 +158,7 @@ ndq_swc_tick() {
 	if ! ndq_swc_backlight_is_asleep; then
 		# Awake (or the backlight status is unreadable/uncertain, in which
 		# case "do nothing" is the only safe choice anyway) - no need to
-		# poll touch at all while awake, that is GuppyScreen's/the
+		# poll touch at all while awake, that is HelixScreen's/the
 		# backlight driver's own concern, not this watcher's. Always
 		# reset the baseline here so a stale pre-sleep touch count can
 		# never survive into the next asleep period and cause an instant

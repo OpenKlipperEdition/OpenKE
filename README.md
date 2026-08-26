@@ -6,23 +6,22 @@ the stock firmware's binary blobs where we could avoid them.
 
 If you want to build the whole OS, this is the repo you want. The full OpenKlipperEdition/System
 OKE checkout supplies both the kernel and Buildroot; official upstream Klipper and the
-OpenKlipperEdition/GuppyScreen OKE branch supply the application stack. The build refreshes moving
+the pinned HelixScreen K1 source supplies the application stack. The build refreshes moving
 sources, verifies immutable inputs, and puts the whole thing together into something you can flash.
 
 ```
 OpenKlipperEdition/System ─┐
 Klipper upstream ─────────┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
-GuppyScreen (OKE) ───────┘   (this repo)
+HelixScreen K1 ───────────┘   (this repo)
 ```
 
 - [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — full OKE checkout providing Linux 6.6 (`kernel/kernel-6.6`) and Buildroot (`buildroot/`)
 - [`Klipper`](https://github.com/Klipper3d/klipper) — official upstream Klipper runtime (`master` branch)
-- [`GuppyScreen`](https://github.com/OpenKlipperEdition/GuppyScreen) — touchscreen UI (`OKE` branch)
+- [`HelixScreen`](https://github.com/prestonbrown/helixscreen) — pinned K1/MIPS32 touchscreen UI
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
 The build records every external input in `manifests/dependencies.conf`. Immutable sources are
-pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while Klipper follows official upstream `master` and GuppyScreen follows
-OpenKlipperEdition/GuppyScreen's `OKE` branch. The exact fetched commits are recorded in
+pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while Klipper follows official upstream `master` and HelixScreen is pinned to its reviewed K1 commit. The exact fetched commits are recorded in
 `build-manifest.txt`. The build always refreshes those moving checkouts and does not use
 unrelated local clones sitting next to this repo.
 
@@ -66,17 +65,16 @@ When it's done, you'll have `xImage`, `rootfs.ext2`, and `rootfs.squashfs` in
 `artifacts/buildroot-halley5-v30-image/`, plus `build-manifest.txt` (records exactly what went
 into this build) and `kernel.config`. `rootfs.ext2` is configured as a 500 MiB filesystem so the
 complete application stack fits reliably; `rootfs.squashfs` is the compressed deployment image.
-GuppyScreen's compiled binary shows up separately in
-`artifacts/guppyscreen-mips/`. The last stage sanity-checks that everything is real, correctly
+HelixScreen's compiled K1 bundle is staged into `/opt/helixscreen`. The last stage sanity-checks that everything is real, correctly
 architected MIPS32 output — it's not claiming byte-for-byte reproducibility between two separate
 builds (timestamps and a few build-path strings will differ), just that the same code went in and
 came out right.
 
 ## Don't build the other three repos on their own
 
-Cloning the kernel, Klipper, or GuppyScreen repository by itself and trying to build it will not
+Cloning the kernel, Klipper, or HelixScreen repository by itself and trying to build it will not
 produce a working printer image — none of those repositories contains the complete board image. This
-repo fetches the kernel, official upstream Klipper, GuppyScreen, Moonraker, the retained
+repo fetches the kernel, official upstream Klipper, HelixScreen, Moonraker, the retained
 `k1-ustreamer` webcam stack, Buildroot, and the tracked NebulaOS overlay, then assembles the
 flashable result.
 
@@ -116,7 +114,7 @@ not as a polished installer walkthrough:
 - [`docs/NEBULAOS_BUILD_ENVIRONMENT.md`](docs/NEBULAOS_BUILD_ENVIRONMENT.md) — what's actually in the build container
 - [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) — the upstream projects and prior work this stands on
 
-The other repos (kernel, Klipper, GuppyScreen, and the [`NebulaOS`](https://github.com/coreflake1/NebulaOS)
+The other repos (kernel, Klipper, HelixScreen, and the [`NebulaOS`](https://github.com/coreflake1/NebulaOS)
 release repo) all link back here instead of keeping their own copies of this stuff — this is the
 one place it's kept up to date.
 

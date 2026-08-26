@@ -13,7 +13,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 S50WEBCAM="$REPO_ROOT/scripts/build/overlay/etc/init.d/S50webcam"
-SET_QUALITY_PY="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/GuppyScreen/scripts/set_camera_quality.py"
+SET_QUALITY_PY="$REPO_ROOT/scripts/build/overlay/usr/libexec/nebulaos-set-camera-quality.py"
 CAMERA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/camera-quality.cfg"
 PRINTER_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/printer.cfg"
 
@@ -118,8 +118,7 @@ fi
 
 # --- Test 7: camera-quality.cfg defines exactly the three expected
 # parameterless macros, each routed through the same shell command, and the
-# shell command's script path matches the runtime (/usr/data/...) path
-# convention used by every other GuppyScreen script in this config. ---
+# shell command's script path matches the neutral runtime helper path. ---
 for quality in LOW MED HIGH; do
 	if grep -q "^\[gcode_macro SET_CAMERA_QUALITY_${quality}\]$" "$CAMERA_CFG" \
 		&& grep -A3 "^\[gcode_macro SET_CAMERA_QUALITY_${quality}\]$" "$CAMERA_CFG" \
@@ -130,14 +129,14 @@ for quality in LOW MED HIGH; do
 	fi
 done
 
-if grep -q '^command: /usr/data/printer_data/config/GuppyScreen/scripts/set_camera_quality.py$' "$CAMERA_CFG"; then
+if grep -q '^command: /usr/libexec/nebulaos-set-camera-quality.py$' "$CAMERA_CFG"; then
 	pass
 else
 	fail "camera-quality.cfg's gcode_shell_command does not point at the runtime script path"
 fi
 
 # --- Test 8: printer.cfg actually includes camera-quality.cfg - a macro
-# file nobody [include]s is invisible to both Mainsail and GuppyScreen. ---
+# file nobody [include]s is invisible to both Mainsail and HelixScreen. ---
 if grep -q '^\[include camera-quality.cfg\]$' "$PRINTER_CFG"; then
 	pass
 else

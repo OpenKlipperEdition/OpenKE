@@ -6,7 +6,7 @@
 # (mmcblk0p10) is a real ext4 partition physically shared with stock (not
 # duplicated per A/B slot), so it mounted plain tmpfs over it instead, at the
 # cost of losing all state - WiFi credentials, printer.cfg SAVE_CONFIG,
-# GuppyScreen touch calibration - on every single reboot.
+# display calibration - on every single reboot.
 #
 # Now that the kernel side is a tagged, proven production baseline
 # (functional-production-baseline-2026-07-23) with working A/B fallback, this
@@ -34,7 +34,7 @@
 # source directory is deliberate, not a redundant double-mount.
 #
 # Runs after S00revert-safety, before anything that needs to read/write these
-# paths - webcam/klipper/moonraker/guppyscreen (S50+) all come later, and
+# paths - webcam/klipper/moonraker/helixscreen (S50+) all come later, and
 # before S02nebulaos-namespace (this script's own mkdir -p calls below only
 # ever create the specific subdirectories it needs; S02's own layout
 # creation is a superset and is unaffected by running second).
@@ -48,11 +48,11 @@
 # file that used to live under usr/data/ in the overlay source (moved to its
 # correct /opt/printer_data location), which silently stopped baking in the
 # usr/data directory itself as a side effect - this whole script then failed
-# every mkdir/mount/cp call in sequence, and GuppyScreen never even started.
+# every mkdir/mount/cp call in sequence, and the display service never started.
 
 DATA_ROOT=/usr/data/nebulaos
 PDATA=$DATA_ROOT/printer_data
-GUPPY_STATE=$DATA_ROOT/guppyscreen
+HELIX_STATE=$DATA_ROOT/apps/helixscreen
 
 seed_once() {
 	src="$1"
@@ -72,8 +72,7 @@ start() {
 	# a real device's SAVE_CONFIG/calibration/credentials must never be
 	# clobbered by a later boot just because this script runs again.
 	seed_once /opt/printer_data "$PDATA"
-	mkdir -p "$PDATA/config/GuppyScreen/scripts"
-	seed_once /opt/guppyscreen/guppyconfig.json "$GUPPY_STATE/guppyconfig.json"
+	mkdir -p "$HELIX_STATE/config"
 
 	# /opt/printer_data ships baked-in defaults on the read-only squashfs
 	# (printer.cfg, moonraker.conf) for the seed step above - bind-mounting
@@ -82,19 +81,14 @@ start() {
 	# writable and persistent, without changing either service's config.
 	mount --bind "$PDATA" /opt/printer_data
 
-	# GuppyScreen hardcodes its own config path as
-	# /proc/self/exe's-directory/guppyconfig.json (main.cpp) - i.e.
-	# /opt/guppyscreen/guppyconfig.json, on the read-only squashfs, not
-	# reachable via any override flag. A single-file bind mount is the only
-	# way to make just this one file persistent without also having to
-	# duplicate the guppyscreen/guppybeep binaries or themes/ into real
-	# storage. Without this, touch_calibrated (sysinfo_panel.cpp) can never
-	# actually save - not just "resets every boot," writes fail outright,
-	# which is why GuppyScreen was stuck showing the recalibration wizard.
-	mount --bind "$GUPPY_STATE/guppyconfig.json" /opt/guppyscreen/guppyconfig.json
+	# The old UI hardcoded a config path on the read-only squashfs; HelixScreen
+	# instead receives HELIX_CONFIG_DIR from its service.
+	# No application binaries or assets are duplicated into persistent storage.
+	# This keeps the immutable application bundle separate from user state.
+	# HelixScreen reads its immutable assets from /opt/helixscreen and writes
+	# user configuration under HELIX_CONFIG_DIR, set by S58helixscreen.
 
-	# GuppyScreen's static_ip_panel.cpp separately hardcodes
-	# /usr/data/printer_data/config/GuppyScreen/scripts/static_ip.py (a
+	# The previous UI separately hardcoded a printer-data helper path (a
 	# stock-Creality-style absolute path, not configurable) - point it at the
 	# same real printer_data tree as everything else instead of a second,
 	# disconnected copy.
@@ -103,15 +97,15 @@ start() {
 	# exists there - real incident, found live testing on this project's
 	# actual test device: /usr/data (mmcblk0p10) is the SAME physical
 	# partition stock uses, and this device already had a real, previously-
-	# installed GuppyScreen there from real prior use (themes, calibration,
-	# backups, and a real ~6MB guppyscreen binary). `ln -sf SRC DST` treats
+	# installed touchscreen application there from real prior use (themes, calibration,
+	# backups, and a real touchscreen binary). `ln -sf SRC DST` treats
 	# an existing DST *directory* as "create the link inside it using SRC's
-	# basename" instead of replacing DST - so `ln -sf /opt/guppyscreen
-	# /usr/data/guppyscreen` did not create /usr/data/guppyscreen as a
+	# basename" instead of replacing DST - so an old application directory
+	# could not safely be replaced as a
 	# symlink (it already existed as a real directory); it silently landed
-	# inside it and overwrote the real guppyscreen binary with a symlink to
+	# inside it and overwrote the real touchscreen binary with a symlink to
 	# a path that only exists on the custom image, breaking stock's own
-	# GuppyScreen outright. The printer_data case was the same mechanism but
+	# stock application outright. The printer_data case was the same mechanism but
 	# landed on a name nothing already used, so it only left a harmless
 	# stray extra entry rather than destroying anything. Recovered by hand
 	# from a real backup the device owner had made; both are now guarded so
@@ -119,7 +113,6 @@ start() {
 	# this partition - if either path already has ANY content, real or
 	# leftover from us, this leaves it alone rather than guessing.
 	[ -e /usr/data/printer_data ] || ln -s /opt/printer_data /usr/data/printer_data
-	[ -e /usr/data/guppyscreen ] || ln -s /opt/guppyscreen /usr/data/guppyscreen
 }
 
 case "$1" in

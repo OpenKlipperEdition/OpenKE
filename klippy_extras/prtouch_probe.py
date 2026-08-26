@@ -290,7 +290,7 @@ class PrtouchProbe:
         self.last_error = None
         # get_status()-facing cache (see prtouch_v2.py's own get_status()) - Klipper's status/
         # webhooks layer polls get_status() on its own schedule (potentially frequently, e.g.
-        # from a live GuppyScreen screen), and that call must stay cheap and never itself touch
+		# from a live HelixScreen screen), and that call must stay cheap and never itself touch
         # the MCU (a synchronous serial round-trip on every status poll would be both wasteful
         # and a layering violation - get_status() implementations elsewhere in this codebase,
         # see z_compensate.py, only ever return already-computed state). read_diagnostics()

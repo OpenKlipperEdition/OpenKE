@@ -45,7 +45,7 @@ from . import prtouch_nozzle
 from . import prtouch_probe
 
 #: Structured status contract, version 1 - see docs/z_compensate_status_api.md. Consumed by
-#: GuppyScreen's recalibration wizard via printer.objects.subscribe, replacing its previous
+#: HelixScreen's recalibration wizard via printer.objects.subscribe, replacing its previous
 #: dependence on parsing this module's human-readable gcode response text (the "z_offset:"/
 #: "PR_ERR_CODE" scan). get_status() below is the only part of this contract Klipper's own
 #: object-status machinery requires - any object with a get_status(eventtime) method is
@@ -169,7 +169,7 @@ class ZCompensate:
 
         # Structured status contract v1 (see module-level comment + docs/
         # z_compensate_status_api.md) - independent of persist_offset above, which stays a
-        # console/config concern; GuppyScreen's own persistence step consumes
+		# console/config concern; HelixScreen's own persistence step consumes
         # calibration_z_offset directly and does its own save, regardless of this setting.
         self.calibration_id = 0
         self.calibration_state = "idle"
@@ -395,7 +395,7 @@ class ZCompensate:
 
         # The calibration itself has now genuinely succeeded - a real measurement was taken
         # and applied as this print's live Z offset. Publish "complete" here, before the
-        # optional persist_offset block below, deliberately: GuppyScreen's own persistence
+	# optional persist_offset block below, deliberately: HelixScreen's own persistence
         # step consumes calibration_z_offset directly and does its own save/restart,
         # entirely independent of persist_offset (which stays a separate, opt-in,
         # console/config-file concern - see this module's own docstring on why a restart

@@ -1,0 +1,54 @@
+#!/bin/sh
+# NebulaOS HelixScreen K1 service.
+# The application/assets are immutable in /opt/helixscreen; user settings and
+# logs live below the persistent /usr/data/nebulaos namespace.
+
+DAEMON_DIR=/opt/helixscreen
+LAUNCHER="$DAEMON_DIR/bin/helix-launcher.sh"
+PIDFILE=/var/run/helixscreen.pid
+STATE_DIR=/usr/data/nebulaos/apps/helixscreen
+CONFIG_DIR="$STATE_DIR/config"
+LOG_DIR=/usr/data/nebulaos/printer_data/logs
+
+start() {
+	[ -x "$LAUNCHER" ] || {
+		echo "HelixScreen launcher missing: $LAUNCHER"
+		return 0
+	}
+	mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+	export HELIX_CONFIG_DIR="$CONFIG_DIR"
+	export HELIX_DATA_DIR="$DAEMON_DIR"
+	export HELIX_DISPLAY_BACKEND=fbdev
+	export HELIX_FB_DEVICE=/dev/fb0
+	export MOONRAKER_HOST=127.0.0.1
+	export MOONRAKER_PORT=7125
+	export HELIX_LOG_DEST=file
+	export HELIX_LOG_FILE="$LOG_DIR/helixscreen.log"
+	echo "Starting HelixScreen"
+	start-stop-daemon -S -b -m -p "$PIDFILE" -x "$LAUNCHER"
+	[ -f "$PIDFILE" ] && echo 0 > "/proc/$(cat "$PIDFILE")/oom_score_adj" 2>/dev/null
+}
+
+stop() {
+	echo "Stopping HelixScreen"
+	start-stop-daemon -K -p "$PIDFILE"
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac
+
+exit 0

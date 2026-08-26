@@ -29,7 +29,7 @@
 # get_status() (below) exposes the same information through Klipper's own object-status/
 # webhooks mechanism (automatically queryable/subscribable under this module's config section
 # name, same pattern as z_compensate.py's own structured status - see its module comment for
-# how that machinery works) for GuppyScreen/Moonraker to poll without needing to send gcode.
+# how that machinery works) for HelixScreen/Moonraker to poll without needing to send gcode.
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 from . import prtouch_mcu

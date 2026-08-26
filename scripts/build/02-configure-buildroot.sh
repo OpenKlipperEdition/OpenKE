@@ -25,7 +25,7 @@
 # IMPORTANT: renaming or deleting a file from scripts/build/overlay/ does NOT
 # remove it from a real build - a genuinely separate bug from the one above,
 # found for real deleting S01tmpfs-datastore in favor of
-# S01persistent-datastore (the GuppyScreen persistent-storage work): this
+# S01persistent-datastore (the persistent printer/UI storage work): this
 # script re-syncs the overlay TEMPLATE cleanly every time (the rm -rf above),
 # but Buildroot's own output/target/ staging directory only ever gets files
 # ADDED or OVERWRITTEN by the rootfs-overlay step, never removed, and

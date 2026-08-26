@@ -131,7 +131,7 @@ artifact_sha256() {
 	git_field git_commit_klipper vendor/klipper
 	git_field git_commit_mcu vendor/nebulaos-klipper-mcu
 	git_field git_commit_moonraker vendor/moonraker
-	git_field git_commit_guppyscreen vendor/nebulaos-guppyscreen
+	git_field git_commit_helixscreen vendor/helixscreen
 	git_field git_commit_k1_ustreamer vendor/k1-ustreamer
 	git_field git_commit_v4l_utils vendor/v4l-utils
 	if [ -d "$REPO_ROOT/vendor/k1-ustreamer/.git" ]; then
@@ -140,8 +140,7 @@ artifact_sha256() {
 		echo "git_submodules_k1_ustreamer=absent"
 	fi
 	artifact_sha256 mainsail_zip_sha256 "$REPO_ROOT/vendor/mainsail-dist/mainsail.zip"
-	artifact_sha256 guppyscreen_sha256 "$REPO_ROOT/artifacts/guppyscreen-mips/guppyscreen"
-	artifact_sha256 guppybeep_sha256 "$REPO_ROOT/artifacts/guppyscreen-mips/guppybeep"
+	artifact_sha256 helixscreen_sha256 "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/helixscreen/bin/helix-screen"
 	artifact_sha256 wifi_firmware_sha256 "$REPO_ROOT/scripts/build/overlay/lib/firmware/brcm/brcmfmac43430-sdio.bin"
 	artifact_sha256 wifi_clm_sha256 "$REPO_ROOT/scripts/build/overlay/lib/firmware/brcm/brcmfmac43430-sdio.clm_blob"
 	artifact_sha256 wifi_nvram_sha256 "$REPO_ROOT/scripts/build/overlay/lib/firmware/brcm/brcmfmac43430-sdio.txt"

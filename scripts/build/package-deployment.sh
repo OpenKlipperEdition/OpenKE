@@ -25,7 +25,7 @@ for required in "$ARTIFACT_DIR/xImage" "$ARTIFACT_DIR/rootfs.squashfs" "$ARTIFAC
 done
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-PKG_DIR="$PACKAGE_ROOT/z-compensate-guppyscreen-${TS}"
+PKG_DIR="$PACKAGE_ROOT/helixscreen-k1-${TS}"
 mkdir -p "$PKG_DIR"
 
 cp "$ARTIFACT_DIR/xImage" "$PKG_DIR/xImage"
@@ -112,13 +112,10 @@ If post-flash verification fails at any point:
 3. If the custom slot is suspected corrupted (not just "wrong content but
    bootable"), stay on stock and investigate before attempting another
    custom-slot write - do not repeatedly flash an already-failing target.
-4. GuppyScreen/Klipper-only rollback (no reflash needed, if only those
-   userspace pieces need reverting and the kernel/DTS are fine): see this
-   session's own deployment-evidence rollback.sh for the plain-scp-based
-   z_compensate.py/guppyscreen-binary rollback (does not apply if a squashfs
-   reflash already happened, since GuppyScreen's binary is read-only squashfs
-   content again after that point - only the pre-reflash rollback path was
-   plain-scp; post-reflash requires another full image rollback per step 2).
+4. HelixScreen/Klipper-only changes are part of the immutable rootfs bundle;
+   if only those userspace pieces need reverting and the kernel/DTS are fine,
+   reflash the previous package's rootfs.squashfs as in step 2. There is no
+   separate mutable UI binary rollback path.
 EOF
 
 echo "== package complete: $PKG_DIR =="

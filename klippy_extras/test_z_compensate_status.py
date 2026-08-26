@@ -1,5 +1,5 @@
 # Structured status contract tests for ZCompensate.get_status() - calibration_id/state/
-# z_offset/error, the machine-readable replacement for GuppyScreen's old "z_offset:"/
+# z_offset/error, the machine-readable replacement for the old "z_offset:"/
 # "PR_ERR_CODE" terminal-text parsing. See docs/z_compensate_status_api.md for the contract
 # itself. Drives the real ZCompensate.cmd_z_offset_calibration against the fake environment
 # with only the probe/measurement stubbed - everything else (config, coordinate math,

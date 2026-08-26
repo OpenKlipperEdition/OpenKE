@@ -2,11 +2,11 @@
 #
 # OpenKE addition (USB/webcam stock-parity mission, 2026-07-26): mount/
 # unmount a USB mass-storage device under Moonraker's own gcodes root, so
-# its files show up in GuppyScreen (and Mainsail/Fluidd) through the exact
+# its files show up in HelixScreen (and Mainsail/Fluidd) through the exact
 # same file-listing path any other gcode already uses - see
 # /etc/udev/rules.d/91-usb-gcode-media.rules for why this is the real
-# integration point for this UI (GuppyScreen has no USB-media concept of
-# its own; it only ever lists whatever Moonraker's /server/files/gcodes/
+# integration point for this UI (the UI has no USB-media concept of its own;
+# it only ever lists whatever Moonraker's /server/files/gcodes/
 # API reports).
 #
 # Invoked by udev on add/remove of a real USB block device (sd[a-z] or
@@ -76,7 +76,7 @@ do_unmount() {
 	# The device node is already gone by the time a "remove" event fires
 	# (this runs after the kernel has torn it down), so a normal umount
 	# can hang waiting on a device that will never respond - lazy-unmount
-	# so GuppyScreen/Moonraker's view of the directory clears immediately
+	# so HelixScreen/Moonraker's view of the directory clears immediately
 	# even if some underlying cleanup is still pending.
 	umount -l "$MOUNTPOINT" 2>/dev/null
 	rmdir "$MOUNTPOINT" 2>/dev/null

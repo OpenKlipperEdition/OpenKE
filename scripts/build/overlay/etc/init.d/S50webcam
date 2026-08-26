@@ -76,7 +76,7 @@ DESIRED_FPS=30
 # Camera quality presets (2026-08-04): end-user-selectable via the
 # SET_CAMERA_QUALITY_LOW/MED/HIGH macros (see
 # opt/printer_data/config/camera-quality.cfg), which show up as one-click
-# buttons in both Mainsail's macro panel and GuppyScreen's macros screen
+# buttons in both Mainsail's macro panel and HelixScreen
 # with no separate per-UI wiring. Supersedes the earlier fps-only C1
 # marker from Pre-qualification mission Phase A7 - HIGH is that same,
 # already-qualified 30fps default above, unchanged.
@@ -188,7 +188,7 @@ start_ustreamer() {
 	# conditions, out of this mission's scope).
 	# NebulaOS Memory Resilience Gate: webcam streaming is "more
 	# expendable" - optional media, never printer-critical - so it should
-	# be picked as an OOM victim well before Klipper/Moonraker/GuppyScreen
+# be picked as an OOM victim well before Klipper/Moonraker/HelixScreen
 	# (docs/NEBULAOS_MEMORY_RESILIENCE.md sec 7).
 	[ -f "$USTREAMER_PIDFILE" ] && echo 300 > "/proc/$(cat "$USTREAMER_PIDFILE")/oom_score_adj" 2>/dev/null
 }

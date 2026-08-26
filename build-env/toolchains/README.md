@@ -1,18 +1,15 @@
 # Toolchains bundled in the unified build image
 
-## GuppyScreen: Bootlin mips32el-musl (bundled directly)
+## HelixScreen K1: Bootlin mips32el-musl (compatibility SDK)
 
 - **Version:** `mips32el--musl--stable-2024.02-1` (gcc 12.3.0)
 - **Source:** https://toolchains.bootlin.com/downloads/releases/toolchains/mips32el/tarballs/mips32el--musl--stable-2024.02-1.tar.bz2
 - **SHA256:** `25c0b3217df1bf1a7bae2cc4f56cdeab9fec98b172bbf0b336b2e8fe41d3ee4e`
-- **Why bundled directly, not built from source:** this is a pre-built, upstream-published toolchain
-  release, the same one `ghcr.io/coreflake1/guppydev` (and `OpenKlipperEdition/GuppyScreen/docker/Dockerfile`)
-  already use — Migration A's entire premise is preserving this exact toolchain unchanged, so it's
-  copied in identically rather than re-derived.
+- **Why retained:** this is a pre-built, upstream-published toolchain release retained as an exact,
+  hash-verified compatibility/debugging input. Production HelixScreen builds use Buildroot's own
+  target toolchain after Stage 03 so the UI ABI and libraries match the firmware rootfs.
 - **Extracted to:** `/toolchains/mips32el--musl--stable-2024.02-1/`, put on `PATH` directly by the
-  Dockerfile's own `ENV PATH=...` line — no wrapper script, no `CROSS_COMPILE` env var needed
-  (`scripts/build-mips.sh` in `OpenKlipperEdition/GuppyScreen` already defaults `CROSS_COMPILE` to
-  `mipsel-linux-` itself, matching this toolchain's own binary prefix).
+  build stage's scoped `HELIXSCREEN_MIPS_TOOLCHAIN_BIN` path — no global PATH pollution.
 
 ## Kernel / rootfs / native apps: Buildroot's own self-bootstrapped toolchain (NOT bundled)
 

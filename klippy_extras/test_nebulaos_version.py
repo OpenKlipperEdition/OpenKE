@@ -89,7 +89,7 @@ class VersionCollectionTest(unittest.TestCase):
             'firmware_tag': 'nebulaos-canonical-baseline-2026-08-07-5-gdc241c8',
             'firmware_sha': 'dc241c8abc',
             'kernel_sha': '295b7101d751fd888ae39e6f1746a4a940664a5f',
-            'guppyscreen_sha': 'be5d372c0d0c693adff3c23adf2655584bb2961e',
+            'helixscreen_sha': 'ca9e5ecf9a7d6418cbf79b68f28bf87dbf14c0ff',
             'build_date': '2026-08-08T00:00:00Z',
         }, generation_data={
             'migration_version': 'abc1234567890def',
@@ -99,7 +99,7 @@ class VersionCollectionTest(unittest.TestCase):
 
         self.assertEqual(status['firmware_tag'], 'nebulaos-canonical-baseline-2026-08-07-5-gdc241c8')
         self.assertEqual(status['kernel_sha'], '295b7101d751fd888ae39e6f1746a4a940664a5f')
-        self.assertEqual(status['guppyscreen_sha'], 'be5d372c0d0c693adff3c23adf2655584bb2961e')
+        self.assertEqual(status['helixscreen_sha'], 'ca9e5ecf9a7d6418cbf79b68f28bf87dbf14c0ff')
         self.assertEqual(status['app_generation'], 'abc1234567890def')
         self.assertEqual(status['klipper_sha'], expected_sha)
         self.assertFalse(status['klipper_dirty'])

@@ -20,7 +20,7 @@
 # doing nothing.
 #
 # INIT.D POSITION (S97) AND WHY: this project's own numbering has
-# Klipper=S55, Moonraker=S56, GuppyScreen=S58, and two existing terminal
+# Klipper=S55, Moonraker=S56, HelixScreen=S58, and two existing terminal
 # gates - S95mcu-boot-recovery (bounded one-shot MCU-shutdown recovery)
 # and S99confirm-good (the final OTA-marker "was this boot actually good"
 # gate, see that script's own header). This script deliberately sits
@@ -44,8 +44,8 @@
 #     see ndq_stage2_stack() below for why) - the exact same Moonraker
 #     /server/info klippy_state=ready + klippy_connected=true check
 #     S99confirm-good and S95mcu-boot-recovery both already rely on.
-#   - GuppyScreen running: its own S58guppyscreen PIDFILE
-#     (/var/run/guppyscreen.pid), checked the same way S58 itself manages
+#   - HelixScreen running: its own S58helixscreen PIDFILE
+#     (/var/run/helixscreen.pid), checked the same way S58 itself manages
 #     it (start-stop-daemon's pidfile convention) - `kill -0` against the
 #     recorded PID.
 #   - the display itself: the backlight-final-controller driver's own
@@ -89,7 +89,7 @@ ndq_stage2_stack() {
 }
 
 : "${MARKER:=/run/nebulaos-display-qualified-apply-attempted}"
-: "${GUPPYSCREEN_PIDFILE:=/var/run/guppyscreen.pid}"
+: "${HELIXSCREEN_PIDFILE:=/var/run/helixscreen.pid}"
 : "${HEALTH_RETRIES:=20}"
 : "${HEALTH_DELAY:=3}"
 
@@ -97,9 +97,9 @@ log() {
 	echo "S97nebulaos-display-qualified-apply: $1"
 }
 
-guppyscreen_running() {
-	[ -f "$GUPPYSCREEN_PIDFILE" ] || return 1
-	pid=$(cat "$GUPPYSCREEN_PIDFILE" 2>/dev/null)
+helixscreen_running() {
+	[ -f "$HELIXSCREEN_PIDFILE" ] || return 1
+	pid=$(cat "$HELIXSCREEN_PIDFILE" 2>/dev/null)
 	[ -n "$pid" ] || return 1
 	kill -0 "$pid" 2>/dev/null
 }
@@ -115,7 +115,7 @@ networking_up() {
 }
 
 # "The display" itself, as its own explicit health gate (the mission spec
-# lists it alongside Klipper/Moonraker/GuppyScreen/networking) - a cheap,
+# lists it alongside Klipper/Moonraker/HelixScreen/networking) - a cheap,
 # meaningful "is the backlight-final-controller driver actually loaded and
 # responding" check: the debugfs status file must exist and a read of it
 # must actually succeed. Deliberately does NOT try to interpret display
@@ -132,7 +132,7 @@ display_healthy() {
 wait_for_health() {
 	i=0
 	while [ "$i" -lt "$HEALTH_RETRIES" ]; do
-		if ndq_stage2_stack >/dev/null 2>&1 && guppyscreen_running && networking_up && display_healthy; then
+		if ndq_stage2_stack >/dev/null 2>&1 && helixscreen_running && networking_up && display_healthy; then
 			return 0
 		fi
 		i=$((i + 1))
@@ -149,10 +149,10 @@ start() {
 	touch "$MARKER"
 
 	if ! wait_for_health; then
-		log "printer stack (Klipper/Moonraker), GuppyScreen, networking, or the display itself never confirmed healthy after $((HEALTH_RETRIES * HEALTH_DELAY))s - doing nothing, both drivers remain at their own safe boot defaults"
+		log "printer stack (Klipper/Moonraker), HelixScreen, networking, or the display itself never confirmed healthy after $((HEALTH_RETRIES * HEALTH_DELAY))s - doing nothing, both drivers remain at their own safe boot defaults"
 		exit 0
 	fi
-	log "health gates passed (Klipper/Moonraker ready, GuppyScreen running, networking up, display driver responding)"
+	log "health gates passed (Klipper/Moonraker ready, HelixScreen running, networking up, display driver responding)"
 
 	if ndq_apply_all "$NDQ_CONFIG_FILE"; then
 		log "qualified display configuration applied"

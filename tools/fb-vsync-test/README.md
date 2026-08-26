@@ -7,7 +7,7 @@ X2000/Halley5 SoC). Exercises `FBIOPAN_DISPLAY` (and, optionally,
 for a bounded number of frames, measuring ioctl latency directly. It does
 **not** modify panel timing, pixel format, or any kernel/driver source - it
 only calls existing, already-supported fbdev ioctls from userspace, exactly
-the way any fbdev client (including GuppyScreen) already does.
+the way any fbdev client (including HelixScreen) already does.
 
 See `fb-vsync-test.c`'s own top-of-file comment for the full design
 rationale, including an important caveat found while writing this tool: the

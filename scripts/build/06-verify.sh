@@ -151,16 +151,8 @@ else
 	echo "OK   vendor/system working tree is dirty, as expected after apply-qualified-baseline.sh:"
 	printf '%s\n' "$system_dirty" | sed 's/^/     /'
 fi
-# GuppyScreen follows the configured moving OKE branch. Stage 00 refreshes the
-# shallow checkout to origin/$GUPPYSCREEN_BRANCH; verify both the fetched HEAD
-# and the expected remote URL. The three allowlisted submodules are modified
-# deterministically by the fetch/build stages (spdlog, lvgl, and libhv).
-guppyscreen_remote=$(git -C "$REPO_ROOT/vendor/nebulaos-guppyscreen" rev-parse "origin/$GUPPYSCREEN_BRANCH" 2>/dev/null || echo unknown)
-check_vendor_pin nebulaos-guppyscreen "$guppyscreen_remote" \
-	"$GUPPYSCREEN_REPO" 0 \
-	libhv \
-	lvgl \
-	spdlog
+# HelixScreen is an exact upstream pin, including its submodules.
+check_vendor_pin helixscreen "$HELIXSCREEN_PIN" "$HELIXSCREEN_REPO" 0
 
 echo "=== release artifact provenance (docs/NEBULAOS_RELEASE_ARTIFACT_PROVENANCE.md) ==="
 check_artifact_sha256() {
@@ -180,39 +172,35 @@ check_artifact_sha256() {
 check_artifact_sha256 vendor/mainsail-dist/mainsail.zip \
 	df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
 
-# 2026-08-07: GuppyScreen is no longer a fixed prebuilt binary (see
-# manifests/dependencies.conf's GUPPYSCREEN_BRANCH and
-# 04-cross-compile-app-stack.sh) - it's rebuilt from the moving OKE source every
-# run, and the resulting bytes are NOT deterministic across builds (the
-# toolchain embeds a build timestamp), even from byte-identical source. A
-# fixed expected hash here would report a false MISS on every correct
-# build. Check self-consistency against THIS run's own build-manifest.txt
-# instead (already-recorded guppyscreen_sha256/guppybeep_sha256, right
-# next to the source commit git_commit_guppyscreen that actually determines
-# correctness) plus a real MIPS-ELF sanity check.
-check_guppyscreen_binary() {
-	gb_path="$REPO_ROOT/$1"
-	gb_manifest_key="$2"
-	if [ ! -f "$gb_path" ]; then
+echo "=== HelixScreen K1 bundle ==="
+check_helixscreen_binary() {
+	hb_path="$REPO_ROOT/$1"
+	if [ ! -f "$hb_path" ]; then
 		echo "MISS $1 does not exist"
 		return
 	fi
-	if ! file "$gb_path" 2>/dev/null | grep -q "MIPS.*statically linked"; then
-		echo "MISS $1 is not a statically-linked MIPS ELF binary ($(file "$gb_path" 2>/dev/null))"
+	if ! file "$hb_path" 2>/dev/null | grep -q "MIPS.*statically linked"; then
+		echo "MISS $1 is not a statically-linked MIPS ELF binary ($(file "$hb_path" 2>/dev/null))"
 		return
 	fi
-	gb_recorded=$(grep "^${gb_manifest_key}=" "$MANIFEST_FILE" 2>/dev/null | cut -d= -f2)
-	gb_actual=$(sha256sum "$gb_path" | awk '{print $1}')
-	if [ -z "$gb_recorded" ]; then
-		echo "MISS $1 - no $gb_manifest_key recorded in $MANIFEST_FILE (05-final-build.sh should have written one)"
-	elif [ "$gb_actual" = "$gb_recorded" ]; then
-		echo "OK   $1 sha256 matches this build's own manifest record ($gb_actual) - source pinned separately via git_commit_guppyscreen"
+	hb_recorded=$(grep '^helixscreen_sha256=' "$MANIFEST_FILE" 2>/dev/null | cut -d= -f2)
+	hb_actual=$(sha256sum "$hb_path" | awk '{print $1}')
+	if [ -z "$hb_recorded" ]; then
+		echo "MISS $1 - no helixscreen_sha256 recorded in $MANIFEST_FILE"
+	elif [ "$hb_actual" = "$hb_recorded" ]; then
+		echo "OK   $1 sha256 matches this build's manifest record ($hb_actual)"
 	else
-		echo "MISS $1 sha256 is $gb_actual, this build's manifest recorded $gb_recorded - manifest is stale or binary was replaced after the build"
+		echo "MISS $1 sha256 is $hb_actual, manifest recorded $hb_recorded"
 	fi
 }
-check_guppyscreen_binary artifacts/guppyscreen-mips/guppyscreen guppyscreen_sha256
-check_guppyscreen_binary artifacts/guppyscreen-mips/guppybeep guppybeep_sha256
+check_helixscreen_binary vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/helixscreen/bin/helix-screen
+for helix_path in \
+	vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/helixscreen/bin/helix-launcher.sh \
+	vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/helixscreen/config/helixscreen.env \
+	vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/helixscreen/ui_xml \
+	vendor/system/buildroot/board/halley5-nebulaos-overlay/etc/init.d/S58helixscreen; do
+	if [ -e "$REPO_ROOT/$helix_path" ]; then echo "OK   $helix_path present"; else echo "MISS $helix_path missing"; fi
+done
 
 check_artifact_sha256 scripts/build/overlay/lib/firmware/brcm/brcmfmac43430-sdio.bin \
 	82ed67a211877efa47aff4aab83d6d2d1ccf3d5d0f5c396df97f292ade01de9e
@@ -484,9 +472,15 @@ check /usr/sbin/nginx
 check /usr/share/mainsail/index.html
 check /etc/init.d/S55klipper
 check /etc/init.d/S56moonraker
+check /etc/init.d/S58helixscreen
 check /etc/init.d/S50nginx
 check /opt/printer_data/config/printer.cfg
 check /opt/printer_data/config/moonraker.conf
+check /opt/helixscreen/bin/helix-screen
+check /opt/helixscreen/bin/helix-launcher.sh
+check /opt/helixscreen/config/helixscreen.env
+check /opt/helixscreen/ui_xml
+check /opt/helixscreen/assets/config
 
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
 # A newly reported Mainsail "Config Files -> config folder appears empty"
@@ -751,17 +745,10 @@ if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg" 
 else
 	echo "MISS /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
-else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
-fi
 rm -rf /tmp/printerdata-check
-mkdir -p /tmp/printerdata-check/GuppyScreen
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 	echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
 else
@@ -812,8 +799,8 @@ fi
 # seed (not just the tracked source) - mainline print-controls mission,
 # 2026-07-29, see docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md. The includes
 # in printer.cfg are just concatenated here (this codebase only ever uses
-# plain literal filenames in its config includes, one level of
-# GuppyScreen/ nesting, never glob patterns), so this is a deliberately
+# plain literal filenames in its config includes, never glob patterns), so
+# this is a deliberately
 # simple closure builder, not a general Klipper config parser. Grep
 # patterns below use double quotes only, and the awk program is written
 # to a temp file via a quoted heredoc rather than inline - see the
@@ -827,7 +814,7 @@ if [ -s /tmp/printerdata-check/printer.cfg ]; then
 	else
 		echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
 	fi
-	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/frontend-controls.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
@@ -908,7 +895,7 @@ check /usr/libexec/nebulaos-wifi-power-save
 check /etc/nebulaos-wifi-boot-wait.sh
 check /etc/init.d/S99confirm-good
 check /etc/ota_marker.sh
-check /opt/printer_data/config/GuppyScreen/scripts/static_ip.py
+check /usr/libexec/nebulaos-set-camera-quality.py
 
 echo "=== NebulaOS memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="
 check /sbin/mkswap

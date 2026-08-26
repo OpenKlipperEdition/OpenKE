@@ -14,8 +14,8 @@ set -e
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
-# GUPPYSCREEN_VERSION/GUPPYSCREEN_THEME (section 6, below) come
-# from the same authoritative dependency manifest 00-fetch-vendor-sources.sh
+# HELIXSCREEN_* (section 6, below) come from the same authoritative dependency
+# manifest 00-fetch-vendor-sources.sh
 # already sources - see that script/manifests/dependencies.conf's own
 # header for why dependency settings live in one file instead of being hardcoded per-script.
 MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
@@ -388,88 +388,60 @@ echo "== copying Mainsail static build =="
 mkdir -p "$OVERLAY/usr/share/mainsail"
 cp -r "$VENDOR"/mainsail-dist/dist/* "$OVERLAY/usr/share/mainsail/"
 
-### 6. GuppyScreen (OpenKlipperEdition frontend on the moving OKE branch; consumes the z_compensate
-# structured status contract - see docs/z_compensate_status_api.md)
-#
-# GuppyScreen follows the configured OpenKlipperEdition OKE branch. The checkout
-# is refreshed by stage 00, then built here with the exact MIPS toolchain and
-# upstream build script; the fetched commit is recorded in build-manifest.txt.
-GUPPYSCREEN_SRC="$VENDOR/nebulaos-guppyscreen"
-if [ ! -d "$GUPPYSCREEN_SRC" ]; then
-	echo "FATAL: $GUPPYSCREEN_SRC not found - run 00-fetch-vendor-sources.sh first" >&2
-	exit 1
+### 6. HelixScreen K1 variant (pinned upstream MIPS32/fbdev UI)
+HELIXSCREEN_SRC="$VENDOR/helixscreen"
+HELIXSCREEN_STAGE="$WORK/helixscreen-install"
+# HelixScreen's upstream K1 Docker image uses a standalone musl SDK, but this
+# firmware already builds a MIPS32 toolchain in Stage 03.  Use that exact
+# Buildroot compiler here so the UI and the rootfs agree on libc, ABI, zlib,
+# OpenSSL, libatomic, and the target sysroot.  The old standalone SDK was
+# missing the target-side OpenSSL/zlib inputs in the unified build image and
+# caused the HelixScreen link to fail after a successful compile.
+HELIXSCREEN_TOOLCHAIN_BIN="${HELIXSCREEN_TOOLCHAIN_BIN:-$TOOLCHAIN_HOST/bin}"
+HELIXSCREEN_CROSS_COMPILE="${HELIXSCREEN_CROSS_COMPILE:-mipsel-buildroot-linux-gnu-}"
+HELIXSCREEN_ZLIB_LIB_DIR="${HELIXSCREEN_ZLIB_LIB_DIR:-}"
+[ -d "$HELIXSCREEN_SRC" ] || { echo "FATAL: $HELIXSCREEN_SRC not found - run 00-fetch-vendor-sources.sh first" >&2; exit 1; }
+[ -x "$HELIXSCREEN_TOOLCHAIN_BIN/${HELIXSCREEN_CROSS_COMPILE}gcc" ] || { echo "FATAL: HelixScreen MIPS compiler missing at $HELIXSCREEN_TOOLCHAIN_BIN/${HELIXSCREEN_CROSS_COMPILE}gcc" >&2; exit 1; }
+[ -x "$HELIXSCREEN_TOOLCHAIN_BIN/${HELIXSCREEN_CROSS_COMPILE}g++" ] || { echo "FATAL: HelixScreen MIPS C++ compiler missing at $HELIXSCREEN_TOOLCHAIN_BIN/${HELIXSCREEN_CROSS_COMPILE}g++" >&2; exit 1; }
+if [ -z "$HELIXSCREEN_ZLIB_LIB_DIR" ]; then
+	HELIXSCREEN_ZLIB_LIB_DIR=$(find "$BUILDROOT_DIR/output/build" -type f -path '*/libzlib-*/libz.a' -print -quit | sed 's#/libz\.a$##')
 fi
-GUPPYSCREEN_COMMIT=$(git -C "$GUPPYSCREEN_SRC" rev-parse HEAD)
-echo "== cross-compiling GuppyScreen (Migration A: Bootlin mips32el-musl toolchain, now baked into this image - see build-env/versions.env) =="
-rm -rf "$GUPPYSCREEN_SRC/build"
-(
-	set -e
-	cd "$GUPPYSCREEN_SRC"
-	export GUPPYSCREEN_VERSION="$GUPPYSCREEN_VERSION"
-	export GUPPY_THEME="$GUPPYSCREEN_THEME"
-	# Scoped to this subshell only, NOT the image's global PATH - see
-	# build-env/Dockerfile's own comment on GUPPYSCREEN_TOOLCHAIN_BIN for
-	# why (this toolchain's own bundled autoreconf/automake is broken and
-	# would shadow the system one v4l2-ctl's autoreconf step needs, if put
-	# on PATH globally).
-	if [ -n "${GUPPYSCREEN_TOOLCHAIN_BIN:-}" ]; then
-		export PATH="$GUPPYSCREEN_TOOLCHAIN_BIN:$PATH"
-	fi
-	# wiki/Building-from-Source.md step 3 ("Build the bundled libraries") -
-	# scripts/build-mips.sh backs up and restores these three native
-	# archives around its own MIPS rebuild, so they must already exist.
-	# Deliberately NOT setting CROSS_COMPILE for these three - the top-level
-	# Makefile switches CC/AR/etc the moment CROSS_COMPILE is non-empty (see
-	# its own `ifdef CROSS_COMPILE` block), and these three targets need a
-	# plain NATIVE build here (confirmed: setting it broke `make libhv.a`
-	# with "Relocations in generic ELF" - its own build system does not
-	# cross-compile correctly through this simple CC override, unlike
-	# build-mips.sh below, which cross-compiles libhv/spdlog itself via a
-	# proper CMake toolchain file).
-	make wpaclient
-	make libhv.a
-	make libspdlog.a
-	# build-mips.sh defaults CROSS_COMPILE to mipsel-linux- itself when
-	# unset - not overridden here, for the same reason as above. Finds the
-	# Migration-A toolchain via this image's own PATH (build-env/Dockerfile
-	# puts /toolchains/mips32el--musl--stable-2024.02-1/bin on PATH
-	# directly, matching what ghcr.io/coreflake1/guppydev used to provide).
-	bash scripts/build-mips.sh
-	# scripts/release.sh, the documented release packaging step for this
-	# project, strips both binaries before shipping them - matches the
-	# previously hand-built binary being replaced here, and there is no
-	# reason to ship debug symbols on the printer.
-	mipsel-linux-strip build/bin/guppyscreen build/bin/guppybeep
-)
-# Phase 11 (2026-08-15): the alpine:latest chown-fixup container that used
-# to run here is gone - it existed only to reclaim ownership of build/
-# after the old guppydev container wrote it as root. This build now runs
-# as one consistent user throughout, so build/ was never root-owned to
-# begin with.
-
-GUPPY_BIN="$GUPPYSCREEN_SRC/build/bin/guppyscreen"
-GUPPY_BEEP="$GUPPYSCREEN_SRC/build/bin/guppybeep"
-
-# Verify real output rather than trusting a zero exit code alone - the
-# per-object-directory-race retry logic inside build-mips.sh (see its own
-# header comment) is a real, documented workaround, not proof the final
-# binary is actually a complete, correctly-linked MIPS executable.
-for bin in "$GUPPY_BIN" "$GUPPY_BEEP"; do
-	[ -s "$bin" ] || { echo "FATAL: $bin missing or empty after build" >&2; exit 1; }
-	file "$bin" | grep -q "MIPS" || { echo "FATAL: $bin is not a MIPS binary (got: $(file "$bin"))" >&2; exit 1; }
-done
-file "$GUPPY_BIN" | grep -q "statically linked" || {
-	echo "FATAL: $GUPPY_BIN is not statically linked - this rootfs has no dynamic linker entry for it (see the ustreamer section above for the exact ABI-mismatch failure mode a dynamically-linked binary hits here)" >&2
+[ -f "$HELIXSCREEN_ZLIB_LIB_DIR/libz.a" ] || {
+	echo "FATAL: HelixScreen static link needs Buildroot's target libz.a (looked in $HELIXSCREEN_ZLIB_LIB_DIR)" >&2
 	exit 1
 }
-echo "== GuppyScreen build verified: $(file "$GUPPY_BIN") =="
-
-mkdir -p "$OVERLAY/opt/guppyscreen" "$REPO_ROOT/artifacts/guppyscreen-mips"
-cp "$GUPPY_BIN" "$OVERLAY/opt/guppyscreen/guppyscreen"
-cp "$GUPPY_BEEP" "$OVERLAY/opt/guppyscreen/guppybeep"
-cp "$GUPPY_BIN" "$REPO_ROOT/artifacts/guppyscreen-mips/guppyscreen"
-cp "$GUPPY_BEEP" "$REPO_ROOT/artifacts/guppyscreen-mips/guppybeep"
-chmod 755 "$OVERLAY/opt/guppyscreen/guppyscreen" "$OVERLAY/opt/guppyscreen/guppybeep"
+# Buildroot is configured for shared target libraries, so libz.a is retained in
+# the zlib package build directory but deliberately omitted from the target
+# sysroot.  K1 HelixScreen is intentionally fully static; add that generated
+# archive without changing the firmware's runtime library selection.
+HELIXSCREEN_TARGET_LDFLAGS="${HELIXSCREEN_TARGET_LDFLAGS:--Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static -L$HELIXSCREEN_ZLIB_LIB_DIR}"
+HELIXSCREEN_COMMIT=$(git -C "$HELIXSCREEN_SRC" rev-parse HEAD)
+echo "== cross-compiling HelixScreen K1 (pinned commit $HELIXSCREEN_COMMIT) =="
+rm -rf "$HELIXSCREEN_SRC/build" "$HELIXSCREEN_STAGE" "$OVERLAY/opt/helixscreen"
+(
+	set -e
+	cd "$HELIXSCREEN_SRC"
+	export PATH="$HELIXSCREEN_TOOLCHAIN_BIN:$PATH"
+	# Buildroot's pkgconf is dynamically linked against its host library.  Keep
+	# it usable for HelixScreen's configure probes without changing the global
+	# build environment seen by the other cross-builds.
+	export LD_LIBRARY_PATH="$TOOLCHAIN_HOST/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+	make PLATFORM_TARGET="$HELIXSCREEN_TARGET" CROSS_COMPILE="$HELIXSCREEN_CROSS_COMPILE" \
+		TARGET_LDFLAGS="$HELIXSCREEN_TARGET_LDFLAGS" \
+		SKIP_OPTIONAL_DEPS=1 -j"$(nproc)"
+	make PLATFORM_TARGET="$HELIXSCREEN_TARGET" CROSS_COMPILE="$HELIXSCREEN_CROSS_COMPILE" \
+		TARGET_LDFLAGS="$HELIXSCREEN_TARGET_LDFLAGS" \
+		SKIP_OPTIONAL_DEPS=1 install DESTDIR="$HELIXSCREEN_STAGE"
+)
+HELIXSCREEN_BIN="$HELIXSCREEN_STAGE/opt/helixscreen/bin/helix-screen"
+[ -s "$HELIXSCREEN_BIN" ] || { echo "FATAL: HelixScreen install did not produce $HELIXSCREEN_BIN" >&2; exit 1; }
+file "$HELIXSCREEN_BIN" | grep -q "MIPS" || { echo "FATAL: $HELIXSCREEN_BIN is not a MIPS binary ($(file "$HELIXSCREEN_BIN"))" >&2; exit 1; }
+file "$HELIXSCREEN_BIN" | grep -q "statically linked" || { echo "FATAL: $HELIXSCREEN_BIN is not statically linked" >&2; exit 1; }
+mkdir -p "$OVERLAY/opt"
+cp -a "$HELIXSCREEN_STAGE/opt/helixscreen" "$OVERLAY/opt/"
+install -D -m 0755 "$HELIXSCREEN_SRC/scripts/helix-launcher.sh" "$OVERLAY/opt/helixscreen/bin/helix-launcher.sh"
+install -D -m 0644 "$HELIXSCREEN_SRC/config/helixscreen.env" "$OVERLAY/opt/helixscreen/config/helixscreen.env"
+echo "== HelixScreen K1 build verified: $(file "$OVERLAY/opt/helixscreen/bin/helix-screen") =="
 
 ### 7. NebulaOS mutable-runtime mission, Phase 4 (revised - real-history
 # repair mission, see docs/NEBULAOS_MOONRAKER_UPDATE_AND_CAMERA_ANALYSIS.md
@@ -573,7 +545,7 @@ build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # compares with plain string equality on-device with no history lookup
 # needed. Not a security hash - just a stable, cheap "does the installed
 # generation match what THIS image expects" fingerprint.
-migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${GUPPYSCREEN_COMMIT:-unknown}" | sha256sum | cut -c1-16)
+migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${HELIXSCREEN_COMMIT:-unknown}" | sha256sum | cut -c1-16)
 firmware_head=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
 
 cat > "$OVERLAY/opt/nebulaos-seeds/seed-manifest.json" <<EOF
@@ -582,7 +554,7 @@ cat > "$OVERLAY/opt/nebulaos-seeds/seed-manifest.json" <<EOF
   "build_date": "$build_date",
   "migration_version": "$migration_version",
   "firmware_head": "$firmware_head",
-  "guppyscreen_commit": "${GUPPYSCREEN_COMMIT:-unknown}",
+  "helixscreen_commit": "${HELIXSCREEN_COMMIT:-unknown}",
   "seeds": {
     "klipper": {
       "format": "git_repo_archive_real_history",
@@ -619,7 +591,7 @@ echo "== factory seeds created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/") =="
 
 # Clean-Update + Virgin Baseline mission, Phase 6 (2026-08-08): a single,
 # immutable, squashfs-resident record of exactly what this image IS -
-# firmware tag/SHA, kernel/GuppyScreen commit IDs - read at runtime by
+# firmware tag/SHA, kernel/HelixScreen commit IDs - read at runtime by
 # the generated /opt/nebulaos-version.json (see docs/NEBULAOS_PERSISTENT_LIFECYCLE.md
 # and docs/NEBULAOS_UPDATE_OWNERSHIP.md) and combined there with the
 # LIVE Klipper checkout's own git state plus $SYSTEM/app-generation.json,
@@ -649,7 +621,7 @@ cat > "$OVERLAY/opt/nebulaos-version.json" <<EOF
   "firmware_tag": "$firmware_tag",
   "firmware_sha": "$firmware_head",
   "kernel_sha": "$kernel_sha",
-  "guppyscreen_sha": "${GUPPYSCREEN_COMMIT:-unknown}"
+  "helixscreen_sha": "${HELIXSCREEN_COMMIT:-unknown}"
 }
 EOF
 echo "== wrote /opt/nebulaos-version.json: $(cat "$OVERLAY/opt/nebulaos-version.json") =="

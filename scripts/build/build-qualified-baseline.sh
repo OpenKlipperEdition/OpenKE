@@ -2,7 +2,7 @@
 # Repository + Canonical Baseline Repair mission, Phase 7 (2026-08-07): the
 # single documented command that reproduces the current qualified NebulaOS
 # production baseline (tag nebulaos-wifi-camera-irq-fix-2026-08-04, plus the
-# non-tagged accepted work since it - GuppyScreen/z_compensate, see
+# non-tagged accepted work since it - HelixScreen/z_compensate, see
 # docs/NEBULAOS_QUALIFIED_BASELINE_VARIANT_AUDIT.md) from nothing but this
 # checkout, the pinned manifest, and the network.
 #

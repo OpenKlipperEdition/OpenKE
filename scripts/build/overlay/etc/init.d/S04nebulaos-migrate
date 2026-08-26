@@ -10,7 +10,7 @@
 # fresh/wiped namespace's very first boot must not depend on network at
 # all), but it leaves a real gap this script closes: a device that was
 # ALREADY provisioned, then later reflashed with an image whose pinned
-# Klipper/Moonraker/GuppyScreen commits moved forward, never gets those
+# Klipper/Moonraker/HelixScreen commits moved forward, never gets those
 # new commits into its persistent application tree - the squashfs's own
 # factory-seed archive is correct, but nothing ever re-seeds an
 # already-populated $APPS from it. (This is the exact class of gap

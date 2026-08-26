@@ -35,7 +35,7 @@ pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 build_seed_source() {
 	dir="$1"
 	rm -rf "$dir"
-	mkdir -p "$dir/GuppyScreen/scripts"
+	mkdir -p "$dir"
 	cat > "$dir/printer.cfg" <<'EOF'
 [printer]
 kinematics: cartesian
@@ -56,7 +56,6 @@ on_error_gcode: CANCEL_PRINT
 [display_status]
 EOF
 	echo "# songs" > "$dir/songs.conf"
-	echo "# guppy" > "$dir/GuppyScreen/guppy_cmd.cfg"
 }
 
 run_seed() {
@@ -85,10 +84,10 @@ if [ -f "$ns/printer_data/config/printer.cfg" ] && [ -f "$ns/printer_data/config
 else
 	fail "fresh namespace: printer.cfg/moonraker.conf not seeded ($(cat "$WORK/t1.log"))"
 fi
-if [ -f "$ns/printer_data/config/songs.conf" ] && [ -f "$ns/printer_data/config/GuppyScreen/guppy_cmd.cfg" ]; then
-	pass "fresh namespace: songs.conf and GuppyScreen defaults also seeded"
+if [ -f "$ns/printer_data/config/songs.conf" ]; then
+	pass "fresh namespace: songs.conf default also seeded"
 else
-	fail "fresh namespace: songs.conf/GuppyScreen defaults not seeded"
+	fail "fresh namespace: songs.conf default not seeded"
 fi
 if [ -f "$ns/printer_data/config/frontend-controls.cfg" ]; then
 	pass "fresh namespace: frontend-controls.cfg also seeded"

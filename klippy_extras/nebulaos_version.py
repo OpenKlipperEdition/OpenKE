@@ -3,7 +3,7 @@
 # Clean-Update + Virgin Baseline mission, Phase 6 (2026-08-08, see
 # docs/NEBULAOS_PERSISTENT_LIFECYCLE.md). Answers "what is actually running on this printer
 # right now" from one place, queryable via Moonraker's ordinary
-# /printer/objects/query?nebulaos_version - firmware tag/SHA and kernel/GuppyScreen pins come
+# /printer/objects/query?nebulaos_version - firmware tag/SHA and kernel/HelixScreen pins come
 # from /opt/nebulaos-version.json (immutable, squashfs-resident, written at build time by
 # 04-cross-compile-app-stack.sh); persistent app generation/migration_version come from
 # $NEBULAOS_ROOT/system/app-generation.json (written by S04nebulaos-factory-seed/
@@ -92,7 +92,7 @@ class NebulaOSVersion:
             'firmware_tag': version.get('firmware_tag', 'unknown'),
             'firmware_sha': version.get('firmware_sha', 'unknown'),
             'kernel_sha': version.get('kernel_sha', 'unknown'),
-            'guppyscreen_sha': version.get('guppyscreen_sha', 'unknown'),
+            'helixscreen_sha': version.get('helixscreen_sha', 'unknown'),
             'build_date': version.get('build_date', 'unknown'),
             'klipper_sha': klipper_sha,
             'klipper_dirty': klipper_dirty,

@@ -11,7 +11,7 @@
 # if the persistent application tree it operates on is damaged or absent.
 #
 # Scope, using the classification in docs/NEBULAOS_PERSISTENT_LIFECYCLE.md:
-#   ARCHIVED + RESET : apps/{klipper,moonraker,mainsail,guppyscreen}
+#   ARCHIVED + RESET : apps/{klipper,moonraker,mainsail,helixscreen}
 #                       (IMAGE OWNED), envs/{klipper,moonraker} (GENERATED,
 #                       cheaper to reseed than to hand-classify), system/*
 #                       (NebulaOS's own generation/known-good/activation
@@ -83,7 +83,7 @@ maintenance_gate_ok() {
 
 stop_services() {
 	log "stopping services that hold the application tree open"
-	/etc/init.d/S58guppyscreen stop 2>/dev/null
+	/etc/init.d/S58helixscreen stop 2>/dev/null
 	/etc/init.d/S50webcam stop 2>/dev/null
 	/etc/init.d/S56moonraker stop 2>/dev/null
 	/etc/init.d/S55klipper stop 2>/dev/null

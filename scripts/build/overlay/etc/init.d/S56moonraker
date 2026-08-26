@@ -16,7 +16,7 @@
 # moonraker's extensions listener instead of real Klipper, producing a
 # continuous flood of "JSON-RPC Request Error -32600, Invalid Request" and
 # "Unknown method received: notify_proc_stat_update" and leaving Moonraker
-# permanently stuck before the Klippy-ready handshake (GuppyScreen/Mainsail
+# permanently stuck before the Klippy-ready handshake (HelixScreen/Mainsail
 # stuck on "waiting for printer to initialize" forever, even though Klipper
 # itself was fully connected to the real MCU). Fixed by giving Moonraker's
 # own extensions socket its own separate path.
@@ -63,7 +63,7 @@ PYTHON3=/usr/bin/python3
 #     comment) - update_manager raises a ConfigError. server.py's
 #     load_component() catches this for optional/non-core components
 #     (update_manager is loaded via that path) and does NOT crash the
-#     rest of Moonraker: Klipper connectivity, Mainsail, GuppyScreen all
+#     rest of Moonraker: Klipper connectivity, Mainsail, HelixScreen all
 #     keep working, but update_manager is permanently added to
 #     self.failed_components for that process's entire lifetime (no
 #     component reload mechanism exists) - confirmed live 2026-08-08,
@@ -98,7 +98,7 @@ start_daemon() {
 		-u "$UNIXSOCKET"
 	# NebulaOS Memory Resilience Gate: moderately protected - Moonraker
 	# coordinates updates/rollback and must survive memory pressure
-	# preferentially over GuppyScreen/webcam/update-helper processes, but
+	# preferentially over HelixScreen/webcam/update-helper processes, but
 	# less critically than Klipper itself (docs/NEBULAOS_MEMORY_RESILIENCE.md
 	# sec 7).
 	[ -f "$PIDFILE" ] && echo -400 > "/proc/$(cat "$PIDFILE")/oom_score_adj" 2>/dev/null

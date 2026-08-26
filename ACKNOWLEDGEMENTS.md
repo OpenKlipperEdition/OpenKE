@@ -15,25 +15,22 @@ A meaningful amount of the groundwork for this project's build and firmware work
 - **[`pellcorp/k1-ustreamer`](https://github.com/pellcorp/k1-ustreamer)** — NebulaOS's camera
   pipeline is a real port of this project (`K1_USTREAMER_REPO`/`K1_USTREAMER_PIN`).
 - **`pellcorp/k1-bash-build`** — for a long time, this was the actual MIPS cross-compile toolchain
-  container this project's build (and GuppyScreen's) ran inside. As of the unified build environment
+  container this project's earlier build ran inside. As of the unified build environment
   work (2026-08-15), both now use NebulaOS's own build image instead — but that image bundles the
   same toolchain this container provided, and its build recipe was faithfully reconstructed from the
   original image rather than replaced with something different. We're not still using the container,
   but the groundwork it represents is still part of how this builds.
-- **[`pellcorp/k1-nginx`](https://github.com/pellcorp/k1-nginx)** — GuppyScreen's vendoring scripts
-  use this project's build recipe to cross-compile nginx for the K1 platform.
+- **[`pellcorp/k1-nginx`](https://github.com/pellcorp/k1-nginx)** — this project's build recipe
+  uses its K1 nginx cross-compile work as a reference.
 
 If you're coming from the Pellcorp/K1 side of the Creality modding world, a good chunk of what made
 this project possible started there.
 
-## GuppyScreen lineage
+## HelixScreen
 
-NebulaOS's touchscreen UI builds on:
+NebulaOS's K1 touchscreen UI is built from:
 
-- [`ballaswag/guppyscreen`](https://github.com/ballaswag/guppyscreen) — the original GuppyScreen project
-- [`probielodan/guppyscreen`](https://github.com/probielodan/guppyscreen)
-- [`prestonbrown/guppyscreen`](https://github.com/prestonbrown/guppyscreen) — source of the interactive 3D bed mesh
-- [`pellcorp/grumpyscreen`](https://github.com/pellcorp/grumpyscreen) — bug fixes and improvements
+- [`prestonbrown/helixscreen`](https://github.com/prestonbrown/helixscreen) — the pinned HelixScreen K1 source
 
 ## Recovery tooling
 

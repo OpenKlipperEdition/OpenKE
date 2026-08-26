@@ -47,7 +47,7 @@ PYTHON_MATPLOTLIB_SETUP_TYPE = setuptools
 # directly: identical pip invocation without that one variable accepts the
 # same file immediately). Same mechanism, same justification already
 # established in this project for the vendored Pillow wheel (see
-# ~/Documents/guppyscreen's own installer.sh) - pip matches wheel filenames
+# the frontend's own installer.sh) - pip matches wheel filenames
 # against a platform string, not actual binary compatibility, and the two
 # disagree here specifically because of the cross-build override. Safe
 # because the interpreter that ends up importing this wheel for setuptools

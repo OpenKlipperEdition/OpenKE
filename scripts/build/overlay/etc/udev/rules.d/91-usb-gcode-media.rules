@@ -9,9 +9,9 @@
 # directly - see FIRMWARE.md), but stock's mechanism ends in a
 # `ubus_call udisk set_state` notification - a whole separate IPC service
 # (ubus/ubusd) this project's userspace doesn't have at all, built for
-# Creality's own stock touchscreen UI, not GuppyScreen.
+# Creality's own stock touchscreen UI, not the custom UI.
 #
-# GuppyScreen (confirmed via `strings` on its own binary: zero references
+# The custom UI (confirmed via `strings` on its binary: zero references
 # to "udisk"/"removable"/"/dev/sd", but real references to
 # "http://{}:{}/server/files/gcodes/{}") has no built-in USB-media concept
 # of its own at all - it only ever lists files via Moonraker's own
@@ -19,7 +19,7 @@
 # under Moonraker's registered gcodes root (/opt/printer_data/gcodes). So
 # the real integration point for *this* UI isn't a notification service -
 # it's just making the drive's files actually appear inside that directory
-# tree, which Moonraker already watches and GuppyScreen already browses.
+# tree, which Moonraker already watches and HelixScreen already browses.
 #
 # See /etc/usb-gcode-media.sh for the actual mount/unmount logic. Matches
 # whole-disk nodes (superfloppy media, no partition table - confirmed this

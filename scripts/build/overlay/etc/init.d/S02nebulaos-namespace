@@ -42,10 +42,9 @@ create_layout() {
 		"$NEBULAOS_ROOT/apps/klipper" \
 		"$NEBULAOS_ROOT/apps/moonraker" \
 		"$NEBULAOS_ROOT/apps/mainsail" \
-		"$NEBULAOS_ROOT/apps/guppyscreen" \
+		"$NEBULAOS_ROOT/apps/helixscreen" \
 		"$NEBULAOS_ROOT/envs/moonraker" \
 		"$NEBULAOS_ROOT/envs/klipper" \
-		"$NEBULAOS_ROOT/printer_data/config/GuppyScreen/scripts" \
 		"$NEBULAOS_ROOT/printer_data/logs" \
 		"$NEBULAOS_ROOT/printer_data/database" \
 		"$NEBULAOS_ROOT/printer_data/certs" \
@@ -64,17 +63,9 @@ create_layout() {
 		"$NEBULAOS_ROOT/backups/printer_config" \
 		"$NEBULAOS_ROOT/maintenance/logs"
 
-	# apps/guppyscreen is reserved-only per this mission's own scope - a
-	# marker file documents why it's intentionally empty, so a future
-	# reader (or this project's own retention manager) doesn't mistake it
-	# for an abandoned/incomplete directory.
-	if [ ! -e "$NEBULAOS_ROOT/apps/guppyscreen/.reserved-not-implemented" ]; then
-		cat > "$NEBULAOS_ROOT/apps/guppyscreen/.reserved-not-implemented" <<'EOF'
-GuppyScreen stays served from the immutable /opt/guppyscreen copy for this
-mission. This directory is reserved layout only - GuppyScreen's own update
-mechanism is explicitly a separate, future mission per the governing brief.
-EOF
-	fi
+	# HelixScreen keeps mutable settings here while its executable and assets
+	# remain in the immutable /opt/helixscreen bundle.
+	mkdir -p "$NEBULAOS_ROOT/apps/helixscreen/config"
 }
 
 # Real bug found live (auto-updates-camera-complete mission addendum,
@@ -148,8 +139,7 @@ write_manifest() {
   "created_at": "$now",
   "created_at_caveat": "may read as an early-epoch date if this boot occurred before NTP sync - see docs/NEBULAOS_RETENTION_POLICY.md sec 2.6",
   "layout": {
-    "apps": ["klipper", "moonraker", "mainsail", "guppyscreen"],
-    "guppyscreen_status": "reserved_not_implemented",
+    "apps": ["klipper", "moonraker", "mainsail", "helixscreen"],
     "envs": ["moonraker", "klipper"],
     "printer_data": "private",
     "shared_gcode_path": "/usr/data/printer_data/gcodes"

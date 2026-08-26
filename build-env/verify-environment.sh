@@ -47,20 +47,18 @@ need "bison"                 "bison --version"
 need "flex"                  "flex --version"
 
 echo ""
-echo "=== Migration A: GuppyScreen's Bootlin mips32el-musl toolchain ==="
+echo "=== HelixScreen K1 compatibility SDK (Bootlin mips32el-musl) ==="
 # Deliberately NOT on the image's global PATH (see build-env/Dockerfile's
-# own comment on GUPPYSCREEN_TOOLCHAIN_BIN for why - its own bundled
+# own comment on HELIXSCREEN_MIPS_TOOLCHAIN_BIN for why - its own bundled
 # autoreconf/automake would otherwise shadow the system ones v4l2-ctl's
-# build needs). Checked via GUPPYSCREEN_TOOLCHAIN_BIN directly instead of
+# build needs). Checked via HELIXSCREEN_MIPS_TOOLCHAIN_BIN directly instead of
 # via PATH lookup.
-if [ -z "${GUPPYSCREEN_TOOLCHAIN_BIN:-}" ]; then
-	echo "MISSING: GUPPYSCREEN_TOOLCHAIN_BIN not set in this image's environment"
-	FAILED=1
-elif [ ! -x "$GUPPYSCREEN_TOOLCHAIN_BIN/mipsel-linux-gcc" ]; then
-	echo "MISSING: $GUPPYSCREEN_TOOLCHAIN_BIN/mipsel-linux-gcc not found or not executable"
+HELIXSCREEN_MIPS_TOOLCHAIN_BIN="${HELIXSCREEN_MIPS_TOOLCHAIN_BIN:-/toolchains/mips32el--musl--stable-2024.02-1/bin}"
+if [ ! -x "$HELIXSCREEN_MIPS_TOOLCHAIN_BIN/mipsel-linux-gcc" ]; then
+	echo "MISSING: $HELIXSCREEN_MIPS_TOOLCHAIN_BIN/mipsel-linux-gcc not found or not executable"
 	FAILED=1
 else
-	need "mipsel-linux-gcc (Bootlin)" "$GUPPYSCREEN_TOOLCHAIN_BIN/mipsel-linux-gcc --version" "Buildroot"
+	need "mipsel-linux-gcc (Bootlin)" "$HELIXSCREEN_MIPS_TOOLCHAIN_BIN/mipsel-linux-gcc --version" "Buildroot"
 fi
 
 echo ""

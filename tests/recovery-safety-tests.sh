@@ -91,7 +91,7 @@ test_recovery_target_has_accepted_features() {
 
 	# "No baseline-required local patching": nothing here ever depends on
 	# a post-clone patch step targeting klipper specifically (the build
-	# pipeline does patch other components - GuppyScreen's spdlog/lvgl
+	# pipeline does patch other components - the UI's bundled dependencies
 	# submodules, Moonraker's sqlite-nolock fix - so this must be scoped
 	# to klipper, not a blanket "no patch anywhere" check) - so a plain
 	# `git clone`/`git reset --hard` of this exact branch, which is

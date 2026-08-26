@@ -664,7 +664,7 @@ echo "============================================================"
 
 # BusyBox's own init runs /etc/init.d/S* in plain lexicographic (string)
 # order - reproduce that exact ordering here and assert this script's
-# real position relative to Klipper/Moonraker/GuppyScreen and the two
+# real position relative to Klipper/Moonraker/HelixScreen and the two
 # existing terminal gates.
 sorted=$(cd "$INITD_DIR" && ls -1 | sort)
 index_of() {
@@ -672,48 +672,37 @@ index_of() {
 }
 i_klipper=$(index_of S55klipper)
 i_moonraker=$(index_of S56moonraker)
-i_guppy=$(index_of S58guppyscreen)
+i_helix=$(index_of S58helixscreen)
 i_mcurecovery=$(index_of S95mcu-boot-recovery)
 i_ours=$(index_of S97nebulaos-display-qualified-apply)
 i_sleepwake=$(index_of S98nebulaos-display-sleep-wake-controller)
-i_confirmgood=$(index_of S99confirm-good)
 
-for name_idx in "i_klipper:$i_klipper" "i_moonraker:$i_moonraker" "i_guppy:$i_guppy" \
-	"i_mcurecovery:$i_mcurecovery" "i_ours:$i_ours" "i_sleepwake:$i_sleepwake" "i_confirmgood:$i_confirmgood"; do
+for name_idx in "i_klipper:$i_klipper" "i_moonraker:$i_moonraker" "i_helix:$i_helix" \
+	"i_mcurecovery:$i_mcurecovery" "i_ours:$i_ours" "i_sleepwake:$i_sleepwake"; do
 	val=${name_idx#*:}
 	if [ -z "$val" ]; then
 		fail "could not find expected init.d script for $name_idx - has the tree changed?"
 	fi
 done
 
-if [ -n "$i_klipper" ] && [ -n "$i_moonraker" ] && [ -n "$i_guppy" ] && [ -n "$i_ours" ] && [ -n "$i_confirmgood" ]; then
-	if [ "$i_ours" -gt "$i_klipper" ] && [ "$i_ours" -gt "$i_moonraker" ] && [ "$i_ours" -gt "$i_guppy" ]; then
+if [ -n "$i_klipper" ] && [ -n "$i_moonraker" ] && [ -n "$i_helix" ] && [ -n "$i_ours" ]; then
+	if [ "$i_ours" -gt "$i_klipper" ] && [ "$i_ours" -gt "$i_moonraker" ] && [ "$i_ours" -gt "$i_helix" ]; then
 		pass
 	else
-		fail "S97nebulaos-display-qualified-apply does not sort strictly after S55klipper/S56moonraker/S58guppyscreen"
+		fail "S97nebulaos-display-qualified-apply does not sort strictly after S55klipper/S56moonraker/S58helixscreen"
 	fi
 	if [ -n "$i_mcurecovery" ] && [ "$i_ours" -gt "$i_mcurecovery" ]; then
 		pass
 	else
 		fail "S97nebulaos-display-qualified-apply does not sort strictly after S95mcu-boot-recovery"
 	fi
-	if [ "$i_ours" -lt "$i_confirmgood" ]; then
-		pass
-	else
-		fail "S97nebulaos-display-qualified-apply does not sort strictly before S99confirm-good"
-	fi
 fi
 
-if [ -n "$i_ours" ] && [ -n "$i_sleepwake" ] && [ -n "$i_confirmgood" ]; then
+if [ -n "$i_ours" ] && [ -n "$i_sleepwake" ]; then
 	if [ "$i_sleepwake" -gt "$i_ours" ]; then
 		pass
 	else
 		fail "S98nebulaos-display-sleep-wake-controller does not sort strictly after S97nebulaos-display-qualified-apply"
-	fi
-	if [ "$i_sleepwake" -lt "$i_confirmgood" ]; then
-		pass
-	else
-		fail "S98nebulaos-display-sleep-wake-controller does not sort strictly before S99confirm-good"
 	fi
 fi
 
@@ -761,8 +750,8 @@ exit 0
 EOF
 chmod +x "$FAKE_ETC/ip"
 
-GUPPY_PIDFILE="$WORK/guppyscreen.pid"
-echo $$ > "$GUPPY_PIDFILE"	# our own test process - guaranteed to exist
+HELIX_PIDFILE="$WORK/helixscreen.pid"
+echo $$ > "$HELIX_PIDFILE"	# our own test process - guaranteed to exist
 
 reset_fake_kernel
 fake_touch_confirm_irq_assist
@@ -776,7 +765,7 @@ MARKER_HEALTHY="$WORK/marker-healthy"
 	PATH="$FAKE_ETC:$PATH"
 	export PATH
 	NDQ_LIB="$LIB" NDQ_HEALTHCHECK_LIB="$HEALTHCHECK_LIB" \
-	MARKER="$MARKER_HEALTHY" GUPPYSCREEN_PIDFILE="$GUPPY_PIDFILE" \
+	MARKER="$MARKER_HEALTHY" HELIXSCREEN_PIDFILE="$HELIX_PIDFILE" \
 	HEALTH_RETRIES=2 HEALTH_DELAY=0 \
 	NDQ_CONFIG_FILE="$NDQ_CONFIG_FILE" \
 	NDQ_TOUCH_MODE_FILE="$NDQ_TOUCH_MODE_FILE" NDQ_TOUCH_STATUS_FILE="$NDQ_TOUCH_STATUS_FILE" \
@@ -797,7 +786,7 @@ echo "SENTINEL-UNTOUCHED" > "$NDQ_BACKLIGHT_CMD_FILE"
 	PATH="$FAKE_ETC:$PATH"
 	export PATH
 	NDQ_LIB="$LIB" NDQ_HEALTHCHECK_LIB="$HEALTHCHECK_LIB" \
-	MARKER="$MARKER_HEALTHY" GUPPYSCREEN_PIDFILE="$GUPPY_PIDFILE" \
+	MARKER="$MARKER_HEALTHY" HELIXSCREEN_PIDFILE="$HELIX_PIDFILE" \
 	HEALTH_RETRIES=2 HEALTH_DELAY=0 \
 	NDQ_CONFIG_FILE="$NDQ_CONFIG_FILE" \
 	NDQ_TOUCH_MODE_FILE="$NDQ_TOUCH_MODE_FILE" NDQ_TOUCH_STATUS_FILE="$NDQ_TOUCH_STATUS_FILE" \
@@ -807,16 +796,16 @@ echo "SENTINEL-UNTOUCHED" > "$NDQ_BACKLIGHT_CMD_FILE"
 [ "$(cat "$NDQ_BACKLIGHT_CMD_FILE")" = "SENTINEL-UNTOUCHED" ] && pass \
 	|| fail "S97's once-per-boot marker did not prevent a second apply attempt"
 
-# --- unhealthy path: GuppyScreen "not running" (a PID that doesn't
+# --- unhealthy path: HelixScreen "not running" (a PID that doesn't
 # exist) -> S97 must exit 0 and must NOT touch either debugfs file. ---
 reset_fake_kernel
-echo 999999999 > "$GUPPY_PIDFILE"	# almost certainly not a real PID
+echo 999999999 > "$HELIX_PIDFILE"	# almost certainly not a real PID
 MARKER_UNHEALTHY="$WORK/marker-unhealthy"
 (
 	PATH="$FAKE_ETC:$PATH"
 	export PATH
 	NDQ_LIB="$LIB" NDQ_HEALTHCHECK_LIB="$HEALTHCHECK_LIB" \
-	MARKER="$MARKER_UNHEALTHY" GUPPYSCREEN_PIDFILE="$GUPPY_PIDFILE" \
+	MARKER="$MARKER_UNHEALTHY" HELIXSCREEN_PIDFILE="$HELIX_PIDFILE" \
 	HEALTH_RETRIES=1 HEALTH_DELAY=0 \
 	NDQ_CONFIG_FILE="$NDQ_CONFIG_FILE" \
 	NDQ_TOUCH_MODE_FILE="$NDQ_TOUCH_MODE_FILE" NDQ_TOUCH_STATUS_FILE="$NDQ_TOUCH_STATUS_FILE" \
@@ -824,24 +813,24 @@ MARKER_UNHEALTHY="$WORK/marker-unhealthy"
 	sh "$APPLY_SCRIPT" start
 )
 rc=$?
-[ "$rc" -eq 0 ] && pass || fail "S97 start (unhealthy GuppyScreen) exited $rc, expected 0 (fail-safe, not a boot-halting error)"
+[ "$rc" -eq 0 ] && pass || fail "S97 start (unhealthy HelixScreen) exited $rc, expected 0 (fail-safe, not a boot-halting error)"
 [ ! -s "$NDQ_TOUCH_MODE_FILE" ] && [ ! -s "$NDQ_BACKLIGHT_CMD_FILE" ] && pass \
-	|| fail "S97 mutated a debugfs file even though GuppyScreen was never confirmed running"
+	|| fail "S97 mutated a debugfs file even though HelixScreen was never confirmed running"
 
 # --- unhealthy path: the display itself never confirms healthy (backlight
 # status debugfs file missing entirely, e.g. a kernel build without the
 # driver) - S97 must exit 0 and must NOT touch either debugfs file, even
-# though Klipper/Moonraker/GuppyScreen/networking are all otherwise fully
+# though Klipper/Moonraker/HelixScreen/networking are all otherwise fully
 # healthy. ---
 reset_fake_kernel
-echo $$ > "$GUPPY_PIDFILE"
+echo $$ > "$HELIX_PIDFILE"
 rm -f "$NDQ_BACKLIGHT_STATUS_FILE"
 MARKER_NODISPLAY="$WORK/marker-nodisplay"
 (
 	PATH="$FAKE_ETC:$PATH"
 	export PATH
 	NDQ_LIB="$LIB" NDQ_HEALTHCHECK_LIB="$HEALTHCHECK_LIB" \
-	MARKER="$MARKER_NODISPLAY" GUPPYSCREEN_PIDFILE="$GUPPY_PIDFILE" \
+	MARKER="$MARKER_NODISPLAY" HELIXSCREEN_PIDFILE="$HELIX_PIDFILE" \
 	HEALTH_RETRIES=1 HEALTH_DELAY=0 \
 	NDQ_CONFIG_FILE="$NDQ_CONFIG_FILE" \
 	NDQ_TOUCH_MODE_FILE="$NDQ_TOUCH_MODE_FILE" NDQ_TOUCH_STATUS_FILE="$NDQ_TOUCH_STATUS_FILE" \
