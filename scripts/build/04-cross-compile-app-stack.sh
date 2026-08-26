@@ -62,6 +62,10 @@ fi
 
 mkdir -p "$WORK"
 
+### 0. Printer MCU firmware: build, validate, and stage the immutable
+###    Creality image plus the identity-gated runtime tools.
+sh "$SCRIPT_DIR/build-mcu-firmware.sh"
+
 ### 1. Klipper: klippy/ source + a freshly cross-compiled chelper.so
 ###    Official upstream builds this helper from the source list in
 ###    klippy/chelper/__init__.py; there is no chelper Makefile.

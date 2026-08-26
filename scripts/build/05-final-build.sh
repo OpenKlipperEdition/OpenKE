@@ -129,6 +129,7 @@ artifact_sha256() {
 	git_field git_commit_main ""
 	git_field git_commit_system vendor/system
 	git_field git_commit_klipper vendor/klipper
+	git_field git_commit_mcu vendor/nebulaos-klipper-mcu
 	git_field git_commit_moonraker vendor/moonraker
 	git_field git_commit_guppyscreen vendor/nebulaos-guppyscreen
 	git_field git_commit_k1_ustreamer vendor/k1-ustreamer
@@ -148,6 +149,8 @@ artifact_sha256() {
 	artifact_sha256 kernel_config_sha256 "$ARTIFACT_DIR/kernel.config"
 	artifact_sha256 buildroot_config_sha256 "$ARTIFACT_DIR/buildroot.config"
 	artifact_sha256 device_tree_sha256 "$ARTIFACT_DIR/halley5_v30.dts"
+	artifact_sha256 mcu_klipper_creality_bin_sha256 "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper-creality.bin"
+	artifact_sha256 mcu_klipper_raw_bin_sha256 "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper.bin"
 	artifact_sha256 xImage_sha256 "$ARTIFACT_DIR/xImage"
 	echo "xImage_size=$(wc -c < "$ARTIFACT_DIR/xImage")"
 	artifact_sha256 rootfs_squashfs_sha256 "$ARTIFACT_DIR/rootfs.squashfs"

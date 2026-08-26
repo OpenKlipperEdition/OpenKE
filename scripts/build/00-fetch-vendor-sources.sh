@@ -31,6 +31,7 @@ require_setting() {
 
 for required in SYSTEM_REPO SYSTEM_BRANCH \
 	KLIPPER_REPO KLIPPER_BRANCH \
+	MCU_REPO MCU_PIN MCU_METADATA_VERSION MCU_EXPECTED_HW_ID \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
@@ -266,6 +267,7 @@ echo "== system follows latest $SYSTEM_BRANCH HEAD ($system_actual); kernel + bu
 # tip rather than a reproducible commit; the pure-upstream configuration does
 # not rely on the former NebulaOS fork's extras.
 clone_branch klipper "$KLIPPER_REPO" "$KLIPPER_BRANCH"
+clone_pinned nebulaos-klipper-mcu "$MCU_REPO" "$MCU_PIN"
 
 # Official Moonraker - not a fork, no reason to deviate.
 clone_pinned moonraker "$MOONRAKER_REPO" "$MOONRAKER_PIN"

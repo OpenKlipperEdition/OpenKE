@@ -105,7 +105,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 4. **`03-build-kernel-and-rootfs.sh`** - the main kernel + rootfs build (`make`) - touch, display,
    WiFi, Bluetooth, camera-kernel-side, and Core SoC infra all come from this one pass, since
    they're all just kernel config + device-tree, no cross-compiled userspace extras needed yet.
-5. **`04-cross-compile-app-stack.sh`** - cross-compiles the handful of things that need the
+5. **`04-cross-compile-app-stack.sh`** - first builds and validates the pinned Ender-3 V3 KE printer MCU image and stages its Creality firmware plus identity-gated flash/verification tools under `/opt/nebulaos/mcu`, then cross-compiles the handful of things that need the
    Buildroot-built toolchain directly rather than going through a Buildroot package (Klipper's
    `chelper` C extension, Moonraker's `streaming-form-data` C extension, and `ustreamer` itself),
    and assembles the full app-stack overlay (Klipper/Moonraker source trees, Mainsail's static

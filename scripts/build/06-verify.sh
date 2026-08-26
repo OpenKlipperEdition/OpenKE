@@ -85,6 +85,8 @@ klipper_remote="$(git -C "$REPO_ROOT/vendor/klipper" rev-parse "origin/$KLIPPER_
 check_vendor_pin klipper "$klipper_remote" \
 	"$KLIPPER_REPO" 0 \
 	klippy/chelper/c_helper.so
+check_vendor_pin nebulaos-klipper-mcu "$MCU_PIN" \
+	"$MCU_REPO" 0
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
 # Buildroot is the `buildroot/` subtree of the same OKE System checkout as
@@ -441,6 +443,38 @@ check /usr/lib/python3.11/site-packages/numpy
 check /usr/bin/python3.11
 check /opt/klipper/klippy/klippy.py
 check /opt/klipper/klippy/chelper/c_helper.so
+echo "=== printer MCU firmware bundle ==="
+check /opt/nebulaos/mcu/klipper-creality.bin
+check /opt/nebulaos/mcu/klipper.bin
+check /opt/nebulaos/mcu/klipper.elf
+check /opt/nebulaos/mcu/klipper.config
+check /opt/nebulaos/mcu/manifest.env
+check /opt/nebulaos/mcu/tools/creality_flash.py
+check /opt/nebulaos/mcu/tools/creality_validator.py
+check /opt/nebulaos/mcu/tools/creality_packer.py
+check /opt/nebulaos/mcu/tools/stage4_first_flash.py
+check /etc/init.d/S57nebulaos-mcu-upgrade
+MCU_MANIFEST_CONTENT=$(debugfs -R "cat /opt/nebulaos/mcu/manifest.env" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MCU_IMAGE_SHA=$(printf "%s\n" "$MCU_MANIFEST_CONTENT" | sed -n 's/^image_sha256=//p')
+if [ -n "$MCU_IMAGE_SHA" ] && printf "%s\n" "$MCU_IMAGE_SHA" | grep -qE "^[0-9a-f]{64}$"; then
+	echo "OK   packaged printer MCU manifest contains a SHA256 image identity"
+else
+	echo "MISS packaged printer MCU manifest is missing a valid image SHA256"
+fi
+MCU_BUILT_IMAGE="$REPO_ROOT/vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper-creality.bin"
+MCU_RECORDED_SHA=$(grep "^mcu_klipper_creality_bin_sha256=" "$MANIFEST_FILE" 2>/dev/null | cut -d= -f2)
+MCU_ACTUAL_SHA=$(sha256sum "$MCU_BUILT_IMAGE" 2>/dev/null | awk "{print \$1}")
+if [ -n "$MCU_RECORDED_SHA" ] && [ "$MCU_ACTUAL_SHA" = "$MCU_RECORDED_SHA" ]; then
+	echo "OK   staged printer MCU image matches the final build manifest ($MCU_ACTUAL_SHA)"
+else
+	echo "MISS staged printer MCU image does not match the final build manifest"
+fi
+MCU_UPGRADE_CONTENT=$(debugfs -R "cat /etc/init.d/S57nebulaos-mcu-upgrade" ${IMAGES}/rootfs.ext2 2>/dev/null)
+if echo "$MCU_UPGRADE_CONTENT" | grep -q "stage4_first_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_validator.py"; then
+	echo "OK   MCU boot service contains first-flash, update-flash, and validation paths"
+else
+	echo "MISS MCU boot service is missing one or more safety-gated paths"
+fi
 # Pure upstream Klipper does not ship the NebulaOS-specific version object;
 # build identity remains available in /opt/nebulaos-version.json.
 check /opt/nebulaos-version.json
