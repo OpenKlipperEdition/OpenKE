@@ -55,7 +55,10 @@ source_fingerprint() {
 }
 FINGERPRINT_BEFORE=$(source_fingerprint)
 
-( cd "$BUILDROOT_DIR" && make )
+# Ignore archive ownership metadata so extraction also works when the
+# repository is mounted on a filesystem that does not support chown (such as
+# a Windows/WSL bind mount).
+( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner )
 
 mkdir -p "$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 cp "$BUILDROOT_DIR/output/images/xImage" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/xImage"

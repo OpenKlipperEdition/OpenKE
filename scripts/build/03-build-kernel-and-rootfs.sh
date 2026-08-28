@@ -109,8 +109,8 @@ rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
 
 (
 	cd "$BUILDROOT_DIR"
-	make linux-dirclean
-	make wpa_supplicant-dirclean
+	make BR2_TAR_OPTIONS=--no-same-owner linux-dirclean
+	make BR2_TAR_OPTIONS=--no-same-owner wpa_supplicant-dirclean
 	# Same staleness class as the two dircleans above (FIRMWARE.md sec 28): a
 	# plain incremental make only rebuilds a package whose stamp is missing
 	# or whose config hash changed, and toggling a Kconfig option alone does
@@ -126,8 +126,8 @@ rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
 	# BR2_PACKAGE_HOST_PYTHON3_* options change again later, this needs a
 	# manual `make host-python3-dirclean` before the next build, same as any
 	# other already-built package whose Kconfig options changed.
-	make gcc-final-reinstall
-	make
+	make BR2_TAR_OPTIONS=--no-same-owner gcc-final-reinstall
+	make BR2_TAR_OPTIONS=--no-same-owner
 )
 
 echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.ext2} =="
