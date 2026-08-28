@@ -145,7 +145,12 @@ cp "$REPO_ROOT/scripts/build/vendor-wheels/"*.whl "$BUILDROOT_DIR/board/halley5-
 cp "$REPO_ROOT/scripts/build/vendor-patches/python-matplotlib/python-matplotlib.mk" "$BUILDROOT_DIR/package/python-matplotlib/python-matplotlib.mk"
 
 echo "== normalizing .config (resolves any derived Kconfig selects) =="
-( cd "$BUILDROOT_DIR" && make olddefconfig )
+# The checkout may be mounted on a filesystem (for example a Windows/WSL
+# bind mount) that cannot represent the numeric owners stored in some source
+# archives.  Keep extraction portable by making Buildroot's tar invocations
+# ignore archive ownership metadata; this is a command-line override so the
+# tracked baseline .config remains unchanged.
+( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner olddefconfig )
 
 # Reproducibility fix (2026-07-26, NebulaOS mutable-runtime mission): a real
 # bug found by directly inspecting the built rootfs.squashfs with unsquashfs
