@@ -29,7 +29,7 @@ done
 
 contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass1"'
 contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass2"'
-contains "$BUILD_SCRIPT" 'cmp -s "$ARTIFACTS/pass1/klipper.bin" "$ARTIFACTS/pass2/klipper.bin"'
+contains "$BUILD_SCRIPT" 'cmp -s "$GENERATED_ARTIFACTS/pass1/klipper.bin" "$GENERATED_ARTIFACTS/pass2/klipper.bin"'
 contains "$BUILD_SCRIPT" 'creality_validator.py" target'
 contains "$BUILD_SCRIPT" 'creality_flash.py" inspect'
 contains "$BUILD_SCRIPT" 'DEFAULT_ALLOWED_HW_IDS'
