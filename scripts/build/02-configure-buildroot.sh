@@ -79,6 +79,8 @@ flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-buil
 BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 ARTIFACTS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 KERNEL_SRCDIR="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
+OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-libopenssl-fingerprint"
+BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-busybox-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/Makefile" ]; then
 	echo "vendor/system/buildroot not found - run 00-fetch-vendor-sources.sh first" >&2
@@ -152,31 +154,59 @@ echo "== normalizing .config (resolves any derived Kconfig selects) =="
 # tracked baseline .config remains unchanged.
 ( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner olddefconfig )
 
-# Reproducibility fix (2026-07-26, NebulaOS mutable-runtime mission): a real
-# bug found by directly inspecting the built rootfs.squashfs with unsquashfs
-# instead of trusting 05-final-build.sh's exit code - enabling
-# BR2_PACKAGE_LIBOPENSSL_BIN=y (the openssl CLI) above did NOT get the
-# openssl binary into the image, because libopenssl had already been built
-# once before (as a transitive dependency of git/python3-ssl/curl) with that
-# suboption off, and Buildroot's own per-package build stamps
-# (output/build/<pkg>/.stamp_*) are not invalidated by a suboption-only
-# .config change - only by the package's own source/patch/version changing.
-# This is a general Buildroot limitation, not specific to openssl: ANY
-# suboption added to an already-built package needs an explicit dirclean, or
-# it silently keeps the old build. Forcing it here (rather than relying on
-# whoever runs this script next to remember to do it by hand, which is
-# exactly how this was first missed) makes the fix part of the tracked
-# pipeline instead of a one-off manual step - dirclean is a safe no-op if
-# the package was never built yet (e.g. on a genuinely fresh output/ tree).
+# Buildroot does not invalidate package stamps when a package suboption or
+# BusyBox fragment changes. Track those effective inputs and only dirclean
+# the affected packages when they differ from the last successful Stage 03
+# build. The marker is deliberately written by Stage 03, not here, so a
+# failed build cannot certify a package state as reusable.
+openssl_input_fingerprint() {
+	{
+		printf 'package=libopenssl\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+busybox_input_fingerprint() {
+	{
+		printf 'package=busybox\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+	} | sha256sum | awk '{print $1}'
+}
+
+OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
+BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
+OPENSSL_REBUILD_REQUIRED=1
+BUSYBOX_REBUILD_REQUIRED=1
+if [ -f "$OPENSSL_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$OPENSSL_FINGERPRINT_FILE")" = "$OPENSSL_INPUT_FINGERPRINT" ]; then
+	OPENSSL_REBUILD_REQUIRED=0
+fi
+if [ -f "$BUSYBOX_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$BUSYBOX_FINGERPRINT_FILE")" = "$BUSYBOX_INPUT_FINGERPRINT" ]; then
+	BUSYBOX_REBUILD_REQUIRED=0
+fi
+if [ "$OPENSSL_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== OpenSSL inputs unchanged ($OPENSSL_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== OpenSSL inputs changed or no successful fingerprint; refreshing package =="
+fi
+if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== BusyBox inputs unchanged ($BUSYBOX_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== BusyBox inputs changed or no successful fingerprint; refreshing package =="
+fi
+
 (
 	cd "$BUILDROOT_DIR"
-	make libopenssl-dirclean 2>/dev/null || true
-	# Same class of bug, found again (Memory Resilience Gate, 2026-07-26):
-	# adding CONFIG_FEATURE_SWAPON_PRI via the busybox config fragment had
-	# no effect on an already-built busybox (confirmed live on a flashed
-	# image: swapon rejected the priority option outright) - same
-	# stale-stamp mechanism as the libopenssl case above.
-	make busybox-dirclean 2>/dev/null || true
+	if [ "$OPENSSL_REBUILD_REQUIRED" -eq 1 ]; then
+		make libopenssl-dirclean 2>/dev/null || true
+	fi
+	if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 1 ]; then
+		make busybox-dirclean 2>/dev/null || true
+	fi
 )
 
 echo "== buildroot configured =="

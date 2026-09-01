@@ -36,8 +36,9 @@
 # scripts/build/overlay/ or the config artifacts changed, since this script
 # does not re-sync those itself.
 #
-# IMPORTANT: also force-cleans wpa_supplicant specifically, for the same
-# reason but a different, more general cause (FIRMWARE.md sec 24/27):
+# IMPORTANT: also handles wpa_supplicant specifically for the same reason,
+# but only dircleans it when the package-input fingerprint changes
+# (FIRMWARE.md sec 24/27):
 # Buildroot does not automatically rebuild an already-built *package* just
 # because its own Kconfig options (BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE/
 # _CLI in this case) changed after it was first built - only source changes
@@ -86,6 +87,9 @@ flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-buil
 BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 KERNEL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-kernel-fingerprint"
+OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-libopenssl-fingerprint"
+BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-busybox-fingerprint"
+WPA_SUPPLICANT_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-wpa-supplicant-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 	echo "buildroot not configured - run 02-configure-buildroot.sh first" >&2
@@ -93,12 +97,51 @@ if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 fi
 for kernel_input in \
 	"$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config" \
+	"$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config" \
 	"$BUILDROOT_DIR/local.mk"; do
 	[ -f "$kernel_input" ] || {
 		echo "kernel input missing: $kernel_input - run 02-configure-buildroot.sh first" >&2
 		exit 1
 	}
 done
+
+openssl_input_fingerprint() {
+	{
+		printf 'package=libopenssl\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+busybox_input_fingerprint() {
+	{
+		printf 'package=busybox\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+	} | sha256sum | awk '{print $1}'
+}
+wpa_supplicant_input_fingerprint() {
+	{
+		printf 'package=wpa_supplicant\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+
+OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
+BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
+WPA_SUPPLICANT_INPUT_FINGERPRINT=$(wpa_supplicant_input_fingerprint)
+WPA_SUPPLICANT_REBUILD_REQUIRED=1
+if [ -f "$WPA_SUPPLICANT_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$WPA_SUPPLICANT_FINGERPRINT_FILE")" = "$WPA_SUPPLICANT_INPUT_FINGERPRINT" ]; then
+	WPA_SUPPLICANT_REBUILD_REQUIRED=0
+fi
+if [ "$WPA_SUPPLICANT_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== wpa_supplicant inputs unchanged ($WPA_SUPPLICANT_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== wpa_supplicant inputs changed or no successful fingerprint; refreshing package =="
+fi
 
 # Compute this before touching the kernel's generated files. The System pin
 # is included explicitly, while the content-addressed diff captures the
@@ -154,7 +197,9 @@ fi
 	if [ "$KERNEL_REBUILD_REQUIRED" -eq 1 ]; then
 		make BR2_TAR_OPTIONS=--no-same-owner linux-dirclean
 	fi
-	make BR2_TAR_OPTIONS=--no-same-owner wpa_supplicant-dirclean
+	if [ "$WPA_SUPPLICANT_REBUILD_REQUIRED" -eq 1 ]; then
+		make BR2_TAR_OPTIONS=--no-same-owner wpa_supplicant-dirclean
+	fi
 	# Same staleness class as the two dircleans above (FIRMWARE.md sec 28): a
 	# plain incremental make only rebuilds a package whose stamp is missing
 	# or whose config hash changed, and toggling a Kconfig option alone does
@@ -176,5 +221,8 @@ fi
 
 mkdir -p "$(dirname "$KERNEL_FINGERPRINT_FILE")"
 printf '%s\n' "$KERNEL_INPUT_FINGERPRINT" > "$KERNEL_FINGERPRINT_FILE"
+printf '%s\n' "$OPENSSL_INPUT_FINGERPRINT" > "$OPENSSL_FINGERPRINT_FILE"
+printf '%s\n' "$BUSYBOX_INPUT_FINGERPRINT" > "$BUSYBOX_FINGERPRINT_FILE"
+printf '%s\n' "$WPA_SUPPLICANT_INPUT_FINGERPRINT" > "$WPA_SUPPLICANT_FINGERPRINT_FILE"
 
 echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.ext2} =="
