@@ -36,7 +36,7 @@ SEEDS="${SEEDS:-/opt/nebulaos-seeds}"
 APPS="${APPS:-/usr/data/nebulaos/apps}"
 SYSTEM="${SYSTEM:-/usr/data/nebulaos/system}"
 LOCKDIR="${LOCKDIR:-/usr/data/nebulaos/updates/locks}"
-EXTENSIONS_MANIFEST="${EXTENSIONS_MANIFEST:-/opt/nebulaos-klipper-extensions/nebulaos-extensions.json}"
+EXTENSIONS_MANIFEST="${EXTENSIONS_MANIFEST:-/opt/klipper-extensions/nebulaos-extensions.json}"
 # The extensions manifest is the authority for the exact upstream Klipper
 # API/runtime this image can safely load.
 KLIPPER_QUALIFIED_COMMIT=$(sed -n 's/.*"qualified_commit": "\([0-9a-f][0-9a-f]*\)".*/\1/p' "$EXTENSIONS_MANIFEST" 2>/dev/null | head -1)

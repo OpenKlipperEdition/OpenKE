@@ -29,7 +29,7 @@
 NEBULAOS_ROOT=/usr/data/nebulaos
 STATE_FILE="$NEBULAOS_ROOT/system/activation-state.json"
 LOCKDIR="$NEBULAOS_ROOT/updates/locks"
-EXTENSIONS_MANIFEST=/opt/nebulaos-klipper-extensions/nebulaos-extensions.json
+EXTENSIONS_MANIFEST=/opt/klipper-extensions/nebulaos-extensions.json
 
 log() {
 	echo "S05nebulaos-activate: $1"

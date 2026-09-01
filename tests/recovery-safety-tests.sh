@@ -74,7 +74,7 @@ test_recovery_target_has_accepted_features() {
 		fi
 	fi
 
-	extra_dir="$WORK/nebulaos-klipper-extensions"
+	extra_dir="$WORK/klipper-extensions"
 	if ! git clone -q --no-checkout "$KLIPPER_EXTRAS_REPO" "$extra_dir" 2>"$WORK/extras-clone-error.log"; then
 		fail "could not clone pinned extras source $KLIPPER_EXTRAS_REPO: $(cat "$WORK/extras-clone-error.log")"
 		return
@@ -108,7 +108,7 @@ test_recovery_target_has_accepted_features() {
 
 	# The extras copy is deliberately explicit and must remain scoped to the
 	# known NebulaOS modules; it must not replace the mainline Klipper tree.
-	if grep -q 'nebulaos-klipper-extensions/extras' "$REPO_ROOT/scripts/build/04-cross-compile-app-stack.sh"; then
+	if grep -q 'klipper-extensions/extras' "$REPO_ROOT/scripts/build/04-cross-compile-app-stack.sh"; then
 		pass "build explicitly composes pinned NebulaOS extras onto mainline Klipper"
 	else
 		fail "build does not explicitly compose the pinned NebulaOS extras"

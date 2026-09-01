@@ -274,7 +274,7 @@ clone_pinned klipper "$KLIPPER_REPO" "$KLIPPER_PIN"
 
 # Fetch the pinned NebulaOS checkout as an extras source only. Stage 04 copies
 # the selected modules into the mainline checkout before packaging it.
-clone_pinned nebulaos-klipper-extensions "$KLIPPER_EXTRAS_REPO" "$KLIPPER_EXTRAS_PIN"
+clone_pinned klipper-extensions "$KLIPPER_EXTRAS_REPO" "$KLIPPER_EXTRAS_PIN"
 for extra in \
 	guppy_config_helper.py \
 	guppy_module_loader.py \
@@ -289,7 +289,7 @@ for extra in \
 	prtouch_test_support.py \
 	virtual_pins.py \
 	z_compensate.py; do
-	[ -s "nebulaos-klipper-extensions/extras/$extra" ] || {
+	[ -s "klipper-extensions/extras/$extra" ] || {
 		echo "FATAL: pinned NebulaOS extensions checkout is missing extras/$extra" >&2
 		exit 1
 	}

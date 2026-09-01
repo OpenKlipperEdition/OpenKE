@@ -85,7 +85,7 @@ check_vendor_pin() {
 check_vendor_pin klipper "$KLIPPER_PIN" \
 	"$KLIPPER_REPO" 0 \
 	klippy/chelper/c_helper.so
-check_vendor_pin nebulaos-klipper-extensions "$KLIPPER_EXTRAS_PIN" \
+check_vendor_pin klipper-extensions "$KLIPPER_EXTRAS_PIN" \
 	"$KLIPPER_EXTRAS_REPO" 0
 check_vendor_pin nebulaos-klipper-mcu "$MCU_PIN" \
 	"$MCU_REPO" 0
@@ -440,7 +440,7 @@ check /opt/klipper/scripts/klippy-requirements.txt
 check /opt/klipper/scripts/install-octopi.sh
 check /opt/klipper/.nebulaos-chelper-verdict.json
 check /opt/nebulaos-seeds/klipper-chelper-verdict.json
-check /opt/nebulaos-klipper-extensions/nebulaos-extensions.json
+check /opt/klipper-extensions/nebulaos-extensions.json
 echo "=== NebulaOS Klipper extras ==="
 for extra in \
 	guppy_config_helper.py \

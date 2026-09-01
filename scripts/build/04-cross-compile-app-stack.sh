@@ -65,11 +65,11 @@ BYTECODE_FORMAT_VERSION=1
 # cannot survive a rebuild and override the current compatibility-qualified
 # source. The tracked overlay remains untouched.
 rm -rf "$OVERLAY/opt/klipper" \
-	"$OVERLAY/opt/nebulaos-klipper-extensions" \
+	"$OVERLAY/opt/klipper-extensions" \
 	"$BUILDROOT_DIR/output/target/opt/klipper" \
-	"$BUILDROOT_DIR/output/target/opt/nebulaos-klipper-extensions" \
+	"$BUILDROOT_DIR/output/target/opt/klipper-extensions" \
 	"$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/klipper" \
-	"$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/nebulaos-klipper-extensions"
+	"$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/klipper-extensions"
 
 if [ ! -x "$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" ]; then
 	echo "Buildroot toolchain not built - run 03-build-kernel-and-rootfs.sh first" >&2
@@ -274,11 +274,11 @@ mkdir -p "$OVERLAY/root/klippy-env"
 # extension compatibility code resolves its manifest from the real module
 # path and verifies that runtime modules are symlinks into this tree, which is
 # also how NebulaOS identifies a complete, supported installation.
-extension_runtime="$OVERLAY/opt/nebulaos-klipper-extensions"
+extension_runtime="$OVERLAY/opt/klipper-extensions"
 rm -rf "$extension_runtime"
 mkdir -p "$extension_runtime"
-cp -r "$VENDOR/nebulaos-klipper-extensions/extras" "$extension_runtime/"
-cp "$VENDOR/nebulaos-klipper-extensions/nebulaos-extensions.json" \
+cp -r "$VENDOR/klipper-extensions/extras" "$extension_runtime/"
+cp "$VENDOR/klipper-extensions/nebulaos-extensions.json" \
 	"$extension_runtime/"
 
 # Stage symlinks separately so the upstream Klipper checkout itself remains
@@ -301,7 +301,7 @@ for extra in \
 	prtouch_test_support.py \
 	virtual_pins.py \
 	z_compensate.py; do
-	ln -s "/opt/nebulaos-klipper-extensions/extras/$extra" \
+	ln -s "/opt/klipper-extensions/extras/$extra" \
 		"$extra_stage/$extra"
 done
 cp -r "$VENDOR/klipper/klippy" "$OVERLAY/opt/klipper/"
@@ -345,7 +345,7 @@ if [ -n "$HOST_PYTHON3" ]; then
 		"$OVERLAY/opt/klipper/klippy" \
 		"$KLIPPER_PIN:$KLIPPER_EXTRAS_PIN" \
 		"/opt/klipper" "" \
-		"$VENDOR/nebulaos-klipper-extensions/extras"
+		"$VENDOR/klipper-extensions/extras"
 fi
 rm -f "$OVERLAY/opt/klipper/klippy/chelper"/*.o "$OVERLAY/opt/klipper/klippy/chelper"/*.a
 
@@ -1256,7 +1256,7 @@ echo "== printer_data config seed created: $(ls -la "$PRINTER_DATA_SEED_DEST/") 
 # the tracked overlay. Buildroot's output/target sync is additive, so refresh
 # the exact generated paths here; otherwise a previous klipper.tar.gz (and
 # its previous Git commit) can remain in the image indefinitely.
-for generated_path in klipper nebulaos-klipper-extensions nebulaos-seeds; do
+for generated_path in klipper klipper-extensions nebulaos-seeds; do
 	rm -rf "$BUILDROOT_DIR/output/target/opt/$generated_path"
 	mkdir -p "$(dirname "$BUILDROOT_DIR/output/target/opt/$generated_path")"
 	cp -a "$OVERLAY/opt/$generated_path" \
