@@ -295,7 +295,7 @@ for extra in \
 	}
 done
 echo "== pinned NebulaOS Klipper extensions present under extras/ =="
-clone_pinned nebulaos-klipper-mcu "$MCU_REPO" "$MCU_PIN"
+clone_pinned klipper-mcu "$MCU_REPO" "$MCU_PIN"
 
 # Official Moonraker - not a fork, no reason to deviate.
 clone_pinned moonraker "$MOONRAKER_REPO" "$MOONRAKER_PIN"

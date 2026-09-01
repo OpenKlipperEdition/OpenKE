@@ -15,10 +15,10 @@ MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 . "$MANIFEST"
 
 VENDOR="$REPO_ROOT/vendor"
-MCU_REPO_DIR="$VENDOR/nebulaos-klipper-mcu"
+MCU_REPO_DIR="$VENDOR/klipper-mcu"
 BUILDROOT_DIR="$VENDOR/system/buildroot"
 OVERLAY="$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
-WORK="$REPO_ROOT/build-work/nebulaos-klipper-mcu"
+WORK="$REPO_ROOT/build-work/klipper-mcu"
 MCU_BUILD="$WORK/klipper-src"
 ARTIFACT_REL="artifacts/nebulaos-firmware"
 GENERATED_ARTIFACTS="$MCU_REPO_DIR/$ARTIFACT_REL"
@@ -28,11 +28,11 @@ TOOLCHAIN_ROOT="$WORK/arm-gnu-toolchain"
 TOOLCHAIN_CACHE="$REPO_ROOT/vendor-downloads"
 
 [ -d "$MCU_REPO_DIR/.git" ] || {
-	echo "FATAL: vendor/nebulaos-klipper-mcu is missing - run 00-fetch-vendor-sources.sh first" >&2
+	echo "FATAL: vendor/klipper-mcu is missing - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 }
 [ "$(git -C "$MCU_REPO_DIR" rev-parse HEAD)" = "$MCU_PIN" ] || {
-	echo "FATAL: vendor/nebulaos-klipper-mcu is not at pinned commit $MCU_PIN" >&2
+	echo "FATAL: vendor/klipper-mcu is not at pinned commit $MCU_PIN" >&2
 	exit 1
 }
 

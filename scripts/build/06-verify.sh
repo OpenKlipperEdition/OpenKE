@@ -87,7 +87,7 @@ check_vendor_pin klipper "$KLIPPER_PIN" \
 	klippy/chelper/c_helper.so
 check_vendor_pin klipper-extensions "$KLIPPER_EXTRAS_PIN" \
 	"$KLIPPER_EXTRAS_REPO" 0
-check_vendor_pin nebulaos-klipper-mcu "$MCU_PIN" \
+check_vendor_pin klipper-mcu "$MCU_PIN" \
 	"$MCU_REPO" 0
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
