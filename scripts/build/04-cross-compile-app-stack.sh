@@ -47,6 +47,8 @@ OVERLAY="$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
 TOOLCHAIN_HOST="$BUILDROOT_DIR/output/host"
 SYSROOT="$TOOLCHAIN_HOST/mipsel-buildroot-linux-gnu/sysroot"
 WORK="$REPO_ROOT/build-work/app-stack-extras"
+CHELPER_CACHE="$WORK/chelper"
+CHELPER_FINGERPRINT_FILE="$CHELPER_CACHE/fingerprint"
 
 # Buildroot's output/target sync is additive. Remove only the generated
 # Klipper paths before restaging so an older full .git tree or runtime copy
@@ -88,17 +90,43 @@ sh "$SCRIPT_DIR/build-mcu-firmware.sh"
 ### 1. Klipper: klippy/ source + a freshly cross-compiled chelper.so
 ###    Official upstream builds this helper from the source list in
 ###    klippy/chelper/__init__.py; there is no chelper Makefile.
-echo "== cross-compiling Klipper's chelper C extension =="
+chelp_sources="pyhelper.c serialqueue.c stepcompress.c steppersync.c itersolve.c trapq.c pollreactor.c msgblock.c trdispatch.c kin_cartesian.c kin_corexy.c kin_corexz.c kin_delta.c kin_deltesian.c kin_polar.c kin_rotary_delta.c kin_winch.c kin_extruder.c kin_shaper.c kin_idex.c kin_generic.c"
+CHELPER_INPUT_FINGERPRINT=$(
+	{
+		printf 'klipper_pin=%s\n' "$KLIPPER_PIN"
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		printf 'compiler_flags=-Wall -g -O2 -shared -fPIC -flto -fwhole-program -fno-use-linker-plugin\n'
+		find "$VENDOR/klipper/klippy/chelper" -type f \
+			\( -name '*.c' -o -name '*.h' \) -print | sort |
+			while IFS= read -r source; do sha256sum "$source"; done
+		sha256sum \
+			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" \
+			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip"
+	} | sha256sum | awk '{print $1}'
+)
+CHELPER_REBUILD_REQUIRED=1
+if [ -f "$CHELPER_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$CHELPER_FINGERPRINT_FILE")" = "$CHELPER_INPUT_FINGERPRINT" ] && \
+	[ -s "$CHELPER_CACHE/c_helper.so" ] && \
+	[ -s "$CHELPER_CACHE/c_helper.so.debug" ]; then
+	CHELPER_REBUILD_REQUIRED=0
+	echo "== chelper inputs unchanged ($CHELPER_INPUT_FINGERPRINT); reusing cached build =="
+else
+	echo "== chelper inputs changed or no successful fingerprint; rebuilding =="
+fi
+
+if [ "$CHELPER_REBUILD_REQUIRED" -eq 1 ]; then
+	echo "== cross-compiling Klipper's chelper C extension =="
 (
 	cd "$VENDOR/klipper/klippy/chelper"
 	export PATH="$BUILDROOT_DIR/output/host/bin:$PATH"
-	chelp_sources="pyhelper.c serialqueue.c stepcompress.c steppersync.c itersolve.c trapq.c pollreactor.c msgblock.c trdispatch.c kin_cartesian.c kin_corexy.c kin_corexz.c kin_delta.c kin_deltesian.c kin_polar.c kin_rotary_delta.c kin_winch.c kin_extruder.c kin_shaper.c kin_idex.c kin_generic.c"
 	rm -f c_helper.so _temp_c_helper.so *.o *.a
 	mipsel-buildroot-linux-gnu-gcc -Wall -g -O2 -shared -fPIC \
 		-flto -fwhole-program -fno-use-linker-plugin \
 		-o _temp_c_helper.so $chelp_sources
 	mv -f _temp_c_helper.so c_helper.so
 )
+fi
 
 # Production optimization mission, Phase 6 (2026-07-30): c_helper.so shipped
 # with full debug symbols in every rootfs.squashfs built so far - Buildroot's
@@ -110,12 +138,22 @@ echo "== cross-compiling Klipper's chelper C extension =="
 # production rootfs) before stripping, matching the ustreamer/v4l2-ctl
 # pattern's build-ID-preserving intent.
 mkdir -p "$WORK/debug-symbols"
-cp "$VENDOR/klipper/klippy/chelper/c_helper.so" "$WORK/debug-symbols/c_helper.so.debug"
-(
-	cd "$VENDOR/klipper/klippy/chelper"
-	export PATH="$BUILDROOT_DIR/output/host/bin:$PATH"
-	mipsel-buildroot-linux-gnu-strip --strip-unneeded c_helper.so
-)
+if [ "$CHELPER_REBUILD_REQUIRED" -eq 1 ]; then
+	cp "$VENDOR/klipper/klippy/chelper/c_helper.so" "$WORK/debug-symbols/c_helper.so.debug"
+	(
+		cd "$VENDOR/klipper/klippy/chelper"
+		export PATH="$BUILDROOT_DIR/output/host/bin:$PATH"
+		mipsel-buildroot-linux-gnu-strip --strip-unneeded c_helper.so
+	)
+	rm -rf "$CHELPER_CACHE"
+	mkdir -p "$CHELPER_CACHE"
+	cp "$VENDOR/klipper/klippy/chelper/c_helper.so" "$CHELPER_CACHE/c_helper.so"
+	cp "$WORK/debug-symbols/c_helper.so.debug" "$CHELPER_CACHE/c_helper.so.debug"
+	printf '%s\n' "$CHELPER_INPUT_FINGERPRINT" > "$CHELPER_FINGERPRINT_FILE"
+else
+	cp "$CHELPER_CACHE/c_helper.so" "$VENDOR/klipper/klippy/chelper/c_helper.so"
+	cp "$CHELPER_CACHE/c_helper.so.debug" "$WORK/debug-symbols/c_helper.so.debug"
+fi
 # Klipper rebuilds when any source is newer; make the cross-compiled helper
 # unambiguously newer before copying it into both runtime package paths.
 touch -d "@$(( $(date +%s) + 2 ))" "$VENDOR/klipper/klippy/chelper/c_helper.so"
