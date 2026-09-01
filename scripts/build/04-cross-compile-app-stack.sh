@@ -55,6 +55,8 @@ V4L2_CTL_CACHE="$WORK/v4l2-ctl"
 V4L2_CTL_FINGERPRINT_FILE="$V4L2_CTL_CACHE/fingerprint"
 V4L2_CTL_BIN="$V4L2_CTL_CACHE/v4l2-ctl"
 VENV_SEED_CACHE="$WORK/venv-seeds"
+PYWHEELS_DIR="$WORK/pywheels"
+PYWHEELS_FINGERPRINT_FILE="$PYWHEELS_DIR/fingerprint"
 
 # Buildroot's output/target sync is additive. Remove only the generated
 # Klipper paths before restaging so an older full .git tree or runtime copy
@@ -342,11 +344,27 @@ fi
 # instantly with ModuleNotFoundError: No module named zipp, before opening
 # its own log file at all.
 echo "== downloading Moonraker's pure-Python deps with no Buildroot package =="
-mkdir -p "$WORK/pywheels"
-pip3 download -d "$WORK/pywheels" --no-deps \
-	inotify-simple==2.0.1 libnacl==2.1.0 apprise==1.9.3 ldap3==2.9.1 \
-	importlib_metadata==8.4.0 preprocess-cancellation==0.2.1 pyasn1 \
-	zipp==3.20.2 wheel==0.42.0
+mkdir -p "$PYWHEELS_DIR"
+PYTHON_WHEEL_REQUIREMENTS="inotify-simple==2.0.1 libnacl==2.1.0 apprise==1.9.3 ldap3==2.9.1 importlib_metadata==8.4.0 preprocess-cancellation==0.2.1 pyasn1==$MOONRAKER_PYASN1_VERSION zipp==3.20.2 wheel==0.42.0"
+python_wheels_fingerprint() {
+	{
+		printf 'requirements=%s\n' "$PYTHON_WHEEL_REQUIREMENTS"
+		for wheel in "$PYWHEELS_DIR"/*.whl; do
+			[ -f "$wheel" ] && sha256sum "$wheel"
+		done
+	} | sha256sum | awk '{print $1}'
+}
+PYTHON_WHEELS_FINGERPRINT=$(python_wheels_fingerprint)
+if [ -f "$PYWHEELS_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$PYWHEELS_FINGERPRINT_FILE")" = "$PYTHON_WHEELS_FINGERPRINT" ]; then
+	echo "== Moonraker Python wheel inputs unchanged ($PYTHON_WHEELS_FINGERPRINT); reusing cached downloads =="
+else
+	echo "== Moonraker Python wheel inputs changed or no successful fingerprint; refreshing downloads =="
+	rm -f "$PYWHEELS_DIR"/*.whl
+	pip3 download -d "$PYWHEELS_DIR" --no-deps --only-binary=:all: $PYTHON_WHEEL_REQUIREMENTS
+	PYTHON_WHEELS_FINGERPRINT=$(python_wheels_fingerprint)
+	printf '%s\n' "$PYTHON_WHEELS_FINGERPRINT" > "$PYWHEELS_FINGERPRINT_FILE"
+fi
 SITEPKG="$OVERLAY/usr/lib/python3.11/site-packages"
 mkdir -p "$SITEPKG"
 for whl in "$WORK"/pywheels/*.whl; do
@@ -354,9 +372,9 @@ for whl in "$WORK"/pywheels/*.whl; do
 done
 
 echo "== cross-compiling Moonraker's one real C extension: streaming-form-data =="
-STREAMING_ARCHIVE="$WORK/pywheels/streaming-form-data-1.11.0.tar.gz"
+STREAMING_ARCHIVE="$PYWHEELS_DIR/streaming-form-data-1.11.0.tar.gz"
 if [ ! -s "$STREAMING_ARCHIVE" ]; then
-	pip3 download -d "$WORK/pywheels" --no-deps --no-binary :all: streaming-form-data==1.11.0
+	pip3 download -d "$PYWHEELS_DIR" --no-deps --no-binary :all: streaming-form-data==1.11.0
 fi
 STREAMING_INPUT_FINGERPRINT=$(
 	{
