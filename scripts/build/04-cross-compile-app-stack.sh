@@ -54,6 +54,7 @@ STREAMING_FINGERPRINT_FILE="$STREAMING_CACHE/fingerprint"
 V4L2_CTL_CACHE="$WORK/v4l2-ctl"
 V4L2_CTL_FINGERPRINT_FILE="$V4L2_CTL_CACHE/fingerprint"
 V4L2_CTL_BIN="$V4L2_CTL_CACHE/v4l2-ctl"
+VENV_SEED_CACHE="$WORK/venv-seeds"
 
 # Buildroot's output/target sync is additive. Remove only the generated
 # Klipper paths before restaging so an older full .git tree or runtime copy
@@ -979,6 +980,30 @@ if [ -n "$HOST_PYTHON3" ]; then
 	TARGET_PY_ABS="/usr/bin/python3.11"
 	build_venv_seed() {
 		envname="$1"; envdir="$2"; seed_out="$3"
+		seed_cache="$VENV_SEED_CACHE/$envname.tar.gz"
+		fingerprint_file="$VENV_SEED_CACHE/$envname.fingerprint"
+		seed_fingerprint=$(
+			{
+				printf 'seed_format=1\n'
+				printf 'envname=%s\n' "$envname"
+				printf 'envdir=%s\n' "$envdir"
+				printf 'system_pin=%s\n' "$SYSTEM_PIN"
+				printf 'target_python_version=%s\n' "$TARGET_PY_VERSION"
+				printf 'target_python=%s\n' "$TARGET_PY_ABS"
+				"$HOST_PYTHON3" --version 2>&1
+				sha256sum "$HOST_PYTHON3"
+			} | sha256sum | awk '{print $1}'
+		)
+		mkdir -p "$(dirname "$seed_out")"
+		if [ -f "$fingerprint_file" ] && \
+			[ "$(cat "$fingerprint_file")" = "$seed_fingerprint" ] && \
+			[ -s "$seed_cache" ]; then
+			cp "$seed_cache" "$seed_out"
+			echo "== $envname venv seed inputs unchanged ($seed_fingerprint); reusing cached seed =="
+			return 0
+		fi
+
+		echo "== $envname venv seed inputs changed or no successful fingerprint; rebuilding =="
 		rm -rf "$WORK/venv-seed-$envname"
 		if ! "$HOST_PYTHON3" -m venv --system-site-packages --without-pip \
 			"$WORK/venv-seed-$envname" >/tmp/venv-seed-$envname.log 2>&1; then
@@ -1007,9 +1032,16 @@ PYVENVCFG
 		# they cost nothing extra to include.
 		for af in activate activate.csh activate.fish; do
 			[ -f "$vdir/bin/$af" ] && sed -i "s#$vdir#$envdir#g" "$vdir/bin/$af"
-		done
-		[ -f "$vdir/pyvenv.cfg" ] || return 1
-		tar -C "$vdir" -czf "$seed_out" .
+			done
+			[ -f "$vdir/pyvenv.cfg" ] || return 1
+			tar -C "$vdir" -czf "$seed_out" .
+			if ! tar -tzf "$seed_out" | grep -qx './pyvenv.cfg'; then
+				echo "WARNING: $envname venv seed archive is missing pyvenv.cfg" >&2
+				return 1
+			fi
+			mkdir -p "$VENV_SEED_CACHE"
+			cp "$seed_out" "$seed_cache"
+			printf '%s\n' "$seed_fingerprint" > "$fingerprint_file"
 	}
 	if build_venv_seed klipper /usr/data/nebulaos/envs/klipper "$OVERLAY/opt/nebulaos-seeds/klipper-venv-seed.tar.gz"; then
 		echo "== klipper venv seed created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/klipper-venv-seed.tar.gz") =="
