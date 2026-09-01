@@ -134,7 +134,7 @@ artifact_sha256() {
 	git_field git_commit_klipper vendor/klipper
 	git_field git_commit_mcu vendor/nebulaos-klipper-mcu
 	git_field git_commit_moonraker vendor/moonraker
-	git_field git_commit_guppyscreen vendor/nebulaos-guppyscreen
+	git_field git_commit_guppyscreen vendor/guppyscreen
 	git_field git_commit_k1_ustreamer vendor/k1-ustreamer
 	git_field git_commit_v4l_utils vendor/v4l-utils
 	if [ -d "$REPO_ROOT/vendor/k1-ustreamer/.git" ]; then

@@ -153,7 +153,7 @@ fi
 # GuppyScreen is pinned by GUPPYSCREEN_PIN; verify both the pinned HEAD and the
 # expected remote URL. The three allowlisted submodules are modified
 # deterministically by the fetch/build stages (spdlog, lvgl, and libhv).
-check_vendor_pin nebulaos-guppyscreen "$GUPPYSCREEN_PIN" \
+check_vendor_pin guppyscreen "$GUPPYSCREEN_PIN" \
 	"$GUPPYSCREEN_REPO" 0 \
 	libhv \
 	lvgl \

@@ -1,8 +1,8 @@
 # Cross-project contract fixture generator/verifier - drives the real ZCompensate class to
 # the four canonical states (idle/running/complete/error) from docs/
 # z_compensate_status_api.md's own worked examples, and writes the exact serialized JSON
-# both this repo's own docs and the nebulaos-guppyscreen fork's C++ tests reference. The
-# nebulaos-guppyscreen copy (tests/fixtures/z_compensate_status_contract.json) is a literal
+# both this repo's own docs and the guppyscreen fork's C++ tests reference. The
+# guppyscreen copy (tests/fixtures/z_compensate_status_contract.json) is a literal
 # duplicate of this file's own output, kept in sync manually (small, stable contract - not
 # worth a cross-repo code-generation pipeline, see Part 7 of the task this was built under).
 #

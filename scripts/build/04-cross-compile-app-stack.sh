@@ -755,7 +755,7 @@ cp -r "$VENDOR"/mainsail-dist/dist/* "$OVERLAY/usr/share/mainsail/"
 # GuppyScreen is pinned by stage 00. Reuse its existing tracked binaries when
 # the artifact manifest records that same source commit; otherwise build with
 # the exact MIPS toolchain and upstream build script.
-GUPPYSCREEN_SRC="$VENDOR/nebulaos-guppyscreen"
+GUPPYSCREEN_SRC="$VENDOR/guppyscreen"
 if [ ! -d "$GUPPYSCREEN_SRC" ]; then
 	echo "FATAL: $GUPPYSCREEN_SRC not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
