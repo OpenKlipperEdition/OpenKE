@@ -29,6 +29,7 @@
 NEBULAOS_ROOT=/usr/data/nebulaos
 STATE_FILE="$NEBULAOS_ROOT/system/activation-state.json"
 LOCKDIR="$NEBULAOS_ROOT/updates/locks"
+EXTENSIONS_MANIFEST=/opt/nebulaos-klipper-extensions/nebulaos-extensions.json
 
 log() {
 	echo "S05nebulaos-activate: $1"
@@ -112,6 +113,16 @@ validate_app() {
 		return 1
 	fi
 
+	if [ "$name" = klipper ] && [ -e "$EXTENSIONS_MANIFEST" ]; then
+		expected_commit=$(sed -n 's/.*"qualified_commit": "\([0-9a-f][0-9a-f]*\)".*/\1/p' "$EXTENSIONS_MANIFEST" 2>/dev/null | head -1)
+		installed_commit=$(git -C "$src" rev-parse HEAD 2>/dev/null || echo invalid)
+		if [ -n "$expected_commit" ] && [ "$installed_commit" != "$expected_commit" ]; then
+			log "$name: incompatible Klipper commit ($installed_commit, expected $expected_commit) - staying on immutable"
+			record "$name" "immutable:incompatible_commit"
+			return 1
+		fi
+	fi
+
 	log "$name: persistent copy at $src validated OK"
 	record "$name" "persistent"
 	return 0
@@ -156,7 +167,8 @@ start() {
 	rm -f "$NEBULAOS_ROOT/system/.activation-decisions"
 	mkdir -p "$LOCKDIR"
 
-	if validate_app klipper "$NEBULAOS_ROOT/apps/klipper" "klippy/klippy.py"; then
+if validate_app klipper "$NEBULAOS_ROOT/apps/klipper" \
+	"klippy/klippy.py .git .nebulaos-chelper-verdict.json scripts/install-octopi.sh"; then
 		bind_if_not_already "$NEBULAOS_ROOT/apps/klipper" /opt/klipper
 	fi
 

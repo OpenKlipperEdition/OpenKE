@@ -5,7 +5,8 @@
 # pure-Python wheels with no Buildroot package, and assemble the full
 # app-stack overlay - Klipper/Moonraker source, Mainsail's static build,
 # and everything above - on top of the hand-written files stage 2 already
-# put in place.
+# put in place. The mainline Klipper checkout receives the pinned NebulaOS
+# extras below before the wholesale klippy/ copy stages it into the rootfs.
 #
 # Must run after 03-build-kernel-and-rootfs.sh - needs the Buildroot
 # toolchain and target Python headers to already be built.
@@ -25,6 +26,13 @@ MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 }
 . "$MANIFEST"
 
+klipper_build_head=$(git -C "$REPO_ROOT/vendor/klipper" rev-parse HEAD 2>/dev/null || echo missing)
+[ "$klipper_build_head" = "$KLIPPER_PIN" ] || {
+	echo "FATAL: vendor/klipper is $klipper_build_head, expected mainline compatibility pin $KLIPPER_PIN" >&2
+	echo "Run scripts/build/00-fetch-vendor-sources.sh before continuing; refusing to package an incompatible Klipper image." >&2
+	exit 1
+}
+
 # 2026-07-23: see 02-configure-buildroot.sh for why this lock exists.
 exec 9>"$REPO_ROOT/.nebulaos-build.lock"
 flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
@@ -39,6 +47,17 @@ OVERLAY="$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
 TOOLCHAIN_HOST="$BUILDROOT_DIR/output/host"
 SYSROOT="$TOOLCHAIN_HOST/mipsel-buildroot-linux-gnu/sysroot"
 WORK="$REPO_ROOT/build-work/app-stack-extras"
+
+# Buildroot's output/target sync is additive. Remove only the generated
+# Klipper paths before restaging so an older full .git tree or runtime copy
+# cannot survive a rebuild and override the current compatibility-qualified
+# source. The tracked overlay remains untouched.
+rm -rf "$OVERLAY/opt/klipper" \
+	"$OVERLAY/opt/nebulaos-klipper-extensions" \
+	"$BUILDROOT_DIR/output/target/opt/klipper" \
+	"$BUILDROOT_DIR/output/target/opt/nebulaos-klipper-extensions" \
+	"$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/klipper" \
+	"$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/nebulaos-klipper-extensions"
 
 if [ ! -x "$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" ]; then
 	echo "Buildroot toolchain not built - run 03-build-kernel-and-rootfs.sh first" >&2
@@ -101,6 +120,19 @@ cp "$VENDOR/klipper/klippy/chelper/c_helper.so" "$WORK/debug-symbols/c_helper.so
 # unambiguously newer before copying it into both runtime package paths.
 touch -d "@$(( $(date +%s) + 2 ))" "$VENDOR/klipper/klippy/chelper/c_helper.so"
 
+# Publish the platform proof consumed by nebulaos_compat. Keep it staged
+# outside the Klipper checkout so the upstream source remains clean; it is
+# copied into the immutable runtime and injected into the factory seed later.
+CHELPER_VERDICT="$WORK/nebulaos-chelper-verdict.json"
+cat > "$CHELPER_VERDICT" <<EOF
+{
+  "status": "ok",
+  "target": "klippy/chelper/c_helper.so",
+  "target_sha256": "$(sha256sum "$VENDOR/klipper/klippy/chelper/c_helper.so" | cut -d' ' -f1)",
+  "requirement": "prebuilt_so_mtime_newer_than_all_chelper_sources"
+}
+EOF
+
 mkdir -p "$OVERLAY/opt/klipper"
 rm -rf "$OVERLAY/opt/klipper/klippy"
 
@@ -120,7 +152,70 @@ rm -rf "$OVERLAY/opt/klipper/klippy"
 # read-only squashfs, so this directory must exist here at build time -
 # mkdir at runtime would fail (read-only filesystem).
 mkdir -p "$OVERLAY/root/klippy-env"
+# Install the companion extensions tree separately from Klipper core. The
+# extension compatibility code resolves its manifest from the real module
+# path and verifies that runtime modules are symlinks into this tree, which is
+# also how NebulaOS identifies a complete, supported installation.
+extension_runtime="$OVERLAY/opt/nebulaos-klipper-extensions"
+rm -rf "$extension_runtime"
+mkdir -p "$extension_runtime"
+cp -r "$VENDOR/nebulaos-klipper-extensions/extras" "$extension_runtime/"
+cp "$VENDOR/nebulaos-klipper-extensions/nebulaos-extensions.json" \
+	"$extension_runtime/"
+
+# Stage symlinks separately so the upstream Klipper checkout itself remains
+# clean for make_seed_archive(). These relative targets remain valid when the
+# symlink set is copied into /opt/klipper/klippy/extras on the device.
+extra_stage="$WORK/nebulaos-klipper-runtime-extras"
+rm -rf "$extra_stage"
+mkdir -p "$extra_stage"
+for extra in \
+	guppy_config_helper.py \
+	guppy_module_loader.py \
+	calibrate_shaper_config.py \
+	gcode_shell_command.py \
+	tmcstatus.py \
+	nebulaos_compat.py \
+	nebulaos_temperature_mcu.py \
+	nebulaos_version.py \
+	nebulaos_z_offset_probe.py \
+	nozzle_clear.py \
+	prtouch_test_support.py \
+	virtual_pins.py \
+	z_compensate.py; do
+	ln -s "/opt/nebulaos-klipper-extensions/extras/$extra" \
+		"$extra_stage/$extra"
+done
 cp -r "$VENDOR/klipper/klippy" "$OVERLAY/opt/klipper/"
+cp -P "$extra_stage"/* "$OVERLAY/opt/klipper/klippy/extras/"
+# Moonraker's reserved Klipper update-manager slot validates this helper
+# path even when no explicit install_script option is configured. Keep it in
+# the immutable fallback as well as the full persistent seed checkout, so a
+# deliberately rejected/incomplete persistent checkout cannot make Moonraker
+# fail merely because S05 selected the safe immutable path.
+mkdir -p "$OVERLAY/opt/klipper/scripts"
+cp "$VENDOR/klipper/scripts/install-octopi.sh" \
+	"$OVERLAY/opt/klipper/scripts/install-octopi.sh"
+cp "$CHELPER_VERDICT" "$OVERLAY/opt/klipper/.nebulaos-chelper-verdict.json"
+# Keep the immutable fallback small. The writable factory-seeded checkout
+# carries the complete Git repository; the fallback only needs the qualified
+# identity for nebulaos_compat's read-only startup check. S05 replaces this
+# fallback with the complete writable checkout after successful provisioning.
+mkdir -p "$OVERLAY/opt/klipper/.git/refs/heads" \
+	"$OVERLAY/opt/klipper/.git/objects/info" \
+	"$OVERLAY/opt/klipper/.git/objects/pack"
+printf 'ref: refs/heads/%s\n' "$KLIPPER_BRANCH" > "$OVERLAY/opt/klipper/.git/HEAD"
+printf '%s\n' "$KLIPPER_PIN" > "$OVERLAY/opt/klipper/.git/refs/heads/$KLIPPER_BRANCH"
+cat > "$OVERLAY/opt/klipper/.git/config" <<EOF
+[core]
+	repositoryformatversion = 0
+	bare = false
+[remote "origin"]
+	url = $KLIPPER_REPO
+[branch "$KLIPPER_BRANCH"]
+	remote = origin
+	merge = refs/heads/$KLIPPER_BRANCH
+EOF
 find "$OVERLAY/opt/klipper" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 # Production optimization mission, Phase 4 (2026-07-30): this squashfs
 # copy is the immutable fallback used if persistent storage/the real bind-
@@ -148,6 +243,12 @@ rm -f "$OVERLAY/opt/klipper/klippy/chelper"/*.o "$OVERLAY/opt/klipper/klippy/che
 rm -rf "$OVERLAY/opt/klipper/config" "$OVERLAY/opt/klipper/docs"
 cp -r "$VENDOR/klipper/config" "$OVERLAY/opt/klipper/"
 cp -r "$VENDOR/klipper/docs" "$OVERLAY/opt/klipper/"
+# Moonraker's reserved Klipper updater validates this path even when the
+# immutable fallback is active. Ship the small host-runtime requirements file
+# without copying Klipper's full development scripts tree into the rootfs.
+mkdir -p "$OVERLAY/opt/klipper/scripts"
+cp "$VENDOR/klipper/scripts/klippy-requirements.txt" \
+	"$OVERLAY/opt/klipper/scripts/"
 
 # Pure upstream Klipper is copied unchanged from the refreshed official
 # checkout. Fork-only NebulaOS/Creality extras are intentionally not
@@ -508,9 +609,11 @@ chmod 755 "$OVERLAY/opt/guppyscreen/guppyscreen" "$OVERLAY/opt/guppyscreen/guppy
 # extracts the tar directly into place - no `git clone` at all, which is
 # also strictly cheaper on this 208MB device than the clone-from-bundle
 # step it replaces (plain tar extraction does no object repacking).
-# vendor/klipper follows the official master branch configured in
-# manifests/dependencies.conf. The archive preserves that real upstream
-# history so Moonraker can fetch and update it normally after first boot.
+# vendor/klipper remains the official moving master checkout configured in
+# manifests/dependencies.conf. The NebulaOS modules were staged separately,
+# then added to both the rootfs copy and the offline seed archive without
+# dirtying the upstream checkout.
+echo "== NebulaOS Klipper extensions copied into mainline klippy/extras/ =="
 # vendor/moonraker is already a full (non-shallow) clone of the official
 # Arksine/moonraker repo with HEAD == origin/master, so it needs no branch
 # surgery at all - only the same archive-instead-of-bundle treatment.
@@ -529,6 +632,12 @@ echo "== creating offline factory-seed archives (Klipper, Moonraker) =="
 # start from a clean directory here.
 rm -rf "$OVERLAY/opt/nebulaos-seeds"
 mkdir -p "$OVERLAY/opt/nebulaos-seeds"
+# Keep a separate, non-hidden copy of the c_helper platform proof. The
+# Klipper archive also carries the dotfile, but some device tar implementations
+# have proved unreliable around hidden archive entries. S04 installs this
+# sidecar explicitly into the persistent checkout after extraction.
+cp "$CHELPER_VERDICT" \
+	"$OVERLAY/opt/nebulaos-seeds/klipper-chelper-verdict.json"
 # Second, separate real bug found live, one layer deeper: Buildroot's own
 # rootfs-overlay copy step (board overlay -> output/target/, and again
 # into output/build/buildroot-fs/ext2/target/) is additive-only - it never
@@ -552,7 +661,7 @@ done
 klipper_origin="$KLIPPER_REPO"
 klipper_seed_commit=$(make_seed_archive "$VENDOR/klipper" "$KLIPPER_BRANCH" \
 	"$klipper_origin" "$OVERLAY/opt/nebulaos-seeds/klipper.tar.gz" "/lib/" \
-	"$HOST_PYTHON3" "/opt/klipper")
+	"$HOST_PYTHON3" "/opt/klipper" "$extra_stage" "$CHELPER_VERDICT")
 klipper_is_shallow=$(git -C "$VENDOR/klipper" rev-parse --is-shallow-repository)
 
 moonraker_origin="https://github.com/Arksine/moonraker.git"
@@ -835,5 +944,25 @@ cat > "$PRINTER_DATA_SEED_DEST/../printer-data-config-manifest.json" <<EOF
 }
 EOF
 echo "== printer_data config seed created: $(ls -la "$PRINTER_DATA_SEED_DEST/") =="
+
+# Stage 04 creates these artifacts after stage 02 has already synchronized
+# the tracked overlay. Buildroot's output/target sync is additive, so refresh
+# the exact generated paths here; otherwise a previous klipper.tar.gz (and
+# its previous Git commit) can remain in the image indefinitely.
+for generated_path in klipper nebulaos-klipper-extensions nebulaos-seeds; do
+	rm -rf "$BUILDROOT_DIR/output/target/opt/$generated_path"
+	mkdir -p "$(dirname "$BUILDROOT_DIR/output/target/opt/$generated_path")"
+	cp -a "$OVERLAY/opt/$generated_path" \
+		"$BUILDROOT_DIR/output/target/opt/$generated_path"
+done
+packaged_klipper_seed=$(gzip -dc "$BUILDROOT_DIR/output/target/opt/nebulaos-seeds/klipper.tar.gz" 2>/dev/null \
+	| tar -xOf - ./.git/refs/heads/$KLIPPER_BRANCH 2>/dev/null \
+	| tr -d '[:space:]' || true)
+[ "$packaged_klipper_seed" = "$KLIPPER_PIN" ] || {
+	echo "FATAL: synchronized Klipper seed contains $packaged_klipper_seed, expected $KLIPPER_PIN" >&2
+	echo "Refusing to package a stale or incompatible offline Klipper archive." >&2
+	exit 1
+}
+echo "== generated Klipper runtime and seed paths synchronized into Buildroot output/target =="
 
 echo "== app-stack overlay assembled at $OVERLAY =="

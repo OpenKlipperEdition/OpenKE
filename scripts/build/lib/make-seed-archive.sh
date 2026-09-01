@@ -54,14 +54,15 @@ make_seed_archive() {
 	# only to make embedded tracebacks show real device paths instead of
 	# this function's own mktemp staging path; purely cosmetic, no
 	# functional effect on bytecode validity.
-	python3_bin="${6:-}"; mount_path="${7:-}"
+	python3_bin="${6:-}"; mount_path="${7:-}"; additional_tree="${8:-}"; additional_root_file="${9:-}"
 	tmp=$(mktemp -d)
 	cp -r "$src/." "$tmp/"
-	# Ensure the archived copy is checked out on the branch Moonraker's
-	# reserved slot actually expects, without disturbing $src itself.
-	if ! git -C "$tmp" show-ref --verify --quiet "refs/heads/$active_branch"; then
-		git -C "$tmp" branch "$active_branch"
-	fi
+	# Ensure the archived copy's branch points at the source checkout's
+	# current HEAD. A reused vendor checkout can retain an old local
+	# master branch even after clone_pinned detached HEAD at the new pin;
+	# merely checking out that branch would silently package the old commit.
+	git -C "$tmp" checkout -q --detach HEAD
+	git -C "$tmp" branch -f "$active_branch" HEAD
 	git -C "$tmp" checkout -q "$active_branch"
 	# Klipper's upstream runtime checks source mtimes before loading c_helper.so.
 	# Preserve the cross-compiled helper as newer than the archived sources so
@@ -215,6 +216,35 @@ make_seed_archive() {
 		echo "ERROR: refusing to package $src - git fsck reported repository damage" >&2
 		rm -rf "$tmp"
 		return 1
+	fi
+	# Optional runtime-only files may be added after the repository cleanliness
+	# check. This is used for NebulaOS's companion Klipper extensions: the
+	# upstream checkout stays clean, while the staged seed still contains the
+	# exact files that are present in the rootfs copy.
+	if [ -n "$additional_tree" ]; then
+		[ -d "$additional_tree" ] || {
+			echo "ERROR: additional seed tree $additional_tree is missing" >&2
+			rm -rf "$tmp"
+			return 1
+		}
+		cp -P "$additional_tree"/* "$tmp/klippy/extras/"
+		# The installed extension links are intentionally outside upstream
+		# Klipper's tracked tree. Preserve the same clean-checkout behavior on
+		# the device by excluding exactly those link paths from Git status.
+		for additional_file in "$additional_tree"/*; do
+			additional_name=$(basename "$additional_file")
+			printf '/klippy/extras/%s\n' "$additional_name" >> "$tmp/.git/info/exclude"
+		done
+	fi
+	if [ -n "$additional_root_file" ]; then
+		[ -f "$additional_root_file" ] || {
+			echo "ERROR: additional seed root file $additional_root_file is missing" >&2
+			rm -rf "$tmp"
+			return 1
+		}
+		additional_root_name=$(basename "$additional_root_file")
+		cp "$additional_root_file" "$tmp/$additional_root_name"
+		printf '/%s\n' "$additional_root_name" >> "$tmp/.git/info/exclude"
 	fi
 
 	# Precompile to .pyc, deliberately AFTER the clean-tree check above,

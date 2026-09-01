@@ -1,6 +1,6 @@
 #!/bin/sh
 # Clone/download every third-party source this build needs. Immutable
-# dependencies use exact refs; the kernel, Klipper, and GuppyScreen intentionally follow
+# dependencies use exact refs; System and GuppyScreen intentionally follow
 # their configured moving branches. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
@@ -30,7 +30,7 @@ require_setting() {
 }
 
 for required in SYSTEM_REPO SYSTEM_BRANCH \
-	KLIPPER_REPO KLIPPER_BRANCH \
+	KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN KLIPPER_EXTRAS_REPO KLIPPER_EXTRAS_PIN \
 	MCU_REPO MCU_PIN MCU_METADATA_VERSION MCU_EXPECTED_HW_ID \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
@@ -263,10 +263,33 @@ system_remote=$(git -C system rev-parse "origin/$SYSTEM_BRANCH")
 echo "== system follows latest $SYSTEM_BRANCH HEAD ($system_actual); kernel + buildroot present =="
 
 
-# Official upstream Klipper. This intentionally follows the latest master
-# tip rather than a reproducible commit; the pure-upstream configuration does
-# not rely on the former NebulaOS fork's extras.
-clone_branch klipper "$KLIPPER_REPO" "$KLIPPER_BRANCH"
+# Official upstream Klipper remains the runtime. Pin it to the commit
+# qualified by nebulaos-extensions.json so the extension API check is honest.
+clone_pinned klipper "$KLIPPER_REPO" "$KLIPPER_PIN"
+
+# Fetch the pinned NebulaOS checkout as an extras source only. Stage 04 copies
+# the selected modules into the mainline checkout before packaging it.
+clone_pinned nebulaos-klipper-extensions "$KLIPPER_EXTRAS_REPO" "$KLIPPER_EXTRAS_PIN"
+for extra in \
+	guppy_config_helper.py \
+	guppy_module_loader.py \
+	calibrate_shaper_config.py \
+	gcode_shell_command.py \
+	tmcstatus.py \
+	nebulaos_compat.py \
+	nebulaos_temperature_mcu.py \
+	nebulaos_version.py \
+	nebulaos_z_offset_probe.py \
+	nozzle_clear.py \
+	prtouch_test_support.py \
+	virtual_pins.py \
+	z_compensate.py; do
+	[ -s "nebulaos-klipper-extensions/extras/$extra" ] || {
+		echo "FATAL: pinned NebulaOS extensions checkout is missing extras/$extra" >&2
+		exit 1
+	}
+done
+echo "== pinned NebulaOS Klipper extensions present under extras/ =="
 clone_pinned nebulaos-klipper-mcu "$MCU_REPO" "$MCU_PIN"
 
 # Official Moonraker - not a fork, no reason to deviate.

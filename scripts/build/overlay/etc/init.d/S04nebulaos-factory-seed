@@ -36,6 +36,10 @@ SEEDS="${SEEDS:-/opt/nebulaos-seeds}"
 APPS="${APPS:-/usr/data/nebulaos/apps}"
 SYSTEM="${SYSTEM:-/usr/data/nebulaos/system}"
 LOCKDIR="${LOCKDIR:-/usr/data/nebulaos/updates/locks}"
+EXTENSIONS_MANIFEST="${EXTENSIONS_MANIFEST:-/opt/nebulaos-klipper-extensions/nebulaos-extensions.json}"
+# The extensions manifest is the authority for the exact upstream Klipper
+# API/runtime this image can safely load.
+KLIPPER_QUALIFIED_COMMIT=$(sed -n 's/.*"qualified_commit": "\([0-9a-f][0-9a-f]*\)".*/\1/p' "$EXTENSIONS_MANIFEST" 2>/dev/null | head -1)
 # Overridable for tests (points fixtures at the same real, tracked shared
 # gate this script actually ships - see that file's own header).
 GATE_LIB="${GATE_LIB:-/etc/nebulaos-maintenance-gate.sh}"
@@ -105,8 +109,36 @@ seed_git_app() {
 	dirty_exclude="${4:-}"
 
 	if [ -e "$dest/.git" ]; then
-		log "$name already seeded ($dest/.git exists) - skipping"
-		return 0
+		if [ "$name" = klipper ] && [ -n "$KLIPPER_QUALIFIED_COMMIT" ]; then
+			installed_commit=$(git -C "$dest" rev-parse HEAD 2>/dev/null || echo invalid)
+			if [ "$installed_commit" != "$KLIPPER_QUALIFIED_COMMIT" ]; then
+				quarantine="$dest.incompatible.$(date +%s)"
+				log "$name checkout is $installed_commit, expected $KLIPPER_QUALIFIED_COMMIT - quarantining stale checkout at $quarantine"
+				mv "$dest" "$quarantine" || {
+					log "ERROR: could not quarantine incompatible $name checkout - refusing to overwrite it"
+					return 1
+				}
+			elif [ ! -f "$dest/.nebulaos-chelper-verdict.json" ] \
+				|| [ ! -f "$dest/scripts/install-octopi.sh" ]; then
+				# The app checkout is persistent across reflashes. A previous
+				# image may have seeded the qualified commit before the platform
+				# c_helper verdict became part of the runtime contract. Treat
+				# that checkout as incomplete so the current image's archive can
+				# add the missing proof file instead of taking the fast path.
+				quarantine="$dest.incomplete.$(date +%s)"
+				log "$name checkout is qualified but missing required runtime marker(s) - quarantining incomplete checkout at $quarantine"
+				mv "$dest" "$quarantine" || {
+					log "ERROR: could not quarantine incomplete $name checkout - refusing to overwrite it"
+					return 1
+				}
+			else
+				log "$name already seeded at qualified commit ($installed_commit) - skipping"
+				return 0
+			fi
+		else
+			log "$name already seeded ($dest/.git exists) - skipping"
+			return 0
+		fi
 	fi
 	if [ ! -f "$archive" ]; then
 		log "ERROR: seed archive missing ($archive) - cannot seed $name"
@@ -140,11 +172,30 @@ seed_git_app() {
 		rm -rf "$dest.partial"
 		return 1
 	fi
+	# The verdict is also shipped as a separate factory-seed sidecar. Install
+	# it explicitly because the target BusyBox tar implementation has proved
+	# unreliable around hidden archive entries, while S05 requires this proof
+	# before it will bind the persistent Klipper checkout.
+	if [ "$name" = klipper ] && [ -f "$SEEDS/klipper-chelper-verdict.json" ]; then
+		cp "$SEEDS/klipper-chelper-verdict.json" \
+			"$dest.partial/.nebulaos-chelper-verdict.json"
+		printf '/.nebulaos-chelper-verdict.json\n' \
+			>> "$dest.partial/.git/info/exclude"
+		log "klipper platform verdict installed into seeded checkout"
+	fi
 	sync
 
 	# Verify the seeded checkout landed on the exact expected branch and
 	# real origin before it is considered valid - an interrupted or
 	# corrupted archive extraction must never silently become "seeded."
+	if [ "$name" = klipper ] && [ -n "$KLIPPER_QUALIFIED_COMMIT" ]; then
+		seeded_commit=$(git -C "$dest.partial" rev-parse HEAD 2>/dev/null || echo invalid)
+		if [ "$seeded_commit" != "$KLIPPER_QUALIFIED_COMMIT" ]; then
+			log "ERROR: klipper seed archive contains $seeded_commit, expected $KLIPPER_QUALIFIED_COMMIT - rejecting stale archive"
+			rm -rf "$dest.partial"
+			return 1
+		fi
+	fi
 	actual_branch=$(git -C "$dest.partial" symbolic-ref --short HEAD 2>/dev/null)
 	if [ "$actual_branch" != "$branch" ]; then
 		log "ERROR: $name seeded checkout is on branch '$actual_branch', expected '$branch' - rejecting"
@@ -378,7 +429,10 @@ start() {
 	# Nothing to do - already fully seeded from a prior boot. Skip the
 	# gate/pause/resume dance entirely rather than pausing services for
 	# no reason on every normal boot after the first.
-	if [ -e "$APPS/klipper/.git" ] && [ -e "$APPS/moonraker/.git" ] && [ -e "$APPS/mainsail/index.html" ] \
+	if [ -e "$APPS/klipper/.git" ] \
+		&& [ -f "$APPS/klipper/.nebulaos-chelper-verdict.json" ] \
+		&& [ -f "$APPS/klipper/scripts/install-octopi.sh" ] \
+		&& [ -e "$APPS/moonraker/.git" ] && [ -e "$APPS/mainsail/index.html" ] \
 		&& [ -x /usr/data/nebulaos/envs/moonraker/bin/python3 ] \
 		&& [ -x /usr/data/nebulaos/envs/klipper/bin/python3 ]; then
 		log "all components already seeded - nothing to do"
@@ -397,8 +451,12 @@ start() {
 	# memory is fully released (process exit) before the next begins;
 	# `sync` after each step flushes rather than leaving dirty pages to
 	# compete with the next step's own memory needs.
-	seed_git_app klipper master "https://github.com/Klipper3d/klipper.git" \
-		klippy/chelper/c_helper.so
+	if ! seed_git_app klipper master "https://github.com/Klipper3d/klipper.git" \
+		klippy/chelper/c_helper.so; then
+		log "ERROR: Klipper provisioning failed; refusing to continue with a partial application set"
+		resume_expendable_services
+		return 1
+	fi
 	setup_klipper_env
 	seed_git_app moonraker master "https://github.com/Arksine/moonraker.git"
 	setup_moonraker_env

@@ -5,25 +5,27 @@ Creality Ender-3 V3 KE — real mainline-ish kernel, real Klipper, a proper touc
 the stock firmware's binary blobs where we could avoid them.
 
 If you want to build the whole OS, this is the repo you want. The full OpenKlipperEdition/System
-OKE checkout supplies both the kernel and Buildroot; official upstream Klipper and the
+OKE checkout supplies both the kernel and Buildroot; official upstream Klipper plus the pinned
+NebulaOS extras source and the
 OpenKlipperEdition/GuppyScreen OKE branch supply the application stack. The build refreshes moving
 sources, verifies immutable inputs, and puts the whole thing together into something you can flash.
 
 ```
 OpenKlipperEdition/System ─┐
-Klipper upstream ─────────┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
+Mainline Klipper + extras ┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
 GuppyScreen (OKE) ───────┘   (this repo)
 ```
 
 - [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — full OKE checkout providing Linux 6.6 (`kernel/kernel-6.6`) and Buildroot (`buildroot/`)
 - [`Klipper`](https://github.com/Klipper3d/klipper) — official upstream Klipper runtime (`master` branch)
+- [`NebulaOS-klipper-extensions`](https://github.com/coreflake1/NebulaOS-klipper-extensions) — pinned source for NebulaOS `klippy/extras/`
 - [`GuppyScreen`](https://github.com/OpenKlipperEdition/GuppyScreen) — touchscreen UI (`OKE` branch)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
 The build records every external input in `manifests/dependencies.conf`. Immutable sources are
-pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while Klipper follows official upstream `master` and GuppyScreen follows
+pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while mainline Klipper uses the upstream commit qualified by the pinned extensions manifest; the NebulaOS extras source is pinned separately, and GuppyScreen follows
 OpenKlipperEdition/GuppyScreen's `OKE` branch. The exact fetched commits are recorded in
-`build-manifest.txt`. The build always refreshes those moving checkouts and does not use
+`build-manifest.txt`. The build always refreshes the moving checkouts and does not use
 unrelated local clones sitting next to this repo.
 
 ## Building it
@@ -43,9 +45,10 @@ no `apt-get install` beforehand, no nested containers, nothing weird.
 Budget ~15GB of disk and a few hours on a normal machine. It needs the network the whole time,
 since everything gets fetched and hash-checked as it goes.
 
-NebulaOS uses official upstream Klipper directly. NebulaOS-specific printer behavior is kept in the
-tracked overlay configuration (`printer.cfg`, `frontend-controls.cfg`, and `moonraker.conf`); there is
-no vendor-specific configuration bundle. The webcam pipeline remains the pinned
+NebulaOS uses official upstream Klipper with the pinned NebulaOS host-side extras copied into its
+`klippy/extras/` directory during the build. Printer configuration remains in the tracked overlay
+(`printer.cfg`, `frontend-controls.cfg`, and `moonraker.conf`); there is no separate runtime injection
+step. The webcam pipeline remains the pinned
 [`pellcorp/k1-ustreamer`](https://github.com/pellcorp/k1-ustreamer) integration.
 
 If you want to see what's actually happening under the hood, `build.sh` runs these in order
@@ -76,15 +79,16 @@ came out right.
 
 Cloning the kernel, Klipper, or GuppyScreen repository by itself and trying to build it will not
 produce a working printer image — none of those repositories contains the complete board image. This
-repo fetches the kernel, official upstream Klipper, GuppyScreen, Moonraker, the retained
+repo fetches the kernel, mainline Klipper plus the pinned NebulaOS extensions, GuppyScreen, Moonraker, the retained
 `k1-ustreamer` webcam stack, Buildroot, and the tracked NebulaOS overlay, then assembles the
 flashable result.
 
 ## How reproducible is this, really
 
 Immutable inputs in `manifests/dependencies.conf` are exact commits, tags, archive hashes, or
-digests and are checked on every run. The kernel's and Klipper's moving-branch commits are recorded
-in `build-manifest.txt` instead. The 8
+digests and are checked on every run. The kernel, mainline Klipper, and GuppyScreen moving-branch
+commits are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
+manifest pin. The 8
 kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final
 backlight controller, PWM state readback, the final touch driver, and disabling WiFi roaming) live

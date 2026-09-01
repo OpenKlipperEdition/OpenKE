@@ -80,11 +80,13 @@ check_vendor_pin() {
 		printf '%s\n' "$vp_dirty" | sed 's/^/     /'
 	fi
 }
-# Klipper follows upstream master; this is intentionally a moving dependency.
-klipper_remote="$(git -C "$REPO_ROOT/vendor/klipper" rev-parse "origin/$KLIPPER_BRANCH" 2>/dev/null || echo unknown)"
-check_vendor_pin klipper "$klipper_remote" \
+# Klipper runtime remains official upstream, pinned to the extension
+# manifest's compatibility-qualified commit.
+check_vendor_pin klipper "$KLIPPER_PIN" \
 	"$KLIPPER_REPO" 0 \
 	klippy/chelper/c_helper.so
+check_vendor_pin nebulaos-klipper-extensions "$KLIPPER_EXTRAS_PIN" \
+	"$KLIPPER_EXTRAS_REPO" 0
 check_vendor_pin nebulaos-klipper-mcu "$MCU_PIN" \
 	"$MCU_REPO" 0
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
@@ -443,6 +445,28 @@ check /usr/lib/python3.11/site-packages/numpy
 check /usr/bin/python3.11
 check /opt/klipper/klippy/klippy.py
 check /opt/klipper/klippy/chelper/c_helper.so
+check /opt/klipper/scripts/klippy-requirements.txt
+check /opt/klipper/scripts/install-octopi.sh
+check /opt/klipper/.nebulaos-chelper-verdict.json
+check /opt/nebulaos-seeds/klipper-chelper-verdict.json
+check /opt/nebulaos-klipper-extensions/nebulaos-extensions.json
+echo "=== NebulaOS Klipper extras ==="
+for extra in \
+	guppy_config_helper.py \
+	guppy_module_loader.py \
+	calibrate_shaper_config.py \
+	gcode_shell_command.py \
+	tmcstatus.py \
+	nebulaos_compat.py \
+	nebulaos_temperature_mcu.py \
+	nebulaos_version.py \
+	nebulaos_z_offset_probe.py \
+	nozzle_clear.py \
+	prtouch_test_support.py \
+	virtual_pins.py \
+	z_compensate.py; do
+	check "/opt/klipper/klippy/extras/$extra"
+done
 echo "=== printer MCU firmware bundle ==="
 check /opt/nebulaos/mcu/klipper-creality.bin
 check /opt/nebulaos/mcu/klipper.bin
