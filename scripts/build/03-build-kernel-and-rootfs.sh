@@ -22,7 +22,8 @@
 # exactly the BUILD_PATH_EMBEDDING-class artifact difference the Phase 11
 # comparison tooling expects and accounts for, not a regression.)
 #
-# IMPORTANT: this always force-cleans and rebuilds the kernel from scratch
+# IMPORTANT: this force-cleans and rebuilds the kernel from scratch when its
+# effective inputs have changed
 # (`make linux-dirclean` before `make`), rather than relying on plain `make`
 # alone. A real, previously-silent bug this session (FIRMWARE.md sec 24):
 # LINUX_OVERRIDE_SRCDIR points Buildroot at this project's own kernel
@@ -30,10 +31,10 @@
 # detect source changes there - a plain `make` after editing a DTS/Kconfig
 # file will silently keep using the last-built kernel binary, reporting
 # success while shipping stale, unpatched code. The dirclean costs a slower,
-# full kernel rebuild every time this script runs, which is a real, deliberate
-# tradeoff in favor of correctness - re-run 02-configure-buildroot.sh first
-# if scripts/build/overlay/ or the config artifacts changed, since this
-# script does not re-sync those itself.
+# tradeoff in favor of correctness. Identical inputs can reuse the previous
+# successful kernel build - re-run 02-configure-buildroot.sh first if
+# scripts/build/overlay/ or the config artifacts changed, since this script
+# does not re-sync those itself.
 #
 # IMPORTANT: also force-cleans wpa_supplicant specifically, for the same
 # reason but a different, more general cause (FIRMWARE.md sec 24/27):
@@ -84,10 +85,49 @@ flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-buil
 
 BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
+KERNEL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-kernel-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 	echo "buildroot not configured - run 02-configure-buildroot.sh first" >&2
 	exit 1
+fi
+for kernel_input in \
+	"$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config" \
+	"$BUILDROOT_DIR/local.mk"; do
+	[ -f "$kernel_input" ] || {
+		echo "kernel input missing: $kernel_input - run 02-configure-buildroot.sh first" >&2
+		exit 1
+	}
+done
+
+# Compute this before touching the kernel's generated files. The System pin
+# is included explicitly, while the content-addressed diff captures the
+# accepted variant changes applied on top of that pin.
+kernel_input_fingerprint() {
+	{
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		printf 'system_head='
+		git -C "$REPO_ROOT/vendor/system" rev-parse HEAD
+		printf 'kernel_diff\n'
+		git -C "$REPO_ROOT/vendor/system" diff --binary --no-ext-diff HEAD -- kernel/kernel-6.6
+		printf 'kernel_status\n'
+		git -C "$REPO_ROOT/vendor/system" status --porcelain=v2 -uall -- kernel/kernel-6.6
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config" \
+			"$BUILDROOT_DIR/local.mk"
+	} | sha256sum | awk '{print $1}'
+}
+
+KERNEL_INPUT_FINGERPRINT=$(kernel_input_fingerprint)
+KERNEL_REBUILD_REQUIRED=1
+if [ -f "$KERNEL_FINGERPRINT_FILE" ] && \
+	[ -f "$BUILDROOT_DIR/output/build/linux-custom/.stamp_built" ] && \
+	[ "$(cat "$KERNEL_FINGERPRINT_FILE")" = "$KERNEL_INPUT_FINGERPRINT" ]; then
+	KERNEL_REBUILD_REQUIRED=0
+	echo "== kernel inputs unchanged ($KERNEL_INPUT_FINGERPRINT); reusing successful kernel build =="
+else
+	echo "== kernel inputs changed or no successful fingerprint; forcing kernel rebuild =="
 fi
 
 # Stale-config purge (2026-07-31, per the NEBULAOS_CAMERA_USB_RT_SOURCE
@@ -100,16 +140,20 @@ fi
 # every host/Buildroot version combination is not something this project
 # trusts blindly (this file's own header already documents three separate,
 # real instances of Buildroot's stamp/config invalidation not doing what
-# you'd assume) - so wipe them explicitly here first, unconditionally,
-# before dirclean even runs. This guarantees the kernel source tree never
+# you'd assume) - so wipe them explicitly before a fingerprint-mismatched
+# rebuild. This guarantees the kernel source tree never
 # carries forward a stale Kconfig resolution from a previous, possibly-
 # different build.
-rm -f "$KERNEL_MOUNT/.config" "$KERNEL_MOUNT/.config.old"
-rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
+if [ "$KERNEL_REBUILD_REQUIRED" -eq 1 ]; then
+	rm -f "$KERNEL_MOUNT/.config" "$KERNEL_MOUNT/.config.old"
+	rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
+fi
 
 (
 	cd "$BUILDROOT_DIR"
-	make BR2_TAR_OPTIONS=--no-same-owner linux-dirclean
+	if [ "$KERNEL_REBUILD_REQUIRED" -eq 1 ]; then
+		make BR2_TAR_OPTIONS=--no-same-owner linux-dirclean
+	fi
 	make BR2_TAR_OPTIONS=--no-same-owner wpa_supplicant-dirclean
 	# Same staleness class as the two dircleans above (FIRMWARE.md sec 28): a
 	# plain incremental make only rebuilds a package whose stamp is missing
@@ -129,5 +173,8 @@ rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
 	make BR2_TAR_OPTIONS=--no-same-owner gcc-final-reinstall
 	make BR2_TAR_OPTIONS=--no-same-owner
 )
+
+mkdir -p "$(dirname "$KERNEL_FINGERPRINT_FILE")"
+printf '%s\n' "$KERNEL_INPUT_FINGERPRINT" > "$KERNEL_FINGERPRINT_FILE"
 
 echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.ext2} =="
