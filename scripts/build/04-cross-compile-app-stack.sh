@@ -49,6 +49,8 @@ SYSROOT="$TOOLCHAIN_HOST/mipsel-buildroot-linux-gnu/sysroot"
 WORK="$REPO_ROOT/build-work/app-stack-extras"
 CHELPER_CACHE="$WORK/chelper"
 CHELPER_FINGERPRINT_FILE="$CHELPER_CACHE/fingerprint"
+STREAMING_CACHE="$WORK/streaming-form-data"
+STREAMING_FINGERPRINT_FILE="$STREAMING_CACHE/fingerprint"
 
 # Buildroot's output/target sync is additive. Remove only the generated
 # Klipper paths before restaging so an older full .git tree or runtime copy
@@ -348,29 +350,75 @@ for whl in "$WORK"/pywheels/*.whl; do
 done
 
 echo "== cross-compiling Moonraker's one real C extension: streaming-form-data =="
-pip3 download -d "$WORK/pywheels" --no-deps --no-binary :all: streaming-form-data==1.11.0
-tar xzf "$WORK/pywheels/streaming-form-data-1.11.0.tar.gz" -C "$WORK"
-(
-	cd "$WORK/streaming-form-data-1.11.0"
-	export PATH="$TOOLCHAIN_HOST/bin:$PATH"
-	mipsel-buildroot-linux-gnu-gcc -shared -fPIC -O2 \
-		-I"$SYSROOT/usr/include/python3.11" \
-		-o streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so \
-		streaming_form_data/_parser.c
+STREAMING_ARCHIVE="$WORK/pywheels/streaming-form-data-1.11.0.tar.gz"
+if [ ! -s "$STREAMING_ARCHIVE" ]; then
+	pip3 download -d "$WORK/pywheels" --no-deps --no-binary :all: streaming-form-data==1.11.0
+fi
+STREAMING_INPUT_FINGERPRINT=$(
+	{
+		printf 'package=streaming-form-data==1.11.0\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		printf 'compiler_flags=-shared -fPIC -O2\n'
+		sha256sum "$STREAMING_ARCHIVE"
+		find "$SYSROOT/usr/include/python3.11" -type f -print | sort |
+			while IFS= read -r header; do sha256sum "$header"; done
+		sha256sum \
+			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" \
+			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip"
+	} | sha256sum | awk '{print $1}'
 )
+STREAMING_REBUILD_REQUIRED=1
+if [ -f "$STREAMING_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$STREAMING_FINGERPRINT_FILE")" = "$STREAMING_INPUT_FINGERPRINT" ] && \
+	[ -s "$STREAMING_CACHE/package/streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so" ] && \
+	[ -s "$STREAMING_CACHE/package/streaming_form_data/_parser.c" ] && \
+	[ -s "$STREAMING_CACHE/package/streaming_form_data/__init__.py" ] && \
+	[ -s "$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug" ]; then
+	STREAMING_REBUILD_REQUIRED=0
+	echo "== streaming-form-data inputs unchanged ($STREAMING_INPUT_FINGERPRINT); reusing cached build =="
+else
+	echo "== streaming-form-data inputs changed or no successful fingerprint; rebuilding =="
+fi
+
+rm -rf "$WORK/streaming-form-data-1.11.0"
+if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
+	tar xzf "$STREAMING_ARCHIVE" -C "$WORK"
+	(
+		cd "$WORK/streaming-form-data-1.11.0"
+		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
+		mipsel-buildroot-linux-gnu-gcc -shared -fPIC -O2 \
+			-I"$SYSROOT/usr/include/python3.11" \
+			-o streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so \
+			streaming_form_data/_parser.c
+	)
+else
+	mkdir -p "$WORK/streaming-form-data-1.11.0"
+	cp -r "$STREAMING_CACHE/package/." "$WORK/streaming-form-data-1.11.0/"
+fi
 
 # Production optimization mission, Phase 6 (2026-07-30): same unstripped-
 # debug-symbols gap as c_helper.so above - this .so is never routed through
 # a real Buildroot package strip pass either. Preserve symbols in
 # build-work, strip the copy that actually ships.
 mkdir -p "$WORK/debug-symbols"
-cp "$WORK/streaming-form-data-1.11.0/streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so" \
-   "$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug"
-(
-	cd "$WORK/streaming-form-data-1.11.0"
-	export PATH="$TOOLCHAIN_HOST/bin:$PATH"
-	mipsel-buildroot-linux-gnu-strip --strip-unneeded streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so
-)
+if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
+	cp "$WORK/streaming-form-data-1.11.0/streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so" \
+		"$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+	(
+		cd "$WORK/streaming-form-data-1.11.0"
+		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
+		mipsel-buildroot-linux-gnu-strip --strip-unneeded streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so
+	)
+	rm -rf "$STREAMING_CACHE"
+	mkdir -p "$STREAMING_CACHE/debug" "$STREAMING_CACHE/package"
+	cp -r "$WORK/streaming-form-data-1.11.0/." "$STREAMING_CACHE/package/"
+	cp "$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug" \
+		"$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+	printf '%s\n' "$STREAMING_INPUT_FINGERPRINT" > "$STREAMING_FINGERPRINT_FILE"
+else
+	cp "$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug" \
+		"$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+fi
 
 mkdir -p "$SITEPKG/streaming_form_data"
 cp "$WORK"/streaming-form-data-1.11.0/streaming_form_data/*.py \
