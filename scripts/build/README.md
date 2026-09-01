@@ -5,7 +5,7 @@ kernel + Buildroot rootfs for the Ender 3 V3 KE's Nebula Pad (Ingenic X2000), wi
 WiFi, Bluetooth, camera, and a full Klipper/Moonraker/nginx/Mainsail/GuppyScreen app stack (Stage 04
 fetches, cross-compiles, and installs GuppyScreen automatically - it was deliberately deferred/manual
 early in this project's history, but that gap was closed 2026-08-07; the
-moving branch setting is documented in `manifests/dependencies.conf`'s `GUPPYSCREEN_BRANCH`) - everything except the real-hardware boot test itself (needs the user
+ GuppyScreen pin is documented in `manifests/dependencies.conf`) - everything except the real-hardware boot test itself (needs the user
 present, not something a script can do).
 
 **Read this before running anything**: these scripts encode the *correct*, clean sequence -  not a

@@ -78,7 +78,7 @@ Only after **all** of:
 1. The candidate image is built from tracked `build-env/Dockerfile` content and pushed to GHCR.
 2. Its digest is known and recorded.
 3. A fresh clone is rebuilt using the accepted immutable source refs and the current `OKE` kernel
-   branch HEAD (`KLIPPER_BRANCH` and `GUPPYSCREEN_BRANCH` follow moving heads; OKE is intentionally moving).
+   branch HEAD (`KLIPPER_BRANCH` follows a moving head; the System and GuppyScreen inputs are pinned).
 4. That rebuild's output is strictly compared against the accepted reference artifacts (hashes,
    `build-manifest.txt` fields, `06-verify.sh`'s full content checks) — see the Phase 11 final report
    for this project's own worked example of that comparison.

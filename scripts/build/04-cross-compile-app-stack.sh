@@ -489,21 +489,33 @@ echo "== copying Mainsail static build =="
 mkdir -p "$OVERLAY/usr/share/mainsail"
 cp -r "$VENDOR"/mainsail-dist/dist/* "$OVERLAY/usr/share/mainsail/"
 
-### 6. GuppyScreen (OpenKlipperEdition frontend on the moving OKE branch; consumes the z_compensate
+### 6. GuppyScreen (OpenKlipperEdition frontend at the pinned source commit; consumes the z_compensate
 # structured status contract - see docs/z_compensate_status_api.md)
 #
-# GuppyScreen follows the configured OpenKlipperEdition OKE branch. The checkout
-# is refreshed by stage 00, then built here with the exact MIPS toolchain and
-# upstream build script; the fetched commit is recorded in build-manifest.txt.
+# GuppyScreen is pinned by stage 00. Reuse its existing tracked binaries when
+# the artifact manifest records that same source commit; otherwise build with
+# the exact MIPS toolchain and upstream build script.
 GUPPYSCREEN_SRC="$VENDOR/nebulaos-guppyscreen"
 if [ ! -d "$GUPPYSCREEN_SRC" ]; then
 	echo "FATAL: $GUPPYSCREEN_SRC not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
-GUPPYSCREEN_COMMIT=$(git -C "$GUPPYSCREEN_SRC" rev-parse HEAD)
-echo "== cross-compiling GuppyScreen (Migration A: Bootlin mips32el-musl toolchain, now baked into this image - see build-env/versions.env) =="
-rm -rf "$GUPPYSCREEN_SRC/build"
-(
+GUPPY_ARTIFACT_DIR="$REPO_ROOT/artifacts/guppyscreen-mips"
+GUPPY_ARTIFACT_MANIFEST="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/build-manifest.txt"
+GUPPY_BIN="$GUPPY_ARTIFACT_DIR/guppyscreen"
+GUPPY_BEEP="$GUPPY_ARTIFACT_DIR/guppybeep"
+GUPPYSCREEN_COMMIT="$GUPPYSCREEN_PIN"
+GUPPY_ARTIFACT_COMMIT=$(grep '^git_commit_guppyscreen=' "$GUPPY_ARTIFACT_MANIFEST" 2>/dev/null | cut -d= -f2)
+if [ "$GUPPY_ARTIFACT_COMMIT" = "$GUPPYSCREEN_PIN" ] && \
+	[ -s "$GUPPY_BIN" ] && [ -s "$GUPPY_BEEP" ] && \
+	file "$GUPPY_BIN" 2>/dev/null | grep -q 'MIPS.*statically linked' && \
+	file "$GUPPY_BEEP" 2>/dev/null | grep -q 'MIPS.*statically linked'; then
+	echo "== reusing GuppyScreen binaries from pinned commit $GUPPYSCREEN_PIN =="
+else
+	GUPPYSCREEN_COMMIT=$(git -C "$GUPPYSCREEN_SRC" rev-parse HEAD)
+	echo "== cross-compiling GuppyScreen (pinned commit $GUPPYSCREEN_COMMIT; Bootlin mips32el-musl toolchain) =="
+	rm -rf "$GUPPYSCREEN_SRC/build"
+	(
 	set -e
 	cd "$GUPPYSCREEN_SRC"
 	export GUPPYSCREEN_VERSION="$GUPPYSCREEN_VERSION"
@@ -541,15 +553,15 @@ rm -rf "$GUPPYSCREEN_SRC/build"
 	# previously hand-built binary being replaced here, and there is no
 	# reason to ship debug symbols on the printer.
 	mipsel-linux-strip build/bin/guppyscreen build/bin/guppybeep
-)
+	)
+	GUPPY_BIN="$GUPPYSCREEN_SRC/build/bin/guppyscreen"
+	GUPPY_BEEP="$GUPPYSCREEN_SRC/build/bin/guppybeep"
+fi
 # Phase 11 (2026-08-15): the alpine:latest chown-fixup container that used
 # to run here is gone - it existed only to reclaim ownership of build/
 # after the old guppydev container wrote it as root. This build now runs
 # as one consistent user throughout, so build/ was never root-owned to
 # begin with.
-
-GUPPY_BIN="$GUPPYSCREEN_SRC/build/bin/guppyscreen"
-GUPPY_BEEP="$GUPPYSCREEN_SRC/build/bin/guppybeep"
 
 # Verify real output rather than trusting a zero exit code alone - the
 # per-object-directory-race retry logic inside build-mips.sh (see its own
@@ -568,8 +580,12 @@ echo "== GuppyScreen build verified: $(file "$GUPPY_BIN") =="
 mkdir -p "$OVERLAY/opt/guppyscreen" "$REPO_ROOT/artifacts/guppyscreen-mips"
 cp "$GUPPY_BIN" "$OVERLAY/opt/guppyscreen/guppyscreen"
 cp "$GUPPY_BEEP" "$OVERLAY/opt/guppyscreen/guppybeep"
-cp "$GUPPY_BIN" "$REPO_ROOT/artifacts/guppyscreen-mips/guppyscreen"
-cp "$GUPPY_BEEP" "$REPO_ROOT/artifacts/guppyscreen-mips/guppybeep"
+if [ "$GUPPY_BIN" != "$REPO_ROOT/artifacts/guppyscreen-mips/guppyscreen" ]; then
+	cp "$GUPPY_BIN" "$REPO_ROOT/artifacts/guppyscreen-mips/guppyscreen"
+fi
+if [ "$GUPPY_BEEP" != "$REPO_ROOT/artifacts/guppyscreen-mips/guppybeep" ]; then
+	cp "$GUPPY_BEEP" "$REPO_ROOT/artifacts/guppyscreen-mips/guppybeep"
+fi
 chmod 755 "$OVERLAY/opt/guppyscreen/guppyscreen" "$OVERLAY/opt/guppyscreen/guppybeep"
 
 ### 7. NebulaOS mutable-runtime mission, Phase 4 (revised - real-history

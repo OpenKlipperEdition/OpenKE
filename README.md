@@ -87,8 +87,8 @@ flashable result.
 ## How reproducible is this, really
 
 Immutable inputs in `manifests/dependencies.conf` are exact commits, tags, archive hashes, or
-digests and are checked on every run. The pinned System and mainline Klipper commits, plus the
-GuppyScreen moving-branch commit, are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
+digests and are checked on every run. The pinned System, mainline Klipper, and GuppyScreen commits
+are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
 manifest pin. The 8
 kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final

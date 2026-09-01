@@ -37,7 +37,7 @@ for required in SYSTEM_REPO SYSTEM_PIN \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
 	WIFI_FIRMWARE_RELEASE_TAG WIFI_FIRMWARE_RELEASE_URL WIFI_FIRMWARE_ARCHIVE_SHA256 \
 	WIFI_FIRMWARE_TXT_SHA256 WIFI_FIRMWARE_BIN_SHA256 WIFI_FIRMWARE_CLM_SHA256 \
-	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
+	GUPPYSCREEN_REPO GUPPYSCREEN_PIN GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
 	require_setting "$required"
 done
 echo "== all required dependency settings present in $MANIFEST =="
@@ -373,7 +373,33 @@ echo "== v4l-utils pinned commit verified ($V4L_UTILS_PIN) =="
 # script at all (see manifests/dependencies.conf's own comment on this gap);
 # the actual cross-compile happens in 04-cross-compile-app-stack.sh, this
 # stage only fetches and refreshes the moving source.
-clone_branch nebulaos-guppyscreen "$GUPPYSCREEN_REPO" "$GUPPYSCREEN_BRANCH"
+if [ -e nebulaos-guppyscreen ] && [ ! -d nebulaos-guppyscreen/.git ]; then
+	echo "FATAL: vendor/nebulaos-guppyscreen exists but is not a git checkout" >&2
+	exit 1
+fi
+if [ ! -d nebulaos-guppyscreen/.git ]; then
+	echo "== initializing GuppyScreen at pinned commit $GUPPYSCREEN_PIN =="
+	git init nebulaos-guppyscreen >/dev/null
+	git -C nebulaos-guppyscreen remote add origin "$GUPPYSCREEN_REPO"
+	git -C nebulaos-guppyscreen fetch --depth 1 origin "$GUPPYSCREEN_PIN"
+	git -C nebulaos-guppyscreen checkout --detach "$GUPPYSCREEN_PIN"
+else
+	guppyscreen_actual=$(git -C nebulaos-guppyscreen rev-parse HEAD)
+	if [ "$guppyscreen_actual" != "$GUPPYSCREEN_PIN" ]; then
+		echo "== GuppyScreen is $guppyscreen_actual, switching it to pinned $GUPPYSCREEN_PIN =="
+		git -C nebulaos-guppyscreen remote set-url origin "$GUPPYSCREEN_REPO"
+		git -C nebulaos-guppyscreen reset --hard >/dev/null
+		git -C nebulaos-guppyscreen clean -fdx >/dev/null
+		git -C nebulaos-guppyscreen submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
+		git -C nebulaos-guppyscreen fetch --depth 1 origin "$GUPPYSCREEN_PIN"
+		git -C nebulaos-guppyscreen checkout --detach "$GUPPYSCREEN_PIN"
+	fi
+fi
+guppyscreen_actual=$(git -C nebulaos-guppyscreen rev-parse HEAD)
+[ "$guppyscreen_actual" = "$GUPPYSCREEN_PIN" ] || {
+	echo "FATAL: vendor/nebulaos-guppyscreen did not land on pinned commit $GUPPYSCREEN_PIN" >&2
+	exit 1
+}
 git -C nebulaos-guppyscreen submodule update --init --depth 1
 
 # Submodule patches (this fork's own documented canonical build procedure,

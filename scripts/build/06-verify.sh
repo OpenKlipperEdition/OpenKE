@@ -150,12 +150,10 @@ else
 	echo "OK   vendor/system working tree is dirty, as expected after apply-qualified-baseline.sh:"
 	printf '%s\n' "$system_dirty" | sed 's/^/     /'
 fi
-# GuppyScreen follows the configured moving OKE branch. Stage 00 refreshes the
-# shallow checkout to origin/$GUPPYSCREEN_BRANCH; verify both the fetched HEAD
-# and the expected remote URL. The three allowlisted submodules are modified
+# GuppyScreen is pinned by GUPPYSCREEN_PIN; verify both the pinned HEAD and the
+# expected remote URL. The three allowlisted submodules are modified
 # deterministically by the fetch/build stages (spdlog, lvgl, and libhv).
-guppyscreen_remote=$(git -C "$REPO_ROOT/vendor/nebulaos-guppyscreen" rev-parse "origin/$GUPPYSCREEN_BRANCH" 2>/dev/null || echo unknown)
-check_vendor_pin nebulaos-guppyscreen "$guppyscreen_remote" \
+check_vendor_pin nebulaos-guppyscreen "$GUPPYSCREEN_PIN" \
 	"$GUPPYSCREEN_REPO" 0 \
 	libhv \
 	lvgl \
@@ -179,13 +177,9 @@ check_artifact_sha256() {
 check_artifact_sha256 vendor/mainsail-dist/mainsail.zip \
 	df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
 
-# 2026-08-07: GuppyScreen is no longer a fixed prebuilt binary (see
-# manifests/dependencies.conf's GUPPYSCREEN_BRANCH and
-# 04-cross-compile-app-stack.sh) - it's rebuilt from the moving OKE source every
-# run, and the resulting bytes are NOT deterministic across builds (the
-# toolchain embeds a build timestamp), even from byte-identical source. A
-# fixed expected hash here would report a false MISS on every correct
-# build. Check self-consistency against THIS run's own build-manifest.txt
+# GuppyScreen's source is pinned, but its binary is still validated against
+# the build manifest rather than a fixed hash because the toolchain embeds a
+# build timestamp. Check self-consistency against THIS run's build-manifest.txt
 # instead (already-recorded guppyscreen_sha256/guppybeep_sha256, right
 # next to the source commit git_commit_guppyscreen that actually determines
 # correctness) plus a real MIPS-ELF sanity check.
