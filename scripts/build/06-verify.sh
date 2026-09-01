@@ -122,9 +122,8 @@ fi
 check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 	"$V4L_UTILS_REPO" 0 \
 	messages.mo
-# system: deliberate moving dependency. Stage 00 refreshes it to
-# the latest remote HEAD of SYSTEM_BRANCH, and stage 01 independently checks
-# that branch/remote-HEAD invariant before variants are composed.
+# system: immutable dependency. Stages 00 and 01 check the checkout against
+# SYSTEM_PIN before variants are composed.
 #
 # bulk_dirty_expected=1: this checkout is DELIBERATELY left dirty by
 # apply-qualified-baseline.sh (8 accepted variant patches applied on top of
@@ -132,13 +131,11 @@ check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 # assert-baseline-config.sh (run earlier in the pipeline) is the real,
 # precise content-level check of what that dirt should contain.
 system_dir="$REPO_ROOT/vendor/system"
-system_branch=$(git -C "$system_dir" symbolic-ref --short HEAD 2>/dev/null || echo "unknown")
 system_actual=$(git -C "$system_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
-system_remote=$(git -C "$system_dir" rev-parse "origin/$SYSTEM_BRANCH" 2>/dev/null || echo "unknown")
-if [ "$system_branch" = "$SYSTEM_BRANCH" ] && [ "$system_actual" = "$system_remote" ]; then
-	echo "OK   vendor/system follows latest $SYSTEM_BRANCH HEAD ($system_actual)"
+if [ "$system_actual" = "$SYSTEM_PIN" ]; then
+	echo "OK   vendor/system matches pinned commit $system_actual"
 else
-	echo "MISS vendor/system is branch=$system_branch HEAD=$system_actual, expected $SYSTEM_BRANCH at origin/$SYSTEM_BRANCH=$system_remote"
+	echo "MISS vendor/system is HEAD=$system_actual, expected pinned commit $SYSTEM_PIN"
 fi
 system_remotes=$(git -C "$system_dir" remote -v 2>/dev/null)
 if printf '%s\n' "$system_remotes" | grep -qF "$SYSTEM_REPO"; then

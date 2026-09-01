@@ -23,9 +23,10 @@ GuppyScreen (OKE) ───────┘   (this repo)
 - [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
 
 The build records every external input in `manifests/dependencies.conf`. Immutable sources are
-pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot follow the latest remote HEAD of OpenKlipperEdition/System's `OKE` branch, while mainline Klipper uses the upstream commit qualified by the pinned extensions manifest; the NebulaOS extras source is pinned separately, and GuppyScreen follows
+pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot use the pinned OpenKlipperEdition/System commit, while mainline Klipper uses the upstream commit qualified by the pinned extensions manifest; the NebulaOS extras source is pinned separately, and GuppyScreen follows
 OpenKlipperEdition/GuppyScreen's `OKE` branch. The exact fetched commits are recorded in
-`build-manifest.txt`. The build always refreshes the moving checkouts and does not use
+`build-manifest.txt`. The build reuses `vendor/system` when it matches `SYSTEM_PIN`, refreshes the
+remaining moving checkout, and does not use
 unrelated local clones sitting next to this repo.
 
 ## Building it
@@ -86,8 +87,8 @@ flashable result.
 ## How reproducible is this, really
 
 Immutable inputs in `manifests/dependencies.conf` are exact commits, tags, archive hashes, or
-digests and are checked on every run. The kernel, mainline Klipper, and GuppyScreen moving-branch
-commits are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
+digests and are checked on every run. The pinned System and mainline Klipper commits, plus the
+GuppyScreen moving-branch commit, are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
 manifest pin. The 8
 kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final
@@ -100,7 +101,7 @@ as small, order-independent scripts under `scripts/build/`, applied by
 No, and it's a fair question since they're related. [OpenKE](https://github.com/coreflake1/guppyscreen)
 is a separate project — its own installer for stock Creality firmware, its own releases — that
 shares an author and some history with NebulaOS, but they're not the same project anymore.
-The kernel source now comes from the `OKE` branch of
+The kernel source is pinned to a commit from the `OKE` branch of
 [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System); that repository is
 separate from the OpenKE installer project.
 

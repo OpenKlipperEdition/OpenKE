@@ -1,7 +1,7 @@
 #!/bin/sh
-# Clone/download every third-party source this build needs. Immutable
-# dependencies use exact refs; System and GuppyScreen intentionally follow
-# their configured moving branches. See FIRMWARE.md for provenance.
+# Clone/download every third-party source this build needs. Dependencies use
+# exact refs except GuppyScreen, which intentionally follows its configured
+# moving branch. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
 # file, manifests/dependencies.conf, sourced below - not scattered as
@@ -29,7 +29,7 @@ require_setting() {
 	fi
 }
 
-for required in SYSTEM_REPO SYSTEM_BRANCH \
+for required in SYSTEM_REPO SYSTEM_PIN \
 	KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN KLIPPER_EXTRAS_REPO KLIPPER_EXTRAS_PIN \
 	MCU_REPO MCU_PIN MCU_METADATA_VERSION MCU_EXPECTED_HW_ID \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
@@ -218,8 +218,8 @@ clone_branch() {
 
 # Open Klipper Edition System (FIRMWARE.md sec 39). The full OKE checkout
 # supplies both the Linux kernel and the Buildroot tree used by this build.
-# It deliberately follows the latest remote HEAD of the moving branch; the
-# exact commit is recorded once in build-manifest.txt for both consumers.
+# It is pinned to SYSTEM_PIN; an already-present checkout at that commit is
+# left untouched so generated Buildroot state survives.
 legacy_system_dir=x2000_kernel_6.6
 if [ ! -e "system" ] && [ -d "$legacy_system_dir/.git" ]; then
 	echo "== migrating legacy $legacy_system_dir checkout to system =="
@@ -228,28 +228,33 @@ elif [ -e "$legacy_system_dir" ]; then
 	echo "FATAL: legacy vendor/$legacy_system_dir exists alongside vendor/system; remove or rename it before building" >&2
 	exit 1
 fi
-if [ ! -d "system/.git" ]; then
-	echo "== cloning full OpenKlipperEdition/System into system (depth 1) =="
-	git clone --depth 1 --single-branch \
-		--branch "$SYSTEM_BRANCH" \
-		"$SYSTEM_REPO" \
-		system
-else
-	echo "== system already present, refreshing full OKE System checkout =="
-	git -C system remote set-url origin "$SYSTEM_REPO"
+if [ -e "system" ] && [ ! -d "system/.git" ]; then
+	echo "FATAL: vendor/system exists but is not a git checkout" >&2
+	exit 1
 fi
-# Existing checkouts from the former sparse layout must be expanded before
-# reset/fetch so both System subtrees are available to the build.
-git -C system sparse-checkout disable 2>/dev/null || true
-git -C system reset --hard >/dev/null
-git -C system clean -fdx >/dev/null
-git -C system fetch --prune --depth 1 origin "$SYSTEM_BRANCH"
-git -C system checkout -B "$SYSTEM_BRANCH" "origin/$SYSTEM_BRANCH"
-git -C system reset --hard "origin/$SYSTEM_BRANCH" >/dev/null
+if [ ! -d "system/.git" ]; then
+	echo "== initializing full OpenKlipperEdition/System at pinned commit =="
+	git init system >/dev/null
+	git -C system remote add origin "$SYSTEM_REPO"
+	git -C system fetch --depth 1 origin "$SYSTEM_PIN"
+	git -C system checkout --detach "$SYSTEM_PIN"
+else
+	echo "== system already present, checking pinned commit =="
+fi
 system_actual=$(git -C system rev-parse HEAD)
-system_remote=$(git -C system rev-parse "origin/$SYSTEM_BRANCH")
-[ "$system_actual" = "$system_remote" ] || {
-	echo "FATAL: vendor/system did not land on origin/$SYSTEM_BRANCH" >&2
+[ "$system_actual" = "$SYSTEM_PIN" ] || {
+	echo "== system is $system_actual, switching it to pinned $SYSTEM_PIN =="
+	git -C system remote set-url origin "$SYSTEM_REPO"
+	git -C system reset --hard >/dev/null
+	# A pin change invalidates generated state, including Buildroot's
+	# downloaded-source cache; do not carry sources across System pins.
+	git -C system clean -fdx >/dev/null
+	git -C system fetch --depth 1 origin "$SYSTEM_PIN"
+	git -C system checkout --detach "$SYSTEM_PIN"
+}
+system_actual=$(git -C system rev-parse HEAD)
+[ "$system_actual" = "$SYSTEM_PIN" ] || {
+	echo "FATAL: vendor/system did not land on pinned commit $SYSTEM_PIN" >&2
 	exit 1
 }
 [ -f "system/buildroot/Makefile" ] || {
@@ -260,7 +265,7 @@ system_remote=$(git -C system rev-parse "origin/$SYSTEM_BRANCH")
 	echo "FATAL: full OpenKlipperEdition/System checkout is missing kernel/kernel-6.6/Makefile" >&2
 	exit 1
 }
-echo "== system follows latest $SYSTEM_BRANCH HEAD ($system_actual); kernel + buildroot present =="
+echo "== system matches pinned commit $system_actual; kernel + buildroot present =="
 
 
 # Official upstream Klipper remains the runtime. Pin it to the commit

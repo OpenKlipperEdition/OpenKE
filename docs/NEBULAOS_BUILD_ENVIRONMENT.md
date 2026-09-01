@@ -23,7 +23,7 @@ See `build-env/Dockerfile` and `build-env/versions.env` for the exact, current, 
   `00-fetch-vendor-sources.sh` at build time; moving branches and immutable inputs are configured in
   `manifests/dependencies.conf`. The image is the factory; the manifest is the material list.
 - **The kernel/rootfs/native-app target compiler.** `mipsel-buildroot-linux-gnu-*` is Buildroot's own
-  self-bootstrapped toolchain, built from source during Stage 03 from the moving OKE System
+  self-bootstrapped toolchain, built from source during Stage 03 from the pinned OKE System
   `buildroot/` subtree (the fetched System commit is recorded in `build-manifest.txt`). Bundling a
   pre-built copy would break the source traceability of the compiler — this image supplies only the
   *host* compiler Buildroot itself needs to build it.

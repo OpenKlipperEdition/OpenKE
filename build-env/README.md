@@ -28,7 +28,7 @@ GuppyScreen's Bootlin mips32el-musl cross-toolchain directly (Migration A — se
   `manifests/dependencies.conf`. The image is the factory; `dependencies.conf` is the material list.
 - **The kernel/rootfs/native-app target compiler.** That's Buildroot's own
   `mipsel-buildroot-linux-gnu-*` toolchain, self-bootstrapped from source during Stage 03 from the
-  moving OKE System `buildroot/` subtree; the fetched System commit is recorded in
+  pinned OKE System `buildroot/` subtree; the System commit is recorded in
   `build-manifest.txt`. This image supplies the *host* tools Buildroot needs to build
   that toolchain, not the toolchain itself.
 

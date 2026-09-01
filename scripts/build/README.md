@@ -73,7 +73,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 ## What each stage does
 
 1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs.
-   into `vendor/`, refreshing the full OpenKlipperEdition/System OKE checkout (kernel + Buildroot), official upstream
+   into `vendor/`, checking the pinned full OpenKlipperEdition/System OKE checkout (kernel + Buildroot), official upstream
    Klipper at `master`, and GuppyScreen at the latest `OKE` branch HEAD. Immutable inputs such as
    Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`, and Mainsail remain pinned and
    hash-verified.
@@ -89,8 +89,9 @@ Buildroot's own overlay dir). No manual step, no real device required.
 2. **`01-apply-kernel-patches.sh`** - no longer applies anything (this project's kernel changes -
    touch DT wiring, the new display panel driver, the new Bluetooth H5 Broadcom vendor extension,
    WiFi/BT/display Kconfig changes, the real ported NS2009 driver, and the upstream `binder.h`
-   build-fix - are already present on the `OKE` branch, checked out by stage 0). Just
-   verifies they're actually present, kept as stage "01" so the numbered sequence stays stable.
+   build-fix - are already present in the pinned `OKE` checkout, selected by stage 0). Just
+   verifies they're actually present and that `vendor/system` matches `SYSTEM_PIN`, kept as stage
+   "01" so the numbered sequence stays stable.
 3. **`02-configure-buildroot.sh`** - writes the real Buildroot `.config` (base `x2000_halley5_v30_
    linux` defconfig plus every option this project added - WiFi/BT/touch/display/RNG/Python3/
    nginx/etc, using a helper that finds-and-replaces each option's *real* existing line rather than

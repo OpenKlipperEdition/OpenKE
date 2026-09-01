@@ -18,7 +18,7 @@
 # that bundles a target MIPS compiler for the kernel/rootfs/native-app build.
 # That compiler is Buildroot's own self-bootstrapped
 # mipsel-buildroot-linux-gnu-* toolchain, built from source during Stage 03
-# from the moving OKE System buildroot subtree; the fetched System commit
+# from the pinned OKE System buildroot subtree; the System commit
 # is recorded in build-manifest.txt - this image supplies the HOST tools
 # (gcc, make, python3, ...) Buildroot's own build process needs to bootstrap
 # that target toolchain itself, not the target toolchain directly.

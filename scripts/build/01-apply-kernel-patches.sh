@@ -6,8 +6,8 @@
 #
 # FIRMWARE.md sec 39: these changes used to be applied here at build time from
 # patches/x2000_kernel_6.6-openke.patch. They're now carried by the requested
-# Open Klipper Edition System `OKE` branch, and 00-fetch-vendor-sources.sh
-# refreshes the checkout to that branch's latest remote HEAD,
+# Open Klipper Edition System `OKE` checkout, and 00-fetch-vendor-sources.sh
+# verifies it against the pinned commit,
 # so there's nothing left to apply here. This script stays as stage "01" (kept
 # numbered/in-sequence on purpose, so existing docs/muscle-memory still work)
 # purely as a sanity check that the fork's content actually landed correctly.
@@ -28,22 +28,15 @@ fi
 
 cd "$SYSTEM_DIR"
 
-# Defense in depth: stage 00 fetched and reset the checkout, but verify here
-# that the build is still on the configured branch and exactly at its fetched
-# remote HEAD before composing the accepted variants.
-ACTUAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || true)
-if [ "$ACTUAL_BRANCH" != "$SYSTEM_BRANCH" ]; then
-	echo "vendor/system is on '$ACTUAL_BRANCH', expected branch '$SYSTEM_BRANCH' - re-run 00-fetch-vendor-sources.sh" >&2
-	exit 1
-fi
+# Defense in depth: stage 00 verified the checkout, but verify here that the
+# build is still at the pinned commit before composing the accepted variants.
 ACTUAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse "origin/$SYSTEM_BRANCH")
-if [ "$ACTUAL_SHA" != "$REMOTE_SHA" ]; then
-	echo "vendor/system HEAD is $ACTUAL_SHA, expected latest origin/$SYSTEM_BRANCH HEAD $REMOTE_SHA - re-run 00-fetch-vendor-sources.sh" >&2
+if [ "$ACTUAL_SHA" != "$SYSTEM_PIN" ]; then
+	echo "vendor/system HEAD is $ACTUAL_SHA, expected pinned commit $SYSTEM_PIN - re-run 00-fetch-vendor-sources.sh" >&2
 	exit 1
 fi
 
-echo "== confirming latest OKE HEAD ($ACTUAL_SHA) real changes are present =="
+echo "== confirming pinned OKE HEAD ($ACTUAL_SHA) real changes are present =="
 test -f kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c
 test -f kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/displays/panel-openke-general-480x272.c
 grep -q "openke,bcm4343x-bt" kernel/kernel-6.6/drivers/bluetooth/hci_h5.c
