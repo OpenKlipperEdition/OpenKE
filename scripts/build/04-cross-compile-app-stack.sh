@@ -364,8 +364,39 @@ cp "$WORK"/streaming-form-data-1.11.0/streaming_form_data/*.py \
 # data above, guaranteeing ABI consistency with the rest of the rootfs.
 # Mirrors docker.sh's own real, proven build steps (jpeg-9d, libevent,
 # libmd, libbsd, then ustreamer itself) with the toolchain swapped.
-echo "== cross-compiling ustreamer (this project's own Buildroot toolchain, not pellcorp/k1-camera-build's incompatible one) =="
-rm -rf "$VENDOR/k1-ustreamer/build"
+echo "== preparing ustreamer (this project's own Buildroot toolchain, not pellcorp/k1-camera-build's incompatible one) =="
+USTREAMER_CACHE="$REPO_ROOT/build-work/ustreamer-mips"
+USTREAMER_FINGERPRINT_FILE="$USTREAMER_CACHE/fingerprint"
+USTREAMER_BIN="$USTREAMER_CACHE/ustreamer.bin"
+USTREAMER_LIB_DIR="$USTREAMER_CACHE/lib"
+ustreamer_input_fingerprint() {
+	{
+		printf 'k1_ustreamer_pin=%s\n' "$K1_USTREAMER_PIN"
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		printf 'build_script='
+		sha256sum "$SCRIPT_DIR/04-cross-compile-app-stack.sh"
+		printf 'cross_compiler='
+		sha256sum "$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc"
+		printf 'buildroot_config='
+		sha256sum "$BUILDROOT_DIR/.config"
+		printf 'submodules\n'
+		git -C "$VENDOR/k1-ustreamer" submodule status
+	} | sha256sum | awk '{print $1}'
+}
+USTREAMER_INPUT_FINGERPRINT=$(ustreamer_input_fingerprint)
+USTREAMER_REBUILD_REQUIRED=1
+if [ -f "$USTREAMER_FINGERPRINT_FILE" ] && \
+	[ -s "$USTREAMER_BIN" ] && [ -d "$USTREAMER_LIB_DIR" ] && \
+	[ "$(cat "$USTREAMER_FINGERPRINT_FILE")" = "$USTREAMER_INPUT_FINGERPRINT" ]; then
+	USTREAMER_REBUILD_REQUIRED=0
+	echo "== ustreamer inputs unchanged ($USTREAMER_INPUT_FINGERPRINT); reusing cached build =="
+else
+	echo "== ustreamer inputs changed or no successful fingerprint; rebuilding =="
+fi
+
+if [ "$USTREAMER_REBUILD_REQUIRED" -eq 1 ]; then
+	rm -rf "$VENDOR/k1-ustreamer/build"
+	rm -rf "$USTREAMER_CACHE"
 (
 	set -e
 	SRC="$VENDOR/k1-ustreamer"
@@ -415,10 +446,21 @@ rm -rf "$VENDOR/k1-ustreamer/build"
 	make PKG_CONFIG=true WITH_PTHREAD_NP=0 WITH_SETPROCTITLE=0
 	mipsel-buildroot-linux-gnu-strip --strip-unneeded src/ustreamer.bin
 )
+mkdir -p "$USTREAMER_LIB_DIR"
+cp "$VENDOR/k1-ustreamer/ustreamer/src/ustreamer.bin" "$USTREAMER_BIN"
+cp -a "$VENDOR/k1-ustreamer/build/ustreamer-deps/lib/." "$USTREAMER_LIB_DIR/"
+fi
+file "$USTREAMER_BIN" | grep -q "MIPS" || {
+	echo "FATAL: $USTREAMER_BIN is not a MIPS binary (got: $(file "$USTREAMER_BIN"))" >&2
+	exit 1
+}
+if [ "$USTREAMER_REBUILD_REQUIRED" -eq 1 ]; then
+	printf '%s\n' "$USTREAMER_INPUT_FINGERPRINT" > "$USTREAMER_FINGERPRINT_FILE"
+fi
 mkdir -p "$OVERLAY/usr/bin" "$OVERLAY/usr/lib"
-cp "$VENDOR/k1-ustreamer/ustreamer/src/ustreamer.bin" "$OVERLAY/usr/bin/ustreamer"
+cp "$USTREAMER_BIN" "$OVERLAY/usr/bin/ustreamer"
 chmod 755 "$OVERLAY/usr/bin/ustreamer"
-cp "$VENDOR"/k1-ustreamer/build/ustreamer-deps/lib/*.so* "$OVERLAY/usr/lib/"
+cp "$USTREAMER_LIB_DIR"/*.so* "$OVERLAY/usr/lib/"
 # re-create the SONAME symlinks the binary actually needs - verified fresh
 # against this rebuilt binary via `readelf -d ustreamer | grep NEEDED`,
 # not assumed from the old pellcorp-toolchain build.
