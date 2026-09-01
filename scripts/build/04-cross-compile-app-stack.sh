@@ -57,6 +57,8 @@ V4L2_CTL_BIN="$V4L2_CTL_CACHE/v4l2-ctl"
 VENV_SEED_CACHE="$WORK/venv-seeds"
 PYWHEELS_DIR="$WORK/pywheels"
 PYWHEELS_FINGERPRINT_FILE="$PYWHEELS_DIR/fingerprint"
+BYTECODE_CACHE="$WORK/bytecode"
+BYTECODE_FORMAT_VERSION=1
 
 # Buildroot's output/target sync is additive. Remove only the generated
 # Klipper paths before restaging so an older full .git tree or runtime copy
@@ -88,6 +90,76 @@ if [ ! -x "$HOST_PYTHON3" ]; then
 	echo "WARNING: $HOST_PYTHON3 not found - Klipper/Moonraker will ship without precompiled bytecode" >&2
 	HOST_PYTHON3=""
 fi
+
+bytecode_input_fingerprint() {
+	bytecode_source_dir="$1"
+	bytecode_source_pin="$2"
+	bytecode_mount_path="$3"
+	bytecode_patch_file="$4"
+	bytecode_extra_dir="$5"
+	{
+		printf 'format=%s\n' "$BYTECODE_FORMAT_VERSION"
+		printf 'source_pin=%s\n' "$bytecode_source_pin"
+		printf 'mount_path=%s\n' "$bytecode_mount_path"
+		printf 'python_version='
+		"$HOST_PYTHON3" --version 2>&1
+		sha256sum "$HOST_PYTHON3"
+		[ -z "$bytecode_patch_file" ] || sha256sum "$bytecode_patch_file"
+		find "$bytecode_source_dir" -type f ! -path '*/__pycache__/*' -print | sort |
+			while IFS= read -r bytecode_source; do sha256sum "$bytecode_source"; done
+		if [ -n "$bytecode_extra_dir" ]; then
+			find "$bytecode_extra_dir" -type f ! -path '*/__pycache__/*' -print | sort |
+				while IFS= read -r bytecode_source; do sha256sum "$bytecode_source"; done
+		fi
+	} | sha256sum | awk '{print $1}'
+}
+
+compile_or_reuse_bytecode() {
+	bytecode_name="$1"
+	bytecode_source_dir="$2"
+	bytecode_source_pin="$3"
+	bytecode_mount_path="$4"
+	bytecode_patch_file="$5"
+	bytecode_extra_dir="$6"
+	bytecode_cache_dir="$BYTECODE_CACHE/$bytecode_name"
+	bytecode_cache_tar="$bytecode_cache_dir/pycache.tar.gz"
+	bytecode_fingerprint_file="$bytecode_cache_dir/fingerprint"
+	bytecode_fingerprint=$(bytecode_input_fingerprint \
+		"$bytecode_source_dir" "$bytecode_source_pin" "$bytecode_mount_path" \
+		"$bytecode_patch_file" "$bytecode_extra_dir")
+
+	if [ -f "$bytecode_fingerprint_file" ] && \
+		[ "$(cat "$bytecode_fingerprint_file")" = "$bytecode_fingerprint" ] && \
+		[ -s "$bytecode_cache_tar" ] && \
+		tar -tzf "$bytecode_cache_tar" | grep -q '__pycache__/'; then
+		find "$bytecode_source_dir" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+		tar -C "$bytecode_source_dir" -xzf "$bytecode_cache_tar"
+		echo "== $bytecode_name bytecode inputs unchanged ($bytecode_fingerprint); reusing cached bytecode =="
+		return 0
+	fi
+
+	echo "== $bytecode_name bytecode inputs changed or no successful fingerprint; compiling =="
+	bytecode_compile_status=0
+	PYTHONPATH="" "$HOST_PYTHON3" -m compileall -q -f \
+		--invalidation-mode checked-hash \
+		-s "$bytecode_source_dir" -p "$bytecode_mount_path" \
+		"$bytecode_source_dir" || bytecode_compile_status=$?
+	if [ "$bytecode_compile_status" -ne 0 ]; then
+		echo "WARNING: bytecode precompilation failed for $bytecode_name - shipping source-only" >&2
+		return 0
+	fi
+	bytecode_cache_tmp=$(mktemp "$WORK/$bytecode_name-bytecode.XXXXXX.tar.gz")
+	if ! ( cd "$bytecode_source_dir" && find . -type d -name __pycache__ -print | \
+		tar -C "$bytecode_source_dir" -czf "$bytecode_cache_tmp" -T - ) || \
+		! tar -tzf "$bytecode_cache_tmp" | grep -q '__pycache__/'; then
+		rm -f "$bytecode_cache_tmp"
+		return 0
+	fi
+	rm -rf "$bytecode_cache_dir"
+	mkdir -p "$bytecode_cache_dir"
+	mv "$bytecode_cache_tmp" "$bytecode_cache_tar"
+	printf '%s\n' "$bytecode_fingerprint" > "$bytecode_fingerprint_file"
+}
 
 mkdir -p "$WORK"
 
@@ -269,10 +341,11 @@ find "$OVERLAY/opt/klipper" -name "__pycache__" -exec rm -rf {} + 2>/dev/null ||
 # archive below, so that fallback path benefits as well. See the seed
 # archive's own Phase 4 comment for why $HOST_PYTHON3 is the right tool.
 if [ -n "$HOST_PYTHON3" ]; then
-	PYTHONPATH="" "$HOST_PYTHON3" -m compileall -q \
-		-s "$OVERLAY/opt/klipper" -p "/opt/klipper" \
+	compile_or_reuse_bytecode klipper \
 		"$OVERLAY/opt/klipper/klippy" \
-		|| echo "WARNING: bytecode precompilation failed for the klipper squashfs copy - shipping source-only" >&2
+		"$KLIPPER_PIN:$KLIPPER_EXTRAS_PIN" \
+		"/opt/klipper" "" \
+		"$VENDOR/nebulaos-klipper-extensions/extras"
 fi
 rm -f "$OVERLAY/opt/klipper/klippy/chelper"/*.o "$OVERLAY/opt/klipper/klippy/chelper"/*.a
 
@@ -332,10 +405,10 @@ patch -N -p1 -d "$OVERLAY/opt/moonraker" < "$SCRIPT_DIR/patches/moonraker-sqlite
 # content rather than needing that one file recompiled on first import.
 # Same immutable-fallback reasoning as the klipper copy above.
 if [ -n "$HOST_PYTHON3" ]; then
-	PYTHONPATH="" "$HOST_PYTHON3" -m compileall -q \
-		-s "$OVERLAY/opt/moonraker" -p "/opt/moonraker" \
+	compile_or_reuse_bytecode moonraker \
 		"$OVERLAY/opt/moonraker/moonraker" \
-		|| echo "WARNING: bytecode precompilation failed for the moonraker squashfs copy - shipping source-only" >&2
+		"$MOONRAKER_PIN" \
+		"/opt/moonraker" "$SCRIPT_DIR/patches/moonraker-sqlite-nolock.patch" ""
 fi
 
 # OpenKE (2026-07-23): zipp added after a real, previously-silent bug found
@@ -1047,19 +1120,19 @@ PYVENVCFG
 		# into. Unused by this project's own S55klipper/S56moonraker
 		# (which invoke bin/python3 directly, never source activate),
 		# kept anyway for parity/manual debugging convenience since
-		# they cost nothing extra to include.
-		for af in activate activate.csh activate.fish; do
-			[ -f "$vdir/bin/$af" ] && sed -i "s#$vdir#$envdir#g" "$vdir/bin/$af"
+			# they cost nothing extra to include.
+			for af in activate activate.csh activate.fish; do
+				[ -f "$vdir/bin/$af" ] && sed -i "s#$vdir#$envdir#g" "$vdir/bin/$af"
 			done
-			[ -f "$vdir/pyvenv.cfg" ] || return 1
-			tar -C "$vdir" -czf "$seed_out" .
-			if ! tar -tzf "$seed_out" | grep -qx './pyvenv.cfg'; then
-				echo "WARNING: $envname venv seed archive is missing pyvenv.cfg" >&2
-				return 1
-			fi
-			mkdir -p "$VENV_SEED_CACHE"
-			cp "$seed_out" "$seed_cache"
-			printf '%s\n' "$seed_fingerprint" > "$fingerprint_file"
+		[ -f "$vdir/pyvenv.cfg" ] || return 1
+		tar -C "$vdir" -czf "$seed_out" .
+		if ! tar -tzf "$seed_out" | grep -qx './pyvenv.cfg'; then
+			echo "WARNING: $envname venv seed archive is missing pyvenv.cfg" >&2
+			return 1
+		fi
+		mkdir -p "$VENV_SEED_CACHE"
+		cp "$seed_out" "$seed_cache"
+		printf '%s\n' "$seed_fingerprint" > "$fingerprint_file"
 	}
 	if build_venv_seed klipper /usr/data/nebulaos/envs/klipper "$OVERLAY/opt/nebulaos-seeds/klipper-venv-seed.tar.gz"; then
 		echo "== klipper venv seed created: $(ls -la "$OVERLAY/opt/nebulaos-seeds/klipper-venv-seed.tar.gz") =="
