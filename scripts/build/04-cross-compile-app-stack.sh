@@ -288,12 +288,17 @@ extra_stage="$WORK/nebulaos-klipper-runtime-extras"
 rm -rf "$extra_stage"
 mkdir -p "$extra_stage"
 for extra in \
+	bl24c16f.py \
 	guppy_config_helper.py \
 	guppy_module_loader.py \
 	calibrate_shaper_config.py \
 	gcode_shell_command.py \
 	tmcstatus.py \
+	nebulaos_calibration.py \
 	nebulaos_compat.py \
+	nebulaos_plr_journal.py \
+	nebulaos_power_loss_recovery.py \
+	nebulaos_probe_pair.py \
 	nebulaos_temperature_mcu.py \
 	nebulaos_version.py \
 	nebulaos_z_offset_probe.py \

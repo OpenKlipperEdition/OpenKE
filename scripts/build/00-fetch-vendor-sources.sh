@@ -276,12 +276,17 @@ clone_pinned klipper "$KLIPPER_REPO" "$KLIPPER_PIN"
 # the selected modules into the mainline checkout before packaging it.
 clone_pinned klipper-extensions "$KLIPPER_EXTRAS_REPO" "$KLIPPER_EXTRAS_PIN"
 for extra in \
+	bl24c16f.py \
 	guppy_config_helper.py \
 	guppy_module_loader.py \
 	calibrate_shaper_config.py \
 	gcode_shell_command.py \
 	tmcstatus.py \
+	nebulaos_calibration.py \
 	nebulaos_compat.py \
+	nebulaos_plr_journal.py \
+	nebulaos_power_loss_recovery.py \
+	nebulaos_probe_pair.py \
 	nebulaos_temperature_mcu.py \
 	nebulaos_version.py \
 	nebulaos_z_offset_probe.py \
