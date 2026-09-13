@@ -524,6 +524,45 @@ check /etc/init.d/S50nginx
 check /opt/printer_data/config/printer.cfg
 check /opt/printer_data/config/moonraker.conf
 
+echo "=== Phase 1.9A: host MCU (klipper_mcu) / ADXL345 / BL24C16F ==="
+# klipper_mcu is Klipper's own MACH_LINUX build target, compiled as a native
+# MIPS Linux program with the project's mipsel-buildroot-linux-gnu-
+# toolchain (04-cross-compile-app-stack.sh) - serves [mcu rpi] for the
+# physical accelerometer and EEPROM, both wired directly to the SoC. No
+# interaction with the separate GD32F303 stepper-driver MCU S50nebulaos-
+# mcu-guard manages.
+check /usr/bin/klipper_mcu
+check /etc/init.d/S54nebulaos-host-mcu
+check /opt/klipper/klippy/extras/bl24c16f.py
+
+OPENKE_SETTINGS_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/printer_data-config/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54nebulaos-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
+if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
+	echo "OK   OpenKE_Settings.cfg declares [mcu rpi]"
+else
+	echo "MISS OpenKE_Settings.cfg does not declare [mcu rpi]"
+fi
+if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[adxl345\]$"; then
+	echo "OK   OpenKE_Settings.cfg declares [adxl345]"
+else
+	echo "MISS OpenKE_Settings.cfg does not declare [adxl345]"
+fi
+if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[resonance_tester\]$"; then
+	echo "OK   OpenKE_Settings.cfg declares [resonance_tester]"
+else
+	echo "MISS OpenKE_Settings.cfg does not declare [resonance_tester]"
+fi
+if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[bl24c16f\]$"; then
+	echo "OK   OpenKE_Settings.cfg declares [bl24c16f]"
+else
+	echo "MISS OpenKE_Settings.cfg does not declare [bl24c16f]"
+fi
+if echo "$S54_CONTENT" | grep -qF -- '--exec "$KLIPPER_HOST_MCU" -- -r'; then
+	echo "OK   S54nebulaos-host-mcu starts /usr/bin/klipper_mcu with -r"
+else
+	echo "MISS S54nebulaos-host-mcu does not start klipper_mcu as expected"
+fi
+
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
 # A newly reported Mainsail "Config Files -> config folder appears empty"
 # report required proving Klipper, Moonraker, and Mainsail all resolve to

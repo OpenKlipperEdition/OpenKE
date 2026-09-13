@@ -31,7 +31,7 @@ pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 
 # Standard and NebulaOS Klipper extras are checked to ensure the build's
 # mainline checkout receives the same extras payload as the factory image.
-ACCEPTED_FILES="gcode_macro.py virtual_sdcard.py pause_resume.py tmcstatus.py guppy_config_helper.py guppy_module_loader.py calibrate_shaper_config.py gcode_shell_command.py nebulaos_compat.py nebulaos_temperature_mcu.py nebulaos_version.py nebulaos_z_offset_probe.py nozzle_clear.py prtouch_test_support.py virtual_pins.py z_compensate.py"
+ACCEPTED_FILES="gcode_macro.py virtual_sdcard.py pause_resume.py tmcstatus.py guppy_config_helper.py guppy_module_loader.py calibrate_shaper_config.py gcode_shell_command.py nebulaos_compat.py nebulaos_temperature_mcu.py nebulaos_version.py nebulaos_z_offset_probe.py nozzle_clear.py prtouch_test_support.py virtual_pins.py z_compensate.py bl24c16f.py"
 
 # --- Test 1: manifest, factory-seed, and migrate all agree on one branch ---
 # The exact class of bug Phase 1 found: two branches existed, only one was
