@@ -87,5 +87,6 @@ sh "$SCRIPT_DIR/backlight-final-controller-variant.sh" FINAL1
 sh "$SCRIPT_DIR/pwm-state-readback-variant.sh" GETSTATE1
 sh "$SCRIPT_DIR/touch-final-qualification-variant.sh" FINALQUAL1
 sh "$SCRIPT_DIR/wifi-roamoff-disable-variant.sh" ROAMOFF1
+sh "$SCRIPT_DIR/accelerometer-eeprom-bus-enable-variant.sh" FIX1
 
-echo "== apply-qualified-baseline: all 8 accepted variants applied =="
+echo "== apply-qualified-baseline: all 9 accepted variants applied =="

@@ -176,7 +176,6 @@ fi
 
 echo "=== Test 5: Safety Interlocks & Print-in-Progress Protection ==="
 # Start a lightweight mock Moonraker server returning state: printing
-MOCK_PORT=18765
 python3 -c "
 import http.server, socketserver, json
 
@@ -190,11 +189,25 @@ class MockHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-with socketserver.TCPServer(('127.0.0.1', $MOCK_PORT), MockHandler) as httpd:
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+with ReusableTCPServer(('127.0.0.1', 0), MockHandler) as httpd:
+    port = httpd.server_address[1]
+    with open('$WORK/mock_port.txt', 'w') as f:
+        f.write(str(port))
     httpd.serve_forever()
 " >/dev/null 2>&1 &
 MOCK_PID=$!
-sleep 0.3
+
+python3 -c "
+import time, os
+for _ in range(50):
+    if os.path.exists('$WORK/mock_port.txt'):
+        break
+    time.sleep(0.05)
+"
+MOCK_PORT=$(cat "$WORK/mock_port.txt")
 
 # Try switching profile while print is active -> should fail
 OPENKE_PROFILES_SEEDS="$PROFILES_SRC" \

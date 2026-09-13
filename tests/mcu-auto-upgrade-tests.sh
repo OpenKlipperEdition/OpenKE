@@ -27,9 +27,9 @@ for script in "$BUILD_SCRIPT" "$UPGRADE_SCRIPT" \
 	sh -n "$script" && pass || fail "shell syntax check failed: $script"
 done
 
-contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass1"'
-contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass2"'
-contains "$BUILD_SCRIPT" 'cmp -s "$GENERATED_ARTIFACTS/pass1/klipper.bin" "$GENERATED_ARTIFACTS/pass2/klipper.bin"'
+contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass1"'
+contains "$BUILD_SCRIPT" 'build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass2"'
+contains "$BUILD_SCRIPT" 'cmp -s "$GENERATED_ARTIFACTS/ke/pass1/klipper.bin" "$GENERATED_ARTIFACTS/ke/pass2/klipper.bin"'
 contains "$BUILD_SCRIPT" 'creality_validator.py" target'
 contains "$BUILD_SCRIPT" 'creality_flash.py" inspect'
 contains "$BUILD_SCRIPT" 'DEFAULT_ALLOWED_HW_IDS'
