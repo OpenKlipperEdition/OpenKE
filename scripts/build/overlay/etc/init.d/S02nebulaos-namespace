@@ -62,6 +62,7 @@ create_layout() {
 		"$NEBULAOS_ROOT/backups/moonraker" \
 		"$NEBULAOS_ROOT/backups/mainsail" \
 		"$NEBULAOS_ROOT/backups/printer_config" \
+		"$NEBULAOS_ROOT/printer_profiles" \
 		"$NEBULAOS_ROOT/maintenance/logs"
 
 	# apps/guppyscreen is reserved-only per this mission's own scope - a
@@ -124,7 +125,41 @@ seed_printer_data_config() {
 	fi
 
 	write_printer_data_config_marker "seeded_from_immutable_defaults"
-	log "printer_data/config seeded from immutable Ender-3 V3 KE factory defaults"
+	log "printer_data/config seeded from immutable factory defaults"
+
+	# Check for USB/boot initial profile override
+	selected_profile="creality-ender3-v3-ke"
+	for override_file in /media/sda1/openke-profile.txt /media/sda/openke-profile.txt /boot/openke-profile.txt /usr/data/openke-profile.txt; do
+		if [ -f "$override_file" ]; then
+			cand=$(cat "$override_file" 2>/dev/null | tr -d '\r\n[:space:]')
+			if [ -d "/opt/nebulaos-seeds/printer_profiles/$cand" ]; then
+				selected_profile="$cand"
+				log "detected initial profile override ($selected_profile) from $override_file"
+				break
+			fi
+		fi
+	done
+
+	if [ "$selected_profile" != "creality-ender3-v3-ke" ] && [ -x /usr/bin/openke-profile ]; then
+		/usr/bin/openke-profile set "$selected_profile" --no-backup --quiet 2>/dev/null || true
+	else
+		if [ ! -f "$NEBULAOS_ROOT/system/active-profile.json" ]; then
+			now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+			cat > "$NEBULAOS_ROOT/system/active-profile.json" <<EOF
+{
+  "id": "creality-ender3-v3-ke",
+  "name": "Ender-3 V3 KE",
+  "applied_at": "$now",
+  "bed_size": [220, 220, 240],
+  "probe": "cr_touch",
+  "mcu": "GD32F303"
+}
+EOF
+		fi
+	fi
+
+	# Expose printer_profiles directly in Moonraker/Mainsail config file root
+	[ -e "$dest/printer_profiles" ] || ln -sfn "$NEBULAOS_ROOT/printer_profiles" "$dest/printer_profiles"
 }
 
 write_printer_data_config_marker() {

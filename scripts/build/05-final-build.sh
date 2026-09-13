@@ -154,6 +154,8 @@ artifact_sha256() {
 	artifact_sha256 device_tree_sha256 "$ARTIFACT_DIR/halley5_v30.dts"
 	artifact_sha256 mcu_klipper_creality_bin_sha256 "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper-creality.bin"
 	artifact_sha256 mcu_klipper_raw_bin_sha256 "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper.bin"
+	artifact_sha256 mcu_v3_se_klipper_bin_sha256 "$ARTIFACT_DIR/Ender3V3SE_klipper.bin"
+	artifact_sha256 mcu_v2_neo_klipper_bin_sha256 "$ARTIFACT_DIR/Ender3V2Neo_klipper.bin"
 	artifact_sha256 xImage_sha256 "$ARTIFACT_DIR/xImage"
 	echo "xImage_size=$(wc -c < "$ARTIFACT_DIR/xImage")"
 	artifact_sha256 rootfs_squashfs_sha256 "$ARTIFACT_DIR/rootfs.squashfs"

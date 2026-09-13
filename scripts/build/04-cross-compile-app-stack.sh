@@ -1254,8 +1254,23 @@ cat > "$PRINTER_DATA_SEED_DEST/../printer-data-config-manifest.json" <<EOF
     "moonraker.conf": "$(sha256sum "$PRINTER_DATA_SEED_DEST/moonraker.conf" | cut -d' ' -f1)"
   }
 }
-EOF
 echo "== printer_data config seed created: $(ls -la "$PRINTER_DATA_SEED_DEST/") =="
+
+echo "== validating printer profiles repository =="
+PRINTER_PROFILES_SRC="$SCRIPT_DIR/overlay/opt/nebulaos-seeds/printer_profiles"
+if [ ! -d "$PRINTER_PROFILES_SRC" ]; then
+	echo "FATAL: $PRINTER_PROFILES_SRC missing - printer profiles must exist" >&2
+	exit 1
+fi
+for pdir in "$PRINTER_PROFILES_SRC"/*; do
+	[ -d "$pdir" ] || continue
+	pname=$(basename "$pdir")
+	if [ ! -f "$pdir/profile.json" ] || [ ! -f "$pdir/printer.cfg" ]; then
+		echo "FATAL: printer profile $pname missing profile.json or printer.cfg" >&2
+		exit 1
+	fi
+done
+echo "== validated $(ls -d "$PRINTER_PROFILES_SRC"/* | wc -l) printer profiles =="
 
 # Stage 04 creates these artifacts after stage 02 has already synchronized
 # the tracked overlay. Buildroot's output/target sync is additive, so refresh

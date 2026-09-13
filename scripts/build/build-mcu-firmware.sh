@@ -1,12 +1,13 @@
 #!/bin/sh
-# Build and stage the Ender-3 V3 KE printer-MCU firmware.
+# Build and stage the Ender-3 V3 KE, Ender-3 V3 SE, and Ender-3 V2 Neo printer-MCU firmwares.
 #
 # The source repository is deliberately thin: it fetches the exact upstream
 # Klipper revision it owns, applies its explicit GD32F303 patch queue, builds
-# twice, packs the raw image into Creality's format, and validates the result.
-# This stage then copies only the resulting artifacts and the repository's
-# safety-gated tools into the rootfs overlay. No MCU write is ever performed
-# by the build.
+# twice, packs the raw image into Creality's format (when required), and validates the result.
+#
+# - Ender-3 V3 KE firmware is staged to the rootfs overlay for boot-time MCU upgrade.
+# - Ender-3 V3 SE and Ender-3 V2 Neo firmwares are placed exclusively into build artifacts
+#   (and packaged by package-deployment.sh) for user SD-card flashing, and are NOT included in rootfs.
 set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -26,6 +27,16 @@ MCU_CACHE="$WORK/cache"
 MCU_CACHE_FINGERPRINT="$MCU_CACHE/fingerprint"
 TOOLCHAIN_ROOT="$WORK/arm-gnu-toolchain"
 TOOLCHAIN_CACHE="$REPO_ROOT/vendor-downloads"
+
+SE_CONFIG="$SCRIPT_DIR/configs/ender3-v3-se.defconfig"
+if [ ! -f "$SE_CONFIG" ] && [ -f "$MCU_REPO_DIR/configs/ender3-v3-se.defconfig" ]; then
+	SE_CONFIG="$MCU_REPO_DIR/configs/ender3-v3-se.defconfig"
+fi
+
+NEO_CONFIG="$SCRIPT_DIR/configs/ender3-v2-neo.defconfig"
+if [ ! -f "$NEO_CONFIG" ] && [ -f "$MCU_REPO_DIR/configs/ender3-v2-neo.defconfig" ]; then
+	NEO_CONFIG="$MCU_REPO_DIR/configs/ender3-v2-neo.defconfig"
+fi
 
 [ -d "$MCU_REPO_DIR/.git" ] || {
 	echo "FATAL: vendor/klipper-mcu is missing - run 00-fetch-vendor-sources.sh first" >&2
@@ -58,6 +69,8 @@ MCU_FINGERPRINT=$(
 		echo "expected_hw_id=$MCU_EXPECTED_HW_ID"
 	sha256sum "$SCRIPT_DIR/build-mcu-firmware.sh" "$MCU_REPO_DIR/upstream.lock" \
 		"$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig" \
+		"$SE_CONFIG" \
+		"$NEO_CONFIG" \
 		"$MCU_REPO_DIR/patches/series"
 	find "$MCU_REPO_DIR/scripts" "$MCU_REPO_DIR/patches" -type f -print | sort |
 		while IFS= read -r file; do sha256sum "$file"; done
@@ -72,6 +85,8 @@ if [ -f "$MCU_CACHE_FINGERPRINT" ] && [ "$(cat "$MCU_CACHE_FINGERPRINT")" = "$MC
 	&& [ -s "$MCU_CACHE/klipper-creality.bin" ] \
 	&& [ -s "$MCU_CACHE/klipper.elf" ] \
 	&& [ -s "$MCU_CACHE/klipper.config" ] \
+	&& [ -s "$MCU_CACHE/Ender3V3SE_klipper.bin" ] \
+	&& [ -s "$MCU_CACHE/Ender3V2Neo_klipper.bin" ] \
 	&& [ -s "$MCU_CACHE/validator-report.txt" ]; then
 	ARTIFACTS="$MCU_CACHE"
 	MCU_REBUILD=0
@@ -80,28 +95,55 @@ fi
 
 if [ "$MCU_REBUILD" -eq 1 ]; then
 	rm -rf "$MCU_BUILD" "$GENERATED_ARTIFACTS"
-	mkdir -p "$GENERATED_ARTIFACTS/pass1" "$GENERATED_ARTIFACTS/pass2"
+	mkdir -p "$GENERATED_ARTIFACTS/ke/pass1" "$GENERATED_ARTIFACTS/ke/pass2"
+	mkdir -p "$GENERATED_ARTIFACTS/se/pass1" "$GENERATED_ARTIFACTS/se/pass2"
+	mkdir -p "$GENERATED_ARTIFACTS/neo/pass1" "$GENERATED_ARTIFACTS/neo/pass2"
 
 	echo "== fetching pinned upstream Klipper for printer MCU =="
 	"$MCU_REPO_DIR/scripts/fetch-upstream.sh" "$MCU_BUILD"
 	echo "== applying pinned printer MCU patch queue =="
 	"$MCU_REPO_DIR/scripts/apply-patches.sh" "$MCU_BUILD"
 
-	echo "== building printer MCU candidate twice =="
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass1"
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/pass2"
-	cmp -s "$GENERATED_ARTIFACTS/pass1/klipper.bin" "$GENERATED_ARTIFACTS/pass2/klipper.bin" || {
-		echo "FATAL: printer MCU raw klipper.bin is not reproducible across two builds" >&2
+	echo "== building Ender-3 V3 KE printer MCU candidate twice =="
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass1" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass2" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
+	cmp -s "$GENERATED_ARTIFACTS/ke/pass1/klipper.bin" "$GENERATED_ARTIFACTS/ke/pass2/klipper.bin" || {
+		echo "FATAL: Ender-3 V3 KE printer MCU raw klipper.bin is not reproducible across two builds" >&2
 		exit 1
 	}
 
-	cp "$GENERATED_ARTIFACTS/pass2/klipper.bin" "$GENERATED_ARTIFACTS/klipper.bin"
-	cp "$GENERATED_ARTIFACTS/pass2/klipper-creality.bin" "$GENERATED_ARTIFACTS/klipper-creality.bin"
-	cp "$GENERATED_ARTIFACTS/pass2/klipper.elf" "$GENERATED_ARTIFACTS/klipper.elf"
-	cp "$GENERATED_ARTIFACTS/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper.config"
+	cp "$GENERATED_ARTIFACTS/ke/pass2/klipper.bin" "$GENERATED_ARTIFACTS/klipper.bin"
+	cp "$GENERATED_ARTIFACTS/ke/pass2/klipper-creality.bin" "$GENERATED_ARTIFACTS/klipper-creality.bin"
+	cp "$GENERATED_ARTIFACTS/ke/pass2/klipper.elf" "$GENERATED_ARTIFACTS/klipper.elf"
+	cp "$GENERATED_ARTIFACTS/ke/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper.config"
+
+	echo "== building Ender-3 V3 SE printer MCU candidate twice =="
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/se/pass1" "003" "$SE_CONFIG"
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/se/pass2" "003" "$SE_CONFIG"
+	cmp -s "$GENERATED_ARTIFACTS/se/pass1/klipper.bin" "$GENERATED_ARTIFACTS/se/pass2/klipper.bin" || {
+		echo "FATAL: Ender-3 V3 SE printer MCU raw klipper.bin is not reproducible across two builds" >&2
+		exit 1
+	}
+
+	cp "$GENERATED_ARTIFACTS/se/pass2/klipper.bin" "$GENERATED_ARTIFACTS/klipper-v3-se-raw.bin"
+	cp "$GENERATED_ARTIFACTS/se/pass2/klipper-creality.bin" "$GENERATED_ARTIFACTS/Ender3V3SE_klipper.bin"
+	cp "$GENERATED_ARTIFACTS/se/pass2/klipper.elf" "$GENERATED_ARTIFACTS/klipper-v3-se.elf"
+	cp "$GENERATED_ARTIFACTS/se/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper-v3-se.config"
+
+	echo "== building Ender-3 V2 Neo printer MCU candidate twice =="
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/neo/pass1" "none" "$NEO_CONFIG"
+	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/neo/pass2" "none" "$NEO_CONFIG"
+	cmp -s "$GENERATED_ARTIFACTS/neo/pass1/klipper.bin" "$GENERATED_ARTIFACTS/neo/pass2/klipper.bin" || {
+		echo "FATAL: Ender-3 V2 Neo printer MCU raw klipper.bin is not reproducible across two builds" >&2
+		exit 1
+	}
+
+	cp "$GENERATED_ARTIFACTS/neo/pass2/klipper.bin" "$GENERATED_ARTIFACTS/Ender3V2Neo_klipper.bin"
+	cp "$GENERATED_ARTIFACTS/neo/pass2/klipper.elf" "$GENERATED_ARTIFACTS/klipper-v2-neo.elf"
+	cp "$GENERATED_ARTIFACTS/neo/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper-v2-neo.config"
 fi
 
-echo "== validating packaged printer MCU candidate =="
+echo "== validating packaged Ender-3 V3 KE printer MCU candidate =="
 python3 "$MCU_REPO_DIR/tools/creality_validator.py" target \
 	"$ARTIFACTS/klipper-creality.bin" \
 	"$ARTIFACTS/klipper.elf" \
@@ -110,14 +152,25 @@ python3 "$MCU_REPO_DIR/tools/creality_validator.py" target \
 mv "$ARTIFACTS/validator-report.txt.tmp" "$ARTIFACTS/validator-report.txt"
 cat "$ARTIFACTS/validator-report.txt"
 
-# build.sh currently owns the packer's metadata version. Assert that the
-# generated image agrees with the top-level manifest rather than merely
-# recording a value that could drift from the actual bytes.
+echo "== validating packaged Ender-3 V3 SE printer MCU candidate =="
+python3 "$MCU_REPO_DIR/tools/creality_validator.py" format \
+	"$ARTIFACTS/Ender3V3SE_klipper.bin" \
+	--expect-type mcu0
+
+# Assert that generated images agree with expected metadata versions.
 INSPECTED_VERSION=$(python3 "$MCU_REPO_DIR/tools/creality_flash.py" inspect \
 	"$ARTIFACTS/klipper-creality.bin" |
 	sed -n "s/^type=b'mcu0' version=b'\\([0-9][0-9][0-9]\\)'.*/\\1/p")
 [ "$INSPECTED_VERSION" = "$MCU_METADATA_VERSION" ] || {
-	echo "FATAL: packaged MCU metadata version is '$INSPECTED_VERSION', expected '$MCU_METADATA_VERSION'" >&2
+	echo "FATAL: packaged KE MCU metadata version is '$INSPECTED_VERSION', expected '$MCU_METADATA_VERSION'" >&2
+	exit 1
+}
+
+SE_INSPECTED_VERSION=$(python3 "$MCU_REPO_DIR/tools/creality_flash.py" inspect \
+	"$ARTIFACTS/Ender3V3SE_klipper.bin" |
+	sed -n "s/^type=b'mcu0' version=b'\\([0-9][0-9][0-9]\\)'.*/\\1/p")
+[ "$SE_INSPECTED_VERSION" = "003" ] || {
+	echo "FATAL: packaged SE MCU metadata version is '$SE_INSPECTED_VERSION', expected '003'" >&2
 	exit 1
 }
 
@@ -138,12 +191,13 @@ PY
 if [ "$MCU_REBUILD" -eq 1 ]; then
 	rm -rf "$MCU_CACHE"
 	mkdir -p "$MCU_CACHE"
-	for artifact in klipper.bin klipper-creality.bin klipper.elf klipper.config validator-report.txt; do
+	for artifact in klipper.bin klipper-creality.bin klipper.elf klipper.config validator-report.txt Ender3V3SE_klipper.bin Ender3V2Neo_klipper.bin; do
 		cp "$GENERATED_ARTIFACTS/$artifact" "$MCU_CACHE/$artifact"
 	done
 	printf '%s\n' "$MCU_FINGERPRINT" > "$MCU_CACHE_FINGERPRINT"
 fi
 
+# 1. Stage KE MCU firmware to rootfs overlay (for auto-upgrade)
 MCU_DEST="$OVERLAY/opt/nebulaos/mcu"
 rm -rf "$MCU_DEST"
 mkdir -p "$MCU_DEST/tools"
@@ -171,3 +225,14 @@ MCU_SOURCE_COMMIT=$(git -C "$MCU_REPO_DIR" rev-parse HEAD)
 } > "$MCU_DEST/manifest.env"
 
 echo "== printer MCU artifacts staged at $MCU_DEST (sha256 $MCU_IMAGE_SHA256) =="
+
+# 2. Stage Ender-3 V3 SE & V2 Neo MCU firmwares exclusively to build artifacts (excluded from rootfs overlay)
+IMAGE_ARTIFACTS_DIR="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
+mkdir -p "$IMAGE_ARTIFACTS_DIR"
+cp "$ARTIFACTS/Ender3V3SE_klipper.bin" "$IMAGE_ARTIFACTS_DIR/Ender3V3SE_klipper.bin"
+SE_IMAGE_SHA256=$(sha256sum "$IMAGE_ARTIFACTS_DIR/Ender3V3SE_klipper.bin" | awk '{print $1}')
+echo "== Ender-3 V3 SE MCU firmware staged at $IMAGE_ARTIFACTS_DIR/Ender3V3SE_klipper.bin (sha256 $SE_IMAGE_SHA256, excluded from rootfs) =="
+
+cp "$ARTIFACTS/Ender3V2Neo_klipper.bin" "$IMAGE_ARTIFACTS_DIR/Ender3V2Neo_klipper.bin"
+NEO_IMAGE_SHA256=$(sha256sum "$IMAGE_ARTIFACTS_DIR/Ender3V2Neo_klipper.bin" | awk '{print $1}')
+echo "== Ender-3 V2 Neo MCU firmware staged at $IMAGE_ARTIFACTS_DIR/Ender3V2Neo_klipper.bin (sha256 $NEO_IMAGE_SHA256, excluded from rootfs) =="

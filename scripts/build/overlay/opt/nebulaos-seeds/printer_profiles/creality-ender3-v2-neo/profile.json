@@ -1,0 +1,17 @@
+{
+  "id": "creality-ender3-v2-neo",
+  "name": "Ender-3 V2 Neo",
+  "manufacturer": "Creality",
+  "kinematics": "cartesian",
+  "bed_size": [
+    220,
+    220,
+    250
+  ],
+  "max_velocity": 300,
+  "max_accel": 3000,
+  "probe": "cr_touch",
+  "mcu": "STM32F103 / GD32F303",
+  "description": "Creality Ender-3 V2 Neo with Nebula Pad",
+  "enabled": true
+}

@@ -88,7 +88,10 @@ check_vendor_pin klipper "$KLIPPER_PIN" \
 check_vendor_pin klipper-extensions "$KLIPPER_EXTRAS_PIN" \
 	"$KLIPPER_EXTRAS_REPO" 0
 check_vendor_pin klipper-mcu "$MCU_PIN" \
-	"$MCU_REPO" 0
+	"$MCU_REPO" 0 \
+	scripts/build.sh \
+	configs/ender3-v3-se.defconfig \
+	configs/ender3-v2-neo.defconfig
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
 # Buildroot is the `buildroot/` subtree of the same OKE System checkout as
@@ -495,6 +498,19 @@ if echo "$MCU_UPGRADE_CONTENT" | grep -q "stage4_first_flash.py" && echo "$MCU_U
 else
 	echo "MISS MCU boot service is missing one or more safety-gated paths"
 fi
+echo "=== Ender-3 V3 SE & V2 Neo MCU firmware artifacts ==="
+if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin" ]; then
+	echo "OK   Ender-3 V3 SE MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin"
+fi
+if debugfs -R "stat /opt/nebulaos/mcu/Ender3V3SE_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+	echo "OK   Ender-3 V3 SE MCU firmware correctly excluded from rootfs"
+fi
+if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin" ]; then
+	echo "OK   Ender-3 V2 Neo MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin"
+fi
+if debugfs -R "stat /opt/nebulaos/mcu/Ender3V2Neo_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+	echo "OK   Ender-3 V2 Neo MCU firmware correctly excluded from rootfs"
+fi
 # Pure upstream Klipper does not ship the NebulaOS-specific version object;
 # build identity remains available in /opt/nebulaos-version.json.
 check /opt/nebulaos-version.json
@@ -778,31 +794,32 @@ else
 fi
 rm -rf /tmp/printerdata-check
 mkdir -p /tmp/printerdata-check/GuppyScreen
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
-else
-	echo "OK   packaged printer.cfg seed contains no SAVE_CONFIG calibration block"
-fi
-# Pure upstream Klipper does not load the fork-only camera-quality or
-# nebulaos_version configuration sections.
-# A bare "key:" is only actually blank if nothing indented follows on the
-# next line - moonraker.confs own trusted_clients/cors_domains use this
-# multi-line list form legitimately; a naive single-line check flagged
-# them as false positives the first time this ran for real. Written to a
-# temp file rather than an inline awk single-quote block - this whole
-# section already lives inside one big single-quoted docker bash -c
-# argument, and a nested single quote here would close that early exactly
-# like the apostrophe bugs found earlier in this same mission.
-# Klipper's gcode option is explicitly excluded below because an empty
-# gcode body is valid for variable-only macros. Every other option present
-# without a value must either be a valid multiline list or fail.
-# Every other option name is still caught - keep this in sync with the
-# identical copy in 04-cross-compile-app-stack.sh.
-cat > /tmp/blank-required-option.awk <<'AWKPROG'
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
+		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
+	else
+		echo "OK   packaged printer.cfg seed contains no SAVE_CONFIG calibration block"
+	fi
+	# Pure upstream Klipper does not load the fork-only camera-quality or
+	# nebulaos_version configuration sections.
+	# A bare "key:" is only actually blank if nothing indented follows on the
+	# next line - moonraker.confs own trusted_clients/cors_domains use this
+	# multi-line list form legitimately; a naive single-line check flagged
+	# them as false positives the first time this ran for real. Written to a
+	# temp file rather than an inline awk single-quote block - this whole
+	# section already lives inside one big single-quoted docker bash -c
+	# argument, and a nested single quote here would close that early exactly
+	# like the apostrophe bugs found earlier in this same mission.
+	# Klipper's gcode option is explicitly excluded below because an empty
+	# gcode body is valid for variable-only macros. Every other option present
+	# without a value must either be a valid multiline list or fail.
+	# Every other option name is still caught - keep this in sync with the
+	# identical copy in 04-cross-compile-app-stack.sh.
+	cat > /tmp/blank-required-option.awk <<'AWKPROG'
 {
 	if (pending != "") {
 		if ($0 !~ /^[ \t]/) { print pending; exit 1 }
@@ -812,42 +829,42 @@ cat > /tmp/blank-required-option.awk <<'AWKPROG'
 }
 END { if (pending != "") { print pending; exit 1 } }
 AWKPROG
-blank_required_option() {
-	awk -f /tmp/blank-required-option.awk "$1"
-}
-blank_found=0
-for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg; do
-	[ -s "$f" ] || continue
-	if ! blank_required_option "$f" >/dev/null; then
-		blank_found=1
-	fi
-done
-if [ "$blank_found" = "1" ]; then
-	echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has an option present but syntactically blank"
-else
-	echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has no syntactically blank options"
-fi
-
-# Print-control config closure validation against the actual packaged
-# seed (not just the tracked source) - mainline print-controls mission,
-# 2026-07-29, see docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md. The includes
-# in printer.cfg are just concatenated here (this codebase only ever uses
-# plain literal filenames in its config includes, one level of
-# GuppyScreen/ nesting, never glob patterns), so this is a deliberately
-# simple closure builder, not a general Klipper config parser. Grep
-# patterns below use double quotes only, and the awk program is written
-# to a temp file via a quoted heredoc rather than inline - see the
-# blank_required_option note above this same docker bash -c block about
-# why a literal single quote here would break the outer quoting.
-if [ -s /tmp/printerdata-check/printer.cfg ]; then
-	# printer.cfg must include the NebulaOS-owned frontend controls, which provide
-	# the single virtual_sdcard/pause_resume/display_status/macro closure.
-	if grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/printer.cfg; then
-		echo "OK   packaged printer.cfg includes frontend-controls.cfg"
+	blank_required_option() {
+		awk -f /tmp/blank-required-option.awk "$1"
+	}
+	blank_found=0
+	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg; do
+		[ -s "$f" ] || continue
+		if ! blank_required_option "$f" >/dev/null; then
+			blank_found=1
+		fi
+	done
+	if [ "$blank_found" = "1" ]; then
+		echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has an option present but syntactically blank"
 	else
-		echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
+		echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has no syntactically blank options"
 	fi
-	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+
+	# Print-control config closure validation against the actual packaged
+	# seed (not just the tracked source) - mainline print-controls mission,
+	# 2026-07-29, see docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md. The includes
+	# in printer.cfg are just concatenated here (this codebase only ever uses
+	# plain literal filenames in its config includes, one level of
+	# GuppyScreen/ nesting, never glob patterns), so this is a deliberately
+	# simple closure builder, not a general Klipper config parser. Grep
+	# patterns below use double quotes only, and the awk program is written
+	# to a temp file via a quoted heredoc rather than inline - see the
+	# blank_required_option note above this same docker bash -c block about
+	# why a literal single quote here would break the outer quoting.
+	if [ -s /tmp/printerdata-check/printer.cfg ]; then
+		# printer.cfg must include the NebulaOS-owned frontend controls, which provide
+		# the single virtual_sdcard/pause_resume/display_status/macro closure.
+		if grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/printer.cfg || grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/OpenKE_Settings.cfg 2>/dev/null; then
+			echo "OK   packaged printer.cfg includes frontend-controls.cfg"
+		else
+			echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
+		fi
+		cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/OpenKE_Settings.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
