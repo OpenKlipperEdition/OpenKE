@@ -21,6 +21,8 @@ HOST_MCU_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S54nebulaos-host-m
 KLIPPER_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S55klipper"
 OPENKE_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/OpenKE_Settings.cfg"
 EXT_BL24C16F="$REPO_ROOT/vendor/klipper-extensions/extras/bl24c16f.py"
+EXT_PLR_JOURNAL="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_plr_journal.py"
+EXT_PLR="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_power_loss_recovery.py"
 
 PASS=0
 FAIL=0
@@ -134,13 +136,16 @@ else
 fi
 
 # =========================================================================
-# 4. Config sections - [mcu rpi], [adxl345], [resonance_tester], [bl24c16f]
+# 4. Config sections - [mcu rpi], [adxl345], [resonance_tester],
+#    [nebulaos_power_loss_recovery] (Phase 1.9B - NOT [bl24c16f], retired
+#    as the production EEPROM owner in favor of the at24/nvmem kernel
+#    driver - see accelerometer-eeprom-bus-enable-variant.sh)
 # =========================================================================
 
 echo "--- OpenKE_Settings.cfg config sections ---"
 
 if [ -f "$OPENKE_CFG" ]; then
-    for section in "\[mcu rpi\]" "\[adxl345\]" "\[resonance_tester\]" "\[bl24c16f\]"; do
+    for section in "\[mcu rpi\]" "\[adxl345\]" "\[resonance_tester\]" "\[nebulaos_power_loss_recovery\]"; do
         if grep -q "^${section}$" "$OPENKE_CFG"; then
             pass "OpenKE_Settings.cfg declares $section"
         else
@@ -148,16 +153,22 @@ if [ -f "$OPENKE_CFG" ]; then
         fi
     done
 
+    if grep -q "^\[bl24c16f\]$" "$OPENKE_CFG"; then
+        fail "OpenKE_Settings.cfg still declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner"
+    else
+        pass "OpenKE_Settings.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+    fi
+
     if grep -A3 "^\[mcu rpi\]$" "$OPENKE_CFG" | grep -q "serial: /tmp/klipper_host_mcu"; then
         pass "[mcu rpi] points at /tmp/klipper_host_mcu, matching S54nebulaos-host-mcu's socket"
     else
         fail "[mcu rpi] does not reference /tmp/klipper_host_mcu"
     fi
 
-    if grep -A5 "^\[bl24c16f\]$" "$OPENKE_CFG" | grep -q "i2c_mcu: rpi"; then
-        pass "[bl24c16f] is wired through [mcu rpi] (i2c_mcu: rpi), matching stock's real wiring"
+    if grep -A2 "^\[nebulaos_power_loss_recovery\]$" "$OPENKE_CFG" | grep -q "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
+        pass "[nebulaos_power_loss_recovery] eeprom_path matches the at24 eeprom@50 DT node's sysfs path"
     else
-        fail "[bl24c16f] does not reference i2c_mcu: rpi"
+        fail "[nebulaos_power_loss_recovery] eeprom_path does not match the expected at24 sysfs path"
     fi
 else
     fail "cannot check config sections - OpenKE_Settings.cfg missing"
@@ -239,6 +250,36 @@ if [ -f "$EXT_BL24C16F" ]; then
     done
 else
     echo "SKIP: klipper-extensions not found at $EXT_BL24C16F"
+fi
+
+# =========================================================================
+# 7. nebulaos_power_loss_recovery.py / nebulaos_plr_journal.py extension
+# =========================================================================
+
+echo "--- nebulaos_power_loss_recovery.py / nebulaos_plr_journal.py extension ---"
+
+if [ -f "$EXT_PLR" ] && [ -f "$EXT_PLR_JOURNAL" ]; then
+    for cmd in NEBULAOS_PLR_STATUS NEBULAOS_PLR_RESUME NEBULAOS_PLR_DISCARD; do
+        if grep -q "\"$cmd\"" "$EXT_PLR"; then
+            pass "nebulaos_power_loss_recovery.py registers $cmd"
+        else
+            fail "nebulaos_power_loss_recovery.py does not register $cmd"
+        fi
+    done
+
+    if grep -q "JOURNAL_FIRST_PAGE = 1" "$EXT_PLR_JOURNAL" && grep -q "STOCK_PAGE = 0" "$EXT_PLR_JOURNAL"; then
+        pass "nebulaos_plr_journal.py reserves physical page 0 for stock, journal starts at page 1"
+    else
+        fail "nebulaos_plr_journal.py's page layout constants do not match the expected stock-compatible layout"
+    fi
+
+    if grep -qE '(lines\.append|run_script_from_command)\("M24' "$EXT_PLR"; then
+        fail "nebulaos_power_loss_recovery.py emits an M24 gcode line - this mission's resume path must never issue it automatically"
+    else
+        pass "nebulaos_power_loss_recovery.py never emits an M24 gcode line (no automatic motion/print resume)"
+    fi
+else
+    echo "SKIP: klipper-extensions PLR files not found"
 fi
 
 # =========================================================================
