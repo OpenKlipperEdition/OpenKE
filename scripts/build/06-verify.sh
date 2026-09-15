@@ -578,34 +578,34 @@ check /opt/klipper/klippy/extras/bl24c16f.py
 check /opt/klipper/klippy/extras/nebulaos_plr_journal.py
 check /opt/klipper/klippy/extras/nebulaos_power_loss_recovery.py
 
-OPENKE_SETTINGS_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/printer_data-config/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
+NEBULA_CFG_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
 S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54nebulaos-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
-	echo "OK   OpenKE_Settings.cfg declares [mcu rpi]"
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
+	echo "OK   Nebula.cfg declares [mcu rpi]"
 else
-	echo "MISS OpenKE_Settings.cfg does not declare [mcu rpi]"
+	echo "MISS Nebula.cfg does not declare [mcu rpi]"
 fi
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[adxl345\]$"; then
-	echo "OK   OpenKE_Settings.cfg declares [adxl345]"
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[adxl345\]$"; then
+	echo "OK   Nebula.cfg declares [adxl345]"
 else
-	echo "MISS OpenKE_Settings.cfg does not declare [adxl345]"
+	echo "MISS Nebula.cfg does not declare [adxl345]"
 fi
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[resonance_tester\]$"; then
-	echo "OK   OpenKE_Settings.cfg declares [resonance_tester]"
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[resonance_tester\]$"; then
+	echo "OK   Nebula.cfg declares [resonance_tester]"
 else
-	echo "MISS OpenKE_Settings.cfg does not declare [resonance_tester]"
+	echo "MISS Nebula.cfg does not declare [resonance_tester]"
 fi
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[bl24c16f\]$"; then
-	echo "MISS OpenKE_Settings.cfg declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner (should be [nebulaos_power_loss_recovery] over at24 instead)"
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[bl24c16f\]$"; then
+	echo "MISS Nebula.cfg declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner (should be [nebulaos_power_loss_recovery] over at24 instead)"
 else
-	echo "OK   OpenKE_Settings.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+	echo "OK   Nebula.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
 fi
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -qE "^\[nebulaos_power_loss_recovery\]$"; then
-	echo "OK   OpenKE_Settings.cfg declares [nebulaos_power_loss_recovery]"
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[nebulaos_power_loss_recovery\]$"; then
+	echo "OK   Nebula.cfg declares [nebulaos_power_loss_recovery]"
 else
-	echo "MISS OpenKE_Settings.cfg does not declare [nebulaos_power_loss_recovery]"
+	echo "MISS Nebula.cfg does not declare [nebulaos_power_loss_recovery]"
 fi
-if echo "$OPENKE_SETTINGS_CONTENT" | grep -A2 "^\[nebulaos_power_loss_recovery\]$" | grep -qF "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
+if echo "$NEBULA_CFG_CONTENT" | grep -A2 "^\[nebulaos_power_loss_recovery\]$" | grep -qF "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
 	echo "OK   [nebulaos_power_loss_recovery]'s eeprom_path matches the at24 eeprom@50 DT node's sysfs path"
 else
 	echo "MISS [nebulaos_power_loss_recovery]'s eeprom_path does not match the expected at24 sysfs path"
@@ -616,10 +616,10 @@ else
 	echo "MISS S54nebulaos-host-mcu does not start klipper_mcu with an explicit -I socket path"
 fi
 S54_SOCKET=$(echo "$S54_CONTENT" | grep -oE "^SOCKET=.*" | cut -d= -f2)
-if [ -n "$S54_SOCKET" ] && echo "$OPENKE_SETTINGS_CONTENT" | grep -A1 "^\[mcu rpi\]$" | grep -qF "serial: $S54_SOCKET"; then
-	echo "OK   S54nebulaos-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in OpenKE_Settings.cfg"
+if [ -n "$S54_SOCKET" ] && echo "$NEBULA_CFG_CONTENT" | grep -A1 "^\[mcu rpi\]$" | grep -qF "serial: $S54_SOCKET"; then
+	echo "OK   S54nebulaos-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
 else
-	echo "MISS S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in OpenKE_Settings.cfg"
+	echo "MISS S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
 fi
 
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
@@ -875,6 +875,11 @@ if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/frontend-controls.cf
 else
 	echo "MISS /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
 fi
+if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/nebulaos-seeds/printer_data-config/Nebula.cfg is present"
+else
+	echo "MISS /opt/nebulaos-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
+fi
 # Camera quality presets mission (2026-08-04): same class of check as
 # frontend-controls.cfg above - confirms the two new files a fresh factory
 # seed depends on (the macro/shell-command config, and the script the shell
@@ -895,6 +900,7 @@ mkdir -p /tmp/printerdata-check/GuppyScreen
 	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
@@ -931,7 +937,7 @@ AWKPROG
 		awk -f /tmp/blank-required-option.awk "$1"
 	}
 	blank_found=0
-	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg; do
+	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/Nebula.cfg; do
 		[ -s "$f" ] || continue
 		if ! blank_required_option "$f" >/dev/null; then
 			blank_found=1
@@ -962,7 +968,7 @@ AWKPROG
 		else
 			echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
 		fi
-		cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/OpenKE_Settings.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+		cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/OpenKE_Settings.cfg /tmp/printerdata-check/Nebula.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)

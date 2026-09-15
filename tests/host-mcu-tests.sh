@@ -20,6 +20,7 @@ BUILD_SCRIPT="$REPO_ROOT/scripts/build/04-cross-compile-app-stack.sh"
 HOST_MCU_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S54nebulaos-host-mcu"
 KLIPPER_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S55klipper"
 OPENKE_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/OpenKE_Settings.cfg"
+NEBULA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/Nebula.cfg"
 EXT_BL24C16F="$REPO_ROOT/vendor/klipper-extensions/extras/bl24c16f.py"
 EXT_PLR_JOURNAL="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_plr_journal.py"
 EXT_PLR="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_power_loss_recovery.py"
@@ -45,6 +46,18 @@ if [ -f "$OPENKE_CFG" ]; then
     pass "OpenKE_Settings.cfg exists"
 else
     fail "OpenKE_Settings.cfg does not exist at $OPENKE_CFG"
+fi
+
+if [ -f "$NEBULA_CFG" ]; then
+    pass "Nebula.cfg exists"
+else
+    fail "Nebula.cfg does not exist at $NEBULA_CFG"
+fi
+
+if [ -f "$OPENKE_CFG" ] && grep -q "^\[include Nebula\.cfg\]" "$OPENKE_CFG"; then
+    pass "OpenKE_Settings.cfg includes Nebula.cfg"
+else
+    fail "OpenKE_Settings.cfg missing [include Nebula.cfg]"
 fi
 
 # =========================================================================
@@ -136,42 +149,43 @@ else
 fi
 
 # =========================================================================
-# 4. Config sections - [mcu rpi], [adxl345], [resonance_tester],
-#    [nebulaos_power_loss_recovery] (Phase 1.9B - NOT [bl24c16f], retired
-#    as the production EEPROM owner in favor of the at24/nvmem kernel
-#    driver - see accelerometer-eeprom-bus-enable-variant.sh)
+# 4. Config sections - [nebulaos_compat], [mcu rpi], [adxl345],
+#    [resonance_tester], [nebulaos_power_loss_recovery] in Nebula.cfg
+#    (Phase 1.9B - NOT [bl24c16f], retired as the production EEPROM owner
+#    in favor of the at24/nvmem kernel driver - see
+#    accelerometer-eeprom-bus-enable-variant.sh)
 # =========================================================================
 
-echo "--- OpenKE_Settings.cfg config sections ---"
+echo "--- Nebula.cfg config sections ---"
 
-if [ -f "$OPENKE_CFG" ]; then
-    for section in "\[mcu rpi\]" "\[adxl345\]" "\[resonance_tester\]" "\[nebulaos_power_loss_recovery\]"; do
-        if grep -q "^${section}$" "$OPENKE_CFG"; then
-            pass "OpenKE_Settings.cfg declares $section"
+if [ -f "$NEBULA_CFG" ]; then
+    for section in "\[nebulaos_compat\]" "\[mcu rpi\]" "\[adxl345\]" "\[resonance_tester\]" "\[nebulaos_power_loss_recovery\]"; do
+        if grep -q "^${section}$" "$NEBULA_CFG"; then
+            pass "Nebula.cfg declares $section"
         else
-            fail "OpenKE_Settings.cfg is missing $section"
+            fail "Nebula.cfg is missing $section"
         fi
     done
 
-    if grep -q "^\[bl24c16f\]$" "$OPENKE_CFG"; then
-        fail "OpenKE_Settings.cfg still declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner"
+    if grep -q "^\[bl24c16f\]$" "$NEBULA_CFG"; then
+        fail "Nebula.cfg still declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner"
     else
-        pass "OpenKE_Settings.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+        pass "Nebula.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
     fi
 
-    if grep -A3 "^\[mcu rpi\]$" "$OPENKE_CFG" | grep -q "serial: /tmp/klipper_host_mcu"; then
+    if grep -A3 "^\[mcu rpi\]$" "$NEBULA_CFG" | grep -q "serial: /tmp/klipper_host_mcu"; then
         pass "[mcu rpi] points at /tmp/klipper_host_mcu, matching S54nebulaos-host-mcu's socket"
     else
         fail "[mcu rpi] does not reference /tmp/klipper_host_mcu"
     fi
 
-    if grep -A2 "^\[nebulaos_power_loss_recovery\]$" "$OPENKE_CFG" | grep -q "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
+    if grep -A2 "^\[nebulaos_power_loss_recovery\]$" "$NEBULA_CFG" | grep -q "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
         pass "[nebulaos_power_loss_recovery] eeprom_path matches the at24 eeprom@50 DT node's sysfs path"
     else
         fail "[nebulaos_power_loss_recovery] eeprom_path does not match the expected at24 sysfs path"
     fi
 else
-    fail "cannot check config sections - OpenKE_Settings.cfg missing"
+    fail "cannot check config sections - Nebula.cfg missing"
 fi
 
 # =========================================================================
@@ -193,11 +207,11 @@ if [ -f "$HOST_MCU_SERVICE" ]; then
     # matches /tmp/klipper_host_mcu, so a missing -I would not have failed
     # any functional test, only silently relied on that coincidence.
     SOCKET_IN_SERVICE=$(grep -oE '^SOCKET=.*' "$HOST_MCU_SERVICE" | cut -d= -f2)
-    if [ -n "$SOCKET_IN_SERVICE" ] && [ -f "$OPENKE_CFG" ] \
-        && grep -A1 "^\[mcu rpi\]$" "$OPENKE_CFG" | grep -qF "serial: $SOCKET_IN_SERVICE"; then
-        pass "S54nebulaos-host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in OpenKE_Settings.cfg"
+    if [ -n "$SOCKET_IN_SERVICE" ] && [ -f "$NEBULA_CFG" ] \
+        && grep -A1 "^\[mcu rpi\]$" "$NEBULA_CFG" | grep -qF "serial: $SOCKET_IN_SERVICE"; then
+        pass "S54nebulaos-host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
     else
-        fail "S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in OpenKE_Settings.cfg"
+        fail "S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
     fi
 
     if grep -q "FORCE_SHUTDOWN" "$HOST_MCU_SERVICE"; then
