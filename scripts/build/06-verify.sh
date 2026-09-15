@@ -1049,6 +1049,8 @@ check /usr/libexec/nebulaos-wifi-power-save
 check /etc/nebulaos-wifi-boot-wait.sh
 check /etc/init.d/S99confirm-good
 check /etc/ota_marker.sh
+check /etc/hwrevision
+check /etc/swupdate.cfg
 check /opt/printer_data/config/GuppyScreen/scripts/static_ip.py
 
 echo "=== NebulaOS memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="

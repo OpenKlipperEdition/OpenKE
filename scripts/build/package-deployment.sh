@@ -56,8 +56,11 @@ else
 	echo "WARNING: $DTB_SRC not found - shipping source DTS only"
 fi
 
+echo "== building SWUpdate package (.swu) =="
+sh "$SCRIPT_DIR/package-swu.sh" "$PKG_DIR" "$TS"
+
 echo "== generating SHA256SUMS =="
-(cd "$PKG_DIR" && sha256sum xImage rootfs.squashfs kernel.config halley5_v30.dts buildroot.config build-manifest.txt $( [ -f halley5_v30.dtb ] && echo halley5_v30.dtb ) $( [ -f Ender3V3SE_klipper.bin ] && echo Ender3V3SE_klipper.bin ) $( [ -f Ender3V2Neo_klipper.bin ] && echo Ender3V2Neo_klipper.bin ) > SHA256SUMS)
+(cd "$PKG_DIR" && sha256sum xImage rootfs.squashfs kernel.config halley5_v30.dts buildroot.config build-manifest.txt $( [ -f halley5_v30.dtb ] && echo halley5_v30.dtb ) $( [ -f Ender3V3SE_klipper.bin ] && echo Ender3V3SE_klipper.bin ) $( [ -f Ender3V2Neo_klipper.bin ] && echo Ender3V2Neo_klipper.bin ) $(ls *.swu 2>/dev/null) > SHA256SUMS)
 
 cat > "$PKG_DIR/DEPLOYMENT_INSTRUCTIONS.md" <<'EOF'
 # Deployment instructions

@@ -91,6 +91,9 @@ cp "$ARTIFACTS/buildroot.config" "$BUILDROOT_DIR/.config"
 mkdir -p "$BUILDROOT_DIR/board"
 cp "$ARTIFACTS/halley5-nebulaos-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config"
 cp "$ARTIFACTS/halley5-nebulaos-busybox-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+if [ -f "$REPO_ROOT/scripts/build/configs/swupdate.config" ]; then
+	cp "$REPO_ROOT/scripts/build/configs/swupdate.config" "$BUILDROOT_DIR/package/swupdate/swupdate.config"
+fi
 # Phase 11 (2026-08-15): CONFIG_EXTRA_FIRMWARE_DIR in the tracked fragment
 # is a literal "/src/board/halley5-nebulaos-overlay/lib/firmware" - valid
 # only under the old nested pellcorp/k1-bash-build container, which always
