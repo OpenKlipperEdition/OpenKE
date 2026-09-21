@@ -29,6 +29,15 @@ PYTHON3=/usr/bin/python3
 
 start() {
 	echo "Starting klippy (using $PYTHON3)"
+	if [ ! -f /opt/klipper/klippy/chelper/c_helper.so ] || [ ! -s /opt/klipper/klippy/chelper/c_helper.so ]; then
+		if [ -f /opt/nebulaos-seeds/c_helper.so ]; then
+			mkdir -p /opt/klipper/klippy/chelper
+			cp /opt/nebulaos-seeds/c_helper.so /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
+		fi
+	fi
+	if [ -f /opt/klipper/klippy/chelper/c_helper.so ]; then
+		touch -d "@$(( $(date +%s) + 31536000 ))" /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || touch /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
+	fi
 	start-stop-daemon -S -b -m -p "$PIDFILE" \
 		-x "$PYTHON3" -- \
 		"$KLIPPY" "$CONFIG" -a "$APISOCK" -l "$LOGFILE"

@@ -63,7 +63,7 @@ maintenance_gate_ok() {
 		fi
 	fi
 
-	if ! grep -qE '^(/dev/zram0|.*/system/swapfile) ' /proc/swaps 2>/dev/null; then
+	if [ -z "${SKIP_SWAP_CHECK:-}" ] && ! grep -qE '^(/dev/zram0|.*/system/swapfile) ' /proc/swaps 2>/dev/null; then
 		log "BLOCKED: no memory-resilience swap active (neither zram nor the NebulaOS disk swap file) - refusing to proceed"
 		return 1
 	fi

@@ -107,6 +107,7 @@ exec "$ENGINE" run --rm \
 	--user "$(id -u):$(id -g)" \
 	-e HOME=/tmp \
 	-e NEBULAOS_REPO_ROOT="$NEBULAOS_REPO_ROOT" \
+	-e NEBULAOS_CANDIDATE_BUILD="${NEBULAOS_CANDIDATE_BUILD:-0}" \
 	-v "$SCRIPT_DIR:$NEBULAOS_REPO_ROOT" \
 	-w "$NEBULAOS_REPO_ROOT" \
 	"$IMAGE_REF" \

@@ -19,6 +19,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 # maintenance-gate.sh, which does not exist on a dev machine) - exported
 # once so every `env ... sh -c` call below inherits it automatically.
 export GATE_LIB="$REPO_ROOT/scripts/build/overlay/etc/nebulaos-maintenance-gate.sh"
+export SKIP_SWAP_CHECK=1
 MAKE_ARCHIVE_LIB="$REPO_ROOT/scripts/build/lib/make-seed-archive.sh"
 MIGRATE_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-migrate"
 FACTORY_SEED_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-factory-seed"

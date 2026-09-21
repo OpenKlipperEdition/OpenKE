@@ -68,7 +68,7 @@ make_seed_archive() {
 	# Preserve the cross-compiled helper as newer than the archived sources so
 	# first boot never falls back to an unavailable on-device gcc.
 	if [ -f "$tmp/klippy/chelper/c_helper.so" ]; then
-		touch -d "@$(( $(date +%s) + 2 ))" "$tmp/klippy/chelper/c_helper.so"
+		touch -d "@$(( $(date +%s) + 31536000 ))" "$tmp/klippy/chelper/c_helper.so"
 	fi
 
 	# Real bug found live (first full first-boot qualification, 2026-07-28):

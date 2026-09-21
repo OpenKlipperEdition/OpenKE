@@ -15,7 +15,7 @@ set -e
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
-# GUPPYSCREEN_VERSION/GUPPYSCREEN_THEME (section 6, below) come
+# OPENKE_VERSION/GUPPYSCREEN_THEME (section 6, below) come
 # from the same authoritative dependency manifest 00-fetch-vendor-sources.sh
 # already sources - see that script/manifests/dependencies.conf's own
 # header for why dependency settings live in one file instead of being hardcoded per-script.
@@ -236,7 +236,7 @@ else
 fi
 # Klipper rebuilds when any source is newer; make the cross-compiled helper
 # unambiguously newer before copying it into both runtime package paths.
-touch -d "@$(( $(date +%s) + 2 ))" "$VENDOR/klipper/klippy/chelper/c_helper.so"
+touch -d "@$(( $(date +%s) + 31536000 ))" "$VENDOR/klipper/klippy/chelper/c_helper.so"
 
 # Publish the platform proof consumed by nebulaos_compat. Keep it staged
 # outside the Klipper checkout so the upstream source remains clean; it is
@@ -832,7 +832,7 @@ else
 	(
 	set -e
 	cd "$GUPPYSCREEN_SRC"
-	export GUPPYSCREEN_VERSION="$GUPPYSCREEN_VERSION"
+	export OPENKE_VERSION="$OPENKE_VERSION"
 	export GUPPY_THEME="$GUPPYSCREEN_THEME"
 	# Scoped to this subshell only, NOT the image's global PATH - see
 	# build-env/Dockerfile's own comment on GUPPYSCREEN_TOOLCHAIN_BIN for
@@ -968,6 +968,8 @@ mkdir -p "$OVERLAY/opt/nebulaos-seeds"
 # sidecar explicitly into the persistent checkout after extraction.
 cp "$CHELPER_VERDICT" \
 	"$OVERLAY/opt/nebulaos-seeds/klipper-chelper-verdict.json"
+cp "$VENDOR/klipper/klippy/chelper/c_helper.so" \
+	"$OVERLAY/opt/nebulaos-seeds/c_helper.so"
 # Second, separate real bug found live, one layer deeper: Buildroot's own
 # rootfs-overlay copy step (board overlay -> output/target/, and again
 # into output/build/buildroot-fs/ext2/target/) is additive-only - it never

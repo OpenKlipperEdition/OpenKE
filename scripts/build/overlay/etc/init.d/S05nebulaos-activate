@@ -167,8 +167,37 @@ start() {
 	rm -f "$NEBULAOS_ROOT/system/.activation-decisions"
 	mkdir -p "$LOCKDIR"
 
-if validate_app klipper "$NEBULAOS_ROOT/apps/klipper" \
-	"klippy/klippy.py .git .nebulaos-chelper-verdict.json scripts/install-octopi.sh"; then
+	# Self-heal missing platform markers and c_helper.so in persistent Klipper checkout before validation
+	if [ -d "$NEBULAOS_ROOT/apps/klipper/.git" ]; then
+		if [ ! -f "$NEBULAOS_ROOT/apps/klipper/.nebulaos-chelper-verdict.json" ]; then
+			if [ -f /opt/nebulaos-seeds/klipper-chelper-verdict.json ]; then
+				cp /opt/nebulaos-seeds/klipper-chelper-verdict.json "$NEBULAOS_ROOT/apps/klipper/.nebulaos-chelper-verdict.json" 2>/dev/null || true
+			elif [ -f /opt/klipper/.nebulaos-chelper-verdict.json ]; then
+				cp /opt/klipper/.nebulaos-chelper-verdict.json "$NEBULAOS_ROOT/apps/klipper/.nebulaos-chelper-verdict.json" 2>/dev/null || true
+			fi
+			if [ -d "$NEBULAOS_ROOT/apps/klipper/.git/info" ]; then
+				printf '/.nebulaos-chelper-verdict.json\n' >> "$NEBULAOS_ROOT/apps/klipper/.git/info/exclude" 2>/dev/null || true
+			fi
+		fi
+		if [ ! -f "$NEBULAOS_ROOT/apps/klipper/scripts/install-octopi.sh" ] && [ -f /opt/klipper/scripts/install-octopi.sh ]; then
+			mkdir -p "$NEBULAOS_ROOT/apps/klipper/scripts"
+			cp /opt/klipper/scripts/install-octopi.sh "$NEBULAOS_ROOT/apps/klipper/scripts/install-octopi.sh" 2>/dev/null || true
+		fi
+		if [ ! -f "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" ] || [ ! -s "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" ]; then
+			mkdir -p "$NEBULAOS_ROOT/apps/klipper/klippy/chelper"
+			if [ -f /opt/nebulaos-seeds/c_helper.so ]; then
+				cp /opt/nebulaos-seeds/c_helper.so "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" 2>/dev/null || true
+			elif [ -f /opt/klipper/klippy/chelper/c_helper.so ]; then
+				cp /opt/klipper/klippy/chelper/c_helper.so "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" 2>/dev/null || true
+			fi
+		fi
+		if [ -f "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" ]; then
+			touch -d "@$(( $(date +%s) + 31536000 ))" "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" 2>/dev/null || touch "$NEBULAOS_ROOT/apps/klipper/klippy/chelper/c_helper.so" 2>/dev/null || true
+		fi
+	fi
+
+	if validate_app klipper "$NEBULAOS_ROOT/apps/klipper" \
+		"klippy/klippy.py .git .nebulaos-chelper-verdict.json scripts/install-octopi.sh"; then
 		bind_if_not_already "$NEBULAOS_ROOT/apps/klipper" /opt/klipper
 	fi
 

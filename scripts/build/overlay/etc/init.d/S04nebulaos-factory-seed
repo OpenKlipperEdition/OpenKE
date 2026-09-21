@@ -119,19 +119,58 @@ seed_git_app() {
 					return 1
 				}
 			elif [ ! -f "$dest/.nebulaos-chelper-verdict.json" ] \
-				|| [ ! -f "$dest/scripts/install-octopi.sh" ]; then
-				# The app checkout is persistent across reflashes. A previous
-				# image may have seeded the qualified commit before the platform
-				# c_helper verdict became part of the runtime contract. Treat
-				# that checkout as incomplete so the current image's archive can
-				# add the missing proof file instead of taking the fast path.
+				|| [ ! -f "$dest/scripts/install-octopi.sh" ] \
+				|| [ ! -f "$dest/klippy/chelper/c_helper.so" ] \
+				|| [ ! -s "$dest/klippy/chelper/c_helper.so" ]; then
+				# The app checkout is persistent across reflashes. If it is already at
+				# the qualified commit, repair missing platform markers in-place rather
+				# than throwing away the entire checkout.
+				repaired=1
+				if [ ! -f "$dest/.nebulaos-chelper-verdict.json" ]; then
+					if [ -f "$SEEDS/klipper-chelper-verdict.json" ]; then
+						cp "$SEEDS/klipper-chelper-verdict.json" "$dest/.nebulaos-chelper-verdict.json" 2>/dev/null || repaired=0
+					elif [ -f /opt/klipper/.nebulaos-chelper-verdict.json ]; then
+						cp /opt/klipper/.nebulaos-chelper-verdict.json "$dest/.nebulaos-chelper-verdict.json" 2>/dev/null || repaired=0
+					else
+						repaired=0
+					fi
+					[ -d "$dest/.git/info" ] && printf '/.nebulaos-chelper-verdict.json\n' >> "$dest/.git/info/exclude" 2>/dev/null || true
+				fi
+				if [ ! -f "$dest/scripts/install-octopi.sh" ]; then
+					if [ -f /opt/klipper/scripts/install-octopi.sh ]; then
+						mkdir -p "$dest/scripts"
+						cp /opt/klipper/scripts/install-octopi.sh "$dest/scripts/install-octopi.sh" 2>/dev/null || repaired=0
+					else
+						repaired=0
+					fi
+				fi
+				if [ ! -f "$dest/klippy/chelper/c_helper.so" ] || [ ! -s "$dest/klippy/chelper/c_helper.so" ]; then
+					mkdir -p "$dest/klippy/chelper"
+					if [ -f "$SEEDS/c_helper.so" ]; then
+						cp "$SEEDS/c_helper.so" "$dest/klippy/chelper/c_helper.so" 2>/dev/null || repaired=0
+					elif [ -f /opt/klipper/klippy/chelper/c_helper.so ]; then
+						cp /opt/klipper/klippy/chelper/c_helper.so "$dest/klippy/chelper/c_helper.so" 2>/dev/null || repaired=0
+					else
+						repaired=0
+					fi
+				fi
+				if [ -f "$dest/klippy/chelper/c_helper.so" ]; then
+					touch -d "@$(( $(date +%s) + 31536000 ))" "$dest/klippy/chelper/c_helper.so" 2>/dev/null || touch "$dest/klippy/chelper/c_helper.so" 2>/dev/null || true
+				fi
+				if [ "$repaired" = "1" ]; then
+					log "$name checkout is qualified and missing runtime marker(s) were repaired in-place"
+					return 0
+				fi
 				quarantine="$dest.incomplete.$(date +%s)"
-				log "$name checkout is qualified but missing required runtime marker(s) - quarantining incomplete checkout at $quarantine"
+				log "$name checkout is qualified but missing required runtime marker(s) could not be repaired - quarantining incomplete checkout at $quarantine"
 				mv "$dest" "$quarantine" || {
 					log "ERROR: could not quarantine incomplete $name checkout - refusing to overwrite it"
 					return 1
 				}
 			else
+				if [ -f "$dest/klippy/chelper/c_helper.so" ]; then
+					touch -d "@$(( $(date +%s) + 31536000 ))" "$dest/klippy/chelper/c_helper.so" 2>/dev/null || touch "$dest/klippy/chelper/c_helper.so" 2>/dev/null || true
+				fi
 				log "$name already seeded at qualified commit ($installed_commit) - skipping"
 				return 0
 			fi

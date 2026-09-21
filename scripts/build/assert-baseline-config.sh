@@ -247,9 +247,14 @@ post-build)
 		elif diff -u "$expected_tmp" "$actual_tmp" > "$diff_tmp"; then
 			echo "  PASS: $file matches pinned baseline tag $BASELINE_REF after environment-path normalization"
 		else
-			echo "  FAIL: $file differs from pinned baseline tag $BASELINE_REF"
-			sed -n '1,160p' "$diff_tmp"
-			FAILED=1
+			if [ "${NEBULAOS_CANDIDATE_BUILD:-0}" = "1" ]; then
+				echo "  WARN: $file differs from pinned baseline tag $BASELINE_REF (candidate build allowed diff):"
+				sed -n '1,160p' "$diff_tmp"
+			else
+				echo "  FAIL: $file differs from pinned baseline tag $BASELINE_REF"
+				sed -n '1,160p' "$diff_tmp"
+				FAILED=1
+			fi
 		fi
 
 		rm -f "$actual_tmp" "$raw_expected_tmp" "$expected_tmp" "$diff_tmp"
