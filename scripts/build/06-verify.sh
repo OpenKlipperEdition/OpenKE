@@ -462,19 +462,25 @@ echo "=== app stack ==="
 check /usr/lib/libstdc++.so.6
 # FIRMWARE.md sec 23 (2026-07-23): real, previously-silent bug found right
 # after the libstdc++ fix above let Moonraker actually import far enough to
+TARGET_PY_DIR="python3.14"
+if [ -f "$REPO_ROOT/vendor/system/buildroot/package/python3/python3.mk" ]; then
+	TARGET_PY_MAJOR=$(grep "^PYTHON3_VERSION_MAJOR =" "$REPO_ROOT/vendor/system/buildroot/package/python3/python3.mk" | awk '{print $3}')
+	TARGET_PY_DIR="python${TARGET_PY_MAJOR}"
+fi
+
 # hit it - importlib_metadata (a real Moonraker dependency) imports zipp at
 # runtime, but 04-cross-compile-app-stack.sh downloaded it with --no-deps,
 # so zipp itself was never fetched. Moonraker died with
 # ModuleNotFoundError: No module named zipp, before opening its own log.
-check /usr/lib/python3.11/site-packages/zipp
+check /usr/lib/${TARGET_PY_DIR}/site-packages/zipp
 # FIRMWARE.md sec 23 (2026-07-23): numpy is a soft/lazy Klipper dependency -
 # shaper_calibrate.py only raises a clean, user-facing error if it is
 # missing (not a crash), and only when a user actually runs resonance
 # testing. Not launch-blocking, but a real completeness gap for a near-
 # universal Klipper workflow, and available as a ready Buildroot package
 # (BR2_PACKAGE_PYTHON_NUMPY), so enabled rather than left missing.
-check /usr/lib/python3.11/site-packages/numpy
-check /usr/bin/python3.11
+check /usr/lib/${TARGET_PY_DIR}/site-packages/numpy
+check /usr/bin/${TARGET_PY_DIR}
 check /opt/klipper/klippy/klippy.py
 check /opt/klipper/klippy/chelper/c_helper.so
 check /opt/klipper/scripts/klippy-requirements.txt
@@ -553,7 +559,7 @@ fi
 # build identity remains available in /opt/openke-version.json.
 check /opt/openke-version.json
 check /opt/moonraker/moonraker/server.py
-check /usr/lib/python3.11/site-packages/streaming_form_data
+check /usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data
 check /usr/sbin/nginx
 check /usr/share/mainsail/index.html
 check /etc/init.d/S55klipper

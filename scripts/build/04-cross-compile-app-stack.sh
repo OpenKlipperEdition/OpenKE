@@ -91,6 +91,15 @@ if [ ! -x "$HOST_PYTHON3" ]; then
 	HOST_PYTHON3=""
 fi
 
+if [ -f "$REPO_ROOT/vendor/system/buildroot/package/python3/python3.mk" ]; then
+	TARGET_PY_MAJOR=$(grep "^PYTHON3_VERSION_MAJOR =" "$REPO_ROOT/vendor/system/buildroot/package/python3/python3.mk" | awk '{print $3}')
+	TARGET_PY_FULL=$(grep "^PYTHON3_VERSION =" "$REPO_ROOT/vendor/system/buildroot/package/python3/python3.mk" | head -n1 | sed -e 's/.*= *//' -e "s/\$(PYTHON3_VERSION_MAJOR)/$TARGET_PY_MAJOR/")
+fi
+TARGET_PY_MAJOR="${TARGET_PY_MAJOR:-3.14}"
+TARGET_PY_FULL="${TARGET_PY_FULL:-3.14.5}"
+TARGET_PY_DIR="python${TARGET_PY_MAJOR}"
+TARGET_PY_TAG=$(echo "$TARGET_PY_MAJOR" | tr -d '.')
+
 bytecode_input_fingerprint() {
 	bytecode_source_dir="$1"
 	bytecode_source_pin="$2"
@@ -499,7 +508,7 @@ else
 	PYTHON_WHEELS_FINGERPRINT=$(python_wheels_fingerprint)
 	printf '%s\n' "$PYTHON_WHEELS_FINGERPRINT" > "$PYWHEELS_FINGERPRINT_FILE"
 fi
-SITEPKG="$OVERLAY/usr/lib/python3.11/site-packages"
+SITEPKG="$OVERLAY/usr/lib/$TARGET_PY_DIR/site-packages"
 mkdir -p "$SITEPKG"
 for whl in "$WORK"/pywheels/*.whl; do
 	python3 -m zipfile -e "$whl" "$SITEPKG/" 2>&1 || unzip -o -q "$whl" -d "$SITEPKG"
@@ -516,7 +525,7 @@ STREAMING_INPUT_FINGERPRINT=$(
 		printf 'system_pin=%s\n' "$SYSTEM_PIN"
 		printf 'compiler_flags=-shared -fPIC -O2\n'
 		sha256sum "$STREAMING_ARCHIVE"
-		find "$SYSROOT/usr/include/python3.11" -type f -print | sort |
+		find "$SYSROOT/usr/include/$TARGET_PY_DIR" -type f -print | sort |
 			while IFS= read -r header; do sha256sum "$header"; done
 		sha256sum \
 			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" \
@@ -526,10 +535,10 @@ STREAMING_INPUT_FINGERPRINT=$(
 STREAMING_REBUILD_REQUIRED=1
 if [ -f "$STREAMING_FINGERPRINT_FILE" ] && \
 	[ "$(cat "$STREAMING_FINGERPRINT_FILE")" = "$STREAMING_INPUT_FINGERPRINT" ] && \
-	[ -s "$STREAMING_CACHE/package/streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so" ] && \
+	[ -s "$STREAMING_CACHE/package/streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" ] && \
 	[ -s "$STREAMING_CACHE/package/streaming_form_data/_parser.c" ] && \
 	[ -s "$STREAMING_CACHE/package/streaming_form_data/__init__.py" ] && \
-	[ -s "$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug" ]; then
+	[ -s "$STREAMING_CACHE/debug/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug" ]; then
 	STREAMING_REBUILD_REQUIRED=0
 	echo "== streaming-form-data inputs unchanged ($STREAMING_INPUT_FINGERPRINT); reusing cached build =="
 else
@@ -543,8 +552,8 @@ if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
 		cd "$WORK/streaming-form-data-1.11.0"
 		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
 		mipsel-buildroot-linux-gnu-gcc -shared -fPIC -O2 \
-			-I"$SYSROOT/usr/include/python3.11" \
-			-o streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so \
+			-I"$SYSROOT/usr/include/$TARGET_PY_DIR" \
+			-o "streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
 			streaming_form_data/_parser.c
 	)
 else
@@ -558,22 +567,22 @@ fi
 # build-work, strip the copy that actually ships.
 mkdir -p "$WORK/debug-symbols"
 if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
-	cp "$WORK/streaming-form-data-1.11.0/streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so" \
-		"$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+	cp "$WORK/streaming-form-data-1.11.0/streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
+		"$WORK/debug-symbols/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug"
 	(
 		cd "$WORK/streaming-form-data-1.11.0"
 		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
-		mipsel-buildroot-linux-gnu-strip --strip-unneeded streaming_form_data/_parser.cpython-311-mipsel-linux-gnu.so
+		mipsel-buildroot-linux-gnu-strip --strip-unneeded "streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so"
 	)
 	rm -rf "$STREAMING_CACHE"
 	mkdir -p "$STREAMING_CACHE/debug" "$STREAMING_CACHE/package"
 	cp -r "$WORK/streaming-form-data-1.11.0/." "$STREAMING_CACHE/package/"
-	cp "$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug" \
-		"$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+	cp "$WORK/debug-symbols/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug" \
+		"$STREAMING_CACHE/debug/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug"
 	printf '%s\n' "$STREAMING_INPUT_FINGERPRINT" > "$STREAMING_FINGERPRINT_FILE"
 else
-	cp "$STREAMING_CACHE/debug/_parser.cpython-311-mipsel-linux-gnu.so.debug" \
-		"$WORK/debug-symbols/_parser.cpython-311-mipsel-linux-gnu.so.debug"
+	cp "$STREAMING_CACHE/debug/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug" \
+		"$WORK/debug-symbols/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug"
 fi
 
 mkdir -p "$SITEPKG/streaming_form_data"
@@ -1133,8 +1142,8 @@ echo "== wrote /opt/openke-version.json: $(cat "$OVERLAY/opt/openke-version.json
 # to the same /usr/bin/python3.11 on this product), not literally
 # recreated per-architecture.
 if [ -n "$HOST_PYTHON3" ]; then
-	TARGET_PY_VERSION="3.11.6"
-	TARGET_PY_ABS="/usr/bin/python3.11"
+	TARGET_PY_VERSION="$TARGET_PY_FULL"
+	TARGET_PY_ABS="/usr/bin/$TARGET_PY_DIR"
 	build_venv_seed() {
 		envname="$1"; envdir="$2"; seed_out="$3"
 		seed_cache="$VENV_SEED_CACHE/$envname.tar.gz"
@@ -1176,9 +1185,9 @@ version = $TARGET_PY_VERSION
 executable = $TARGET_PY_ABS
 command = $TARGET_PY_ABS -m venv --system-site-packages --without-pip $envdir
 PYVENVCFG
-		rm -f "$vdir/bin/python" "$vdir/bin/python3" "$vdir/bin/python3.11"
-		ln -s "$TARGET_PY_ABS" "$vdir/bin/python3.11"
-		ln -s python3.11 "$vdir/bin/python3"
+		rm -f "$vdir/bin/python" "$vdir/bin/python3" "$vdir/bin/$TARGET_PY_DIR"
+		ln -s "$TARGET_PY_ABS" "$vdir/bin/$TARGET_PY_DIR"
+		ln -s "$TARGET_PY_DIR" "$vdir/bin/python3"
 		ln -s python3 "$vdir/bin/python"
 		# The activate* scripts embed the venv's own absolute path -
 		# rewrite from this build's throwaway $vdir to the real,
