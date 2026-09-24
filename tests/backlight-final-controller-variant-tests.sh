@@ -29,7 +29,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/backlight-final-controller-variant.sh"
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
 DTS="$SYSTEM_DIR/$DTS_REL"
 DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c"
@@ -52,7 +52,11 @@ for f in $AFFECTED_FILES; do
 	cp "$SYSTEM_DIR/$f" "$PRETEST_KERNEL_SNAPSHOT/$f"
 done
 PRETEST_DRIVER_EXISTED=0
-[ -f "$DRIVER" ] && PRETEST_DRIVER_EXISTED=1
+if [ -f "$DRIVER" ]; then
+	PRETEST_DRIVER_EXISTED=1
+	mkdir -p "$PRETEST_KERNEL_SNAPSHOT/$(dirname "$DRIVER_REL")"
+	cp "$DRIVER" "$PRETEST_KERNEL_SNAPSHOT/$DRIVER_REL"
+fi
 PRETEST_PWM_BLOCK=$(sed -n '/^&pwm {/,/^};/p' "$DTS")
 
 cleanup() {
@@ -62,6 +66,8 @@ cleanup() {
 	done
 	if [ "$PRETEST_DRIVER_EXISTED" = "0" ]; then
 		rm -f "$DRIVER"
+	else
+		cp "$PRETEST_KERNEL_SNAPSHOT/$DRIVER_REL" "$DRIVER"
 	fi
 	rm -f "$PRETEST_FRAGMENT"
 	rm -rf "$PRETEST_KERNEL_SNAPSHOT"

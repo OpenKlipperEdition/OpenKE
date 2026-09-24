@@ -18,7 +18,7 @@ MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 VENDOR="$REPO_ROOT/vendor"
 MCU_REPO_DIR="$VENDOR/klipper-mcu"
 BUILDROOT_DIR="$VENDOR/system/buildroot"
-OVERLAY="$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
+OVERLAY="$BUILDROOT_DIR/board/halley5-openke-overlay"
 WORK="$REPO_ROOT/build-work/klipper-mcu"
 MCU_BUILD="$WORK/klipper-src"
 ARTIFACT_REL="artifacts/nebulaos-firmware"
@@ -198,7 +198,7 @@ if [ "$MCU_REBUILD" -eq 1 ]; then
 fi
 
 # 1. Stage KE MCU firmware to rootfs overlay (for auto-upgrade)
-MCU_DEST="$OVERLAY/opt/nebulaos/mcu"
+MCU_DEST="$OVERLAY/opt/openke/mcu"
 rm -rf "$MCU_DEST"
 mkdir -p "$MCU_DEST/tools"
 cp "$ARTIFACTS/klipper-creality.bin" "$MCU_DEST/"

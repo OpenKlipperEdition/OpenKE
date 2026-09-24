@@ -14,10 +14,10 @@
 # for the pieces they own.
 #
 # THIS IS THE ONLY SCRIPT ALLOWED TO ADD/REMOVE THE
-#   NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN/END
+#   OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN/END
 # block in kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts, and
-# the matching NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_BEGIN/END
-# block in halley5-nebulaos-fragment.config.
+# the matching OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_BEGIN/END
+# block in halley5-openke-fragment.config.
 #
 # IMPORTANT - the DTS is shared with wifi-sdio-variant.sh, display-vsync-
 # variant.sh, backlight-final-controller-variant.sh, pwm-state-readback-
@@ -107,13 +107,13 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 KERNEL_DIR="$REPO_ROOT/vendor/system"
 DTS="$KERNEL_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$KERNEL_DIR/.accelerometer-eeprom-bus-enable-variant"
 
-BEGIN_MARK="#--- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_END ---"
-DTS_MARK_BEGIN="--- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN ---"
-DTS_MARK_END="--- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_END ---"
+BEGIN_MARK="#--- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_END ---"
+DTS_MARK_BEGIN="--- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN ---"
+DTS_MARK_END="--- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_END ---"
 
 case "$VARIANT" in
 	FIX0|FIX1) ;;

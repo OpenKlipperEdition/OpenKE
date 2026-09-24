@@ -79,9 +79,13 @@ pre-build)
 
 	# The tracked Kconfig fragment should now (post apply-qualified-baseline.sh,
 	# pre 02) carry every accepted variant's marker block.
-	FRAGMENT="$ARTIFACT_DIR/halley5-nebulaos-fragment.config"
-	grep -q "CONFIG_PREEMPT_RT=y" "$FRAGMENT" 2>/dev/null
-	check "CONFIG_PREEMPT_RT=y present in tracked fragment" $?
+	# Option B / R0 baseline: CONFIG_PREEMPT_RT must NOT be selected.
+	FRAGMENT="$ARTIFACT_DIR/halley5-openke-fragment.config"
+	if grep -q "CONFIG_PREEMPT_RT=y" "$FRAGMENT" 2>/dev/null; then
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 1
+	else
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 0
+	fi
 
 	# 2026-08-07: wifi-roamoff-disable-variant.sh ROAMOFF1 - not a Kconfig
 	# symbol (see that script's own header), so the only real source-level
@@ -99,8 +103,14 @@ post-build)
 	[ -f "$KCONFIG" ] || { echo "FATAL: $KCONFIG not found - run 05-final-build.sh first" >&2; exit 1; }
 	[ -f "$DTS" ] || { echo "FATAL: $DTS not found - run 05-final-build.sh first" >&2; exit 1; }
 
-	grep -q "^CONFIG_PREEMPT_RT=y$" "$KCONFIG"
-	check "CONFIG_PREEMPT_RT=y" $?
+	grep -q "^CONFIG_PREEMPT=y$" "$KCONFIG"
+	check "CONFIG_PREEMPT=y (R0 non-RT baseline)" $?
+
+	if grep -q "^CONFIG_PREEMPT_RT=y$" "$KCONFIG" 2>/dev/null; then
+		check "CONFIG_PREEMPT_RT absent from resolved kernel.config" 1
+	else
+		check "CONFIG_PREEMPT_RT absent from resolved kernel.config" 0
+	fi
 
 	grep -q "^CONFIG_HZ=100$" "$KCONFIG"
 	check "CONFIG_HZ=100" $?
@@ -247,7 +257,7 @@ post-build)
 		elif diff -u "$expected_tmp" "$actual_tmp" > "$diff_tmp"; then
 			echo "  PASS: $file matches pinned baseline tag $BASELINE_REF after environment-path normalization"
 		else
-			if [ "${NEBULAOS_CANDIDATE_BUILD:-0}" = "1" ]; then
+			if [ "${OPENKE_CANDIDATE_BUILD:-0}" = "1" ]; then
 				echo "  WARN: $file differs from pinned baseline tag $BASELINE_REF (candidate build allowed diff):"
 				sed -n '1,160p' "$diff_tmp"
 			else

@@ -21,7 +21,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-final-qualification-variant.sh"
 QUAL_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-qualification-variant.sh"
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 
 KCONFIG_REL="kernel/kernel-6.6/drivers/input/touchscreen/Kconfig"
 MAKEFILE_REL="kernel/kernel-6.6/drivers/input/touchscreen/Makefile"
@@ -490,7 +490,7 @@ fi
 # untouched throughout. Only run if that other script is present. ---
 if [ -f "$QUAL_VARIANT_SCRIPT" ]; then
 	sh "$VARIANT_SCRIPT" FINALQUAL1 >/dev/null
-	sh "$QUAL_VARIANT_SCRIPT" QUAL1 >/dev/null
+	ALLOW_SUPERSEDED_CLOBBER=1 sh "$QUAL_VARIANT_SCRIPT" QUAL1 >/dev/null
 	if grep -q 'NS2009_FINAL_QUALIFICATION' "$NS2009"; then
 		fail "setup for the self-healing test is wrong - QUAL1 unexpectedly did not wipe FINALQUAL content (test assumptions stale)"
 	else
@@ -503,7 +503,7 @@ if [ -f "$QUAL_VARIANT_SCRIPT" ]; then
 		fail "FINALQUAL1 did not self-heal to a fully-applied state alongside the still-present QUALIFICATION content"
 	fi
 	sh "$VARIANT_SCRIPT" FINALQUAL0 >/dev/null
-	sh "$QUAL_VARIANT_SCRIPT" QUAL0 >/dev/null
+	ALLOW_SUPERSEDED_CLOBBER=1 sh "$QUAL_VARIANT_SCRIPT" QUAL0 >/dev/null
 	if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
 		pass
 	else

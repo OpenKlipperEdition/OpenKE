@@ -28,14 +28,14 @@ UNIXSOCKET=/opt/printer_data/comms/moonraker.sock
 PIDFILE=/var/run/moonraker.pid
 
 # NebulaOS mutable-runtime mission, Phase 7: prefer the writable venv
-# S04nebulaos-factory-seed creates at /usr/data/nebulaos/envs/moonraker
+# S04nebulaos-factory-seed creates at /usr/data/openke/envs/moonraker
 # (matches this same path in moonraker.conf's own
 # [update_manager moonraker] virtualenv: setting) - falls back to the
 # system interpreter if the venv doesn't exist yet (e.g. a freshly wiped
 # namespace on its very first boot, before S04 has run) so this script
 # never fails to start Moonraker over a missing venv.
 PYTHON3=/usr/bin/python3
-[ -x /usr/data/nebulaos/envs/moonraker/bin/python3 ] && PYTHON3=/usr/data/nebulaos/envs/moonraker/bin/python3
+[ -x /usr/data/openke/envs/moonraker/bin/python3 ] && PYTHON3=/usr/data/openke/envs/moonraker/bin/python3
 
 # Final Baseline Closure mission (2026-08-08): a genuine first-boot
 # startup race, distinct from (but related to) S55klipper's own

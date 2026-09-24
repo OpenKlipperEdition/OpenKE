@@ -26,7 +26,7 @@ DTS="$REPO_ROOT/vendor/system/kernel/kernel-6.6/module_drivers/dts/x2000/halley5
 
 PREEMPT_SUITE="$REPO_ROOT/tests/preempt-variant-tests.sh"
 PREEMPT_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/preempt-variant.sh"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 
 PASS=0
 FAIL=0

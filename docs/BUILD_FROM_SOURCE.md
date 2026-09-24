@@ -1,15 +1,14 @@
-# Building NebulaOS from source
+# Building OpenKE from source
 
 If you're just trying to build the whole OS, this is all you need:
 
 ```sh
-git clone https://github.com/coreflake1/NebulaOS-firmware.git
-cd NebulaOS-firmware
+git clone https://github.com/OpenKlipperEdition/OpenKE.git
+cd OpenKE
 ./build.sh
 ```
 
-This exact command, from a genuinely fresh clone, is what we actually ran and hardware-qualified
-during Final Closure — it's not aspirational, it's what we use ourselves.
+This exact command, from a genuinely fresh clone, is what reproduces the verified baseline. OpenKE builds upon the solid foundation and bring-up work originally developed under the NebulaOS project.
 
 ## What it's doing
 

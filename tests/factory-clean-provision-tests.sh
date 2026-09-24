@@ -2,8 +2,8 @@
 #
 # Offline tests for factory-clean-provision.sh (Clean-Update + Virgin
 # Baseline mission, Phase 4). Runs the real script as a subprocess against
-# a fixture $NEBULAOS_ROOT, using the REAL S02nebulaos-namespace script
-# (via its own NEBULAOS_ROOT override) to recreate the namespace, rather
+# a fixture $OPENKE_ROOT, using the REAL S02openke-namespace script
+# (via its own OPENKE_ROOT override) to recreate the namespace, rather
 # than a second reimplementation of its layout logic.
 #
 # Usage: sh tests/factory-clean-provision-tests.sh
@@ -12,8 +12,8 @@ set -u
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-PROVISION_SCRIPT="$REPO_ROOT/scripts/build/overlay/opt/nebulaos/factory-clean-provision.sh"
-NAMESPACE_SCRIPT_REAL="$REPO_ROOT/scripts/build/overlay/etc/init.d/S02nebulaos-namespace"
+PROVISION_SCRIPT="$REPO_ROOT/scripts/build/overlay/opt/openke/factory-clean-provision.sh"
+NAMESPACE_SCRIPT_REAL="$REPO_ROOT/scripts/build/overlay/etc/init.d/S02openke-namespace"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/factory-clean-provision-tests.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
@@ -53,7 +53,7 @@ test_refuses_without_flag() {
 	build_populated_namespace "$ROOT"
 	before_klipper=$(git -C "$ROOT/apps/klipper" rev-parse HEAD)
 
-	env NEBULAOS_ROOT="$ROOT" NAMESPACE_SCRIPT="$NAMESPACE_SCRIPT_REAL" \
+	env OPENKE_ROOT="$ROOT" NAMESPACE_SCRIPT="$NAMESPACE_SCRIPT_REAL" \
 		sh "$PROVISION_SCRIPT" > "$WORK/t1.log" 2>&1
 	rc=$?
 
@@ -72,7 +72,7 @@ test_archive_and_reset() {
 	build_populated_namespace "$ROOT"
 	original_klipper_hash=$(git -C "$ROOT/apps/klipper" rev-parse HEAD)
 
-	env NEBULAOS_ROOT="$ROOT" NAMESPACE_SCRIPT="$NAMESPACE_SCRIPT_REAL" \
+	env OPENKE_ROOT="$ROOT" NAMESPACE_SCRIPT="$NAMESPACE_SCRIPT_REAL" \
 		sh "$PROVISION_SCRIPT" --archive-and-reset > "$WORK/t2.log" 2>&1
 
 	backup_dir=$(find "$ROOT/factory-clean-backups" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
@@ -115,7 +115,7 @@ test_missing_namespace_script_is_recoverable() {
 	build_populated_namespace "$ROOT"
 	original_klipper_hash=$(git -C "$ROOT/apps/klipper" rev-parse HEAD)
 
-	env NEBULAOS_ROOT="$ROOT" NAMESPACE_SCRIPT="$WORK/does-not-exist.sh" \
+	env OPENKE_ROOT="$ROOT" NAMESPACE_SCRIPT="$WORK/does-not-exist.sh" \
 		sh "$PROVISION_SCRIPT" --archive-and-reset > "$WORK/t3.log" 2>&1
 
 	backup_dir=$(find "$ROOT/factory-clean-backups" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)

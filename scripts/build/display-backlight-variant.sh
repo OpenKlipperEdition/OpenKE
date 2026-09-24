@@ -75,7 +75,7 @@ esac
 # part of the accepted baseline apply-qualified-baseline.sh composes. A
 # blanket `git checkout -- "$DTS_REL"` right below would silently wipe
 # FINAL1's marked DT node with zero error - refuse instead of risking that.
-if grep -qF "NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN" "$DTS" 2>/dev/null; then
+if grep -qF "OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN" "$DTS" 2>/dev/null; then
 	echo "FATAL: $DTS already carries backlight-final-controller-variant.sh's accepted FINAL1 state." >&2
 	echo "This script (DISPLAY-B1, a superseded compile-only prototype) would silently discard it." >&2
 	echo "Refusing to run. If you genuinely need DISPLAY-B1 again, start from a pristine checkout" >&2

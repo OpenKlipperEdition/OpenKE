@@ -1,4 +1,4 @@
-# NebulaOS unified build environment (Migration A).
+# OpenKE unified build environment (Migration A).
 #
 # Replaces two previously-nested container dependencies with one:
 #   - pellcorp/k1-bash-build (the outer Buildroot/kernel/rootfs environment)
@@ -11,7 +11,7 @@
 # socket, no `docker run` from inside the container.
 #
 # What this image is: a host-level Linux environment with every build tool
-# NebulaOS-firmware's scripts/build/00-06 pipeline actually invokes, baked in
+# OpenKE's scripts/build/00-06 pipeline actually invokes, baked in
 # at image-build time instead of `apt-get install`'d mid-firmware-build.
 #
 # What this image is NOT: a place that contains project source, or a place
@@ -158,8 +158,8 @@ ENV GUPPYSCREEN_TOOLCHAIN_BIN=/toolchains/${GUPPYSCREEN_MIPS_TOOLCHAIN}/bin
 
 WORKDIR /work
 
-LABEL org.opencontainers.image.source="https://github.com/coreflake1/NebulaOS-firmware" \
-      org.opencontainers.image.title="NebulaOS Build Environment" \
-      org.opencontainers.image.description="Canonical unified build environment for NebulaOS - replaces pellcorp/k1-bash-build and ghcr.io/coreflake1/guppydev with one NebulaOS-owned, digest-pinned image. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
+LABEL org.opencontainers.image.source="https://github.com/OpenKlipperEdition/OpenKE" \
+      org.opencontainers.image.title="OpenKE Build Environment" \
+      org.opencontainers.image.description="Canonical unified build environment for OpenKE - replaces pellcorp/k1-bash-build and ghcr.io/coreflake1/guppydev with one OpenKE-owned, digest-pinned image. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
 
 ENTRYPOINT ["sh", "-c"]

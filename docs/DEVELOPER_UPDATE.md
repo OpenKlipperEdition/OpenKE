@@ -1,11 +1,9 @@
-# Updating an existing NebulaOS install
+# Updating an existing OpenKE install
 
-This assumes NebulaOS is already installed and booted. If it isn't yet, start with
+This assumes OpenKE (or legacy NebulaOS) is already installed and booted. If it isn't yet, start with
 `docs/DEVELOPER_INSTALL_FROM_STOCK.md`.
 
-There are two different kinds of updates here, and it's easy to mix them up if you haven't worked
-on this project before. There's also a third thing — a planned future update mechanism — that
-doesn't exist yet. Let's go through all three.
+Updates in OpenKE operate on two main levels: system image updates (via SWUpdate, USB, or manual slot flashing) and mutable application component updates (via Moonraker).
 
 ## Klipper and Moonraker updates — this works today
 
@@ -36,38 +34,34 @@ One thing this doesn't handle yet: Moonraker's Python virtualenv isn't independe
 rolled back. If a bad update's `requirements.txt` change ran a `pip install` before things broke,
 resetting the source code with `git reset --hard` won't undo that. Still an open item.
 
-## Updating the whole OS image — works, but it's manual
+## Updating the whole OS image
 
-This replaces the kernel and rootfs — same mechanism as a first install, just run again on a device
-that's already got NebulaOS on it:
+### Option A: SWUpdate (.swu) via GuppyScreen or LAN OTA (Recommended)
+OpenKE includes native SWUpdate integration. Updates are packaged as dual-slot `.swu` CPIO archives and can be installed:
+- **Directly on the touchscreen**: Via GuppyScreen's Update Panel from a connected USB flash drive or network OTA feed.
+- **Over local LAN**: Using `scripts/dev/serve-update.sh` to serve updates directly to printers on your local network.
+- **Safety**: Includes automated pre-flight checks blocking updates if a print is running or heaters are energized.
+
+### Option B: Manual developer slot flash
+For low-level development, you can still flash raw kernel and rootfs images into the inactive slot:
 
 ```
-build/download new xImage + rootfs.squashfs + build-manifest.txt
+build new xImage + rootfs.squashfs + build-manifest.txt
         |
 scp to the device
         |
 independent sha256sum check
         |
-flash-spare-slot.sh --check-only   (confirms target slot 2 is inactive -
-        |                            the OTHER slot from whatever's running now)
+flash-spare-slot.sh --check-only   (confirms target slot is inactive)
+        |
 flash-spare-slot.sh                (writes + MD5 read-back verification)
         |
 flip the marker, reboot
         |
-same first-boot sequence as install (S00/S04/S5x/S99 - see A_B_SLOT_MODEL.md)
+same boot sequence as install (S00/S04/S5x/S99 - see A_B_SLOT_MODEL.md)
 ```
 
-Worth saying plainly: **there's no "check GitHub, download a new build, and install it"
-button yet.** Every step above is something a developer runs by hand. If you see this described as
-automatic somewhere else, that's stale — this is the real current state.
-
-## Where this is eventually headed
-
-There's a design doc (`docs/NEBULAOS_OTA_FLOW.md`) sketching out a more automated flow down the
-road — discover a release, download it, verify it, flash the inactive slot, reboot, confirm it's
-healthy, mostly hands-off. That's a plan, not something that exists yet. The manual sequence above
-is what actually happens today, so if an older doc anywhere describes automated OTA as already
-working, don't trust it — this page is the current state.
+The automated OTA flow originally designed under NebulaOS (`docs/NEBULAOS_OTA_FLOW.md`) is now realized through OpenKE's SWUpdate and GuppyScreen architecture.
 
 ## Related docs
 

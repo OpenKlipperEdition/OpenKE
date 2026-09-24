@@ -64,7 +64,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/touch-qualification-unified.patch"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$REPO_ROOT/build-work/touch-qualification-variant-applied.txt"
 
 AFFECTED_FILES="
@@ -72,8 +72,8 @@ kernel/kernel-6.6/drivers/input/touchscreen/Kconfig
 kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c
 "
 
-BEGIN_MARK="#--- NEBULAOS_TOUCH_QUALIFICATION_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_TOUCH_QUALIFICATION_VARIANT_END ---"
+BEGIN_MARK="#--- OPENKE_TOUCH_QUALIFICATION_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_TOUCH_QUALIFICATION_VARIANT_END ---"
 
 case "$VARIANT" in
 	QUAL0|QUAL1) ;;
@@ -100,7 +100,8 @@ esac
 # accepted baseline apply-qualified-baseline.sh composes. The blanket
 # checkout below would silently wipe FINALQUAL1's Kconfig symbol and
 # ns2009.c changes with zero error - refuse instead.
-if grep -qF "config TOUCHSCREEN_NS2009_FINAL_QUALIFICATION" \
+if [ -z "${ALLOW_SUPERSEDED_CLOBBER:-}" ] && \
+   grep -qF "config TOUCHSCREEN_NS2009_FINAL_QUALIFICATION" \
 	"$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/Kconfig" 2>/dev/null; then
 	echo "FATAL: touch-final-qualification-variant.sh's accepted FINALQUAL1 state is already applied." >&2
 	echo "This script (a superseded prototype) would silently discard it. Refusing to run." >&2

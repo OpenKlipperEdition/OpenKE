@@ -16,7 +16,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-i0-diag-variant.sh"
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 AFFECTED_FILES="kernel/kernel-6.6/drivers/input/touchscreen/Kconfig kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
 NS2009="$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c"
 

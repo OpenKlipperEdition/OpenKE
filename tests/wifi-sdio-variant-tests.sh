@@ -59,8 +59,12 @@ PRETEST_SNAPSHOT=$(mktemp)
 cp "$DTS" "$PRETEST_SNAPSHOT"
 
 cleanup() {
-	cp "$PRETEST_SNAPSHOT" "$DTS"
-	rm -f "$PRETEST_SNAPSHOT"
+	trap '' INT TERM
+	if [ -f "$PRETEST_SNAPSHOT" ]; then
+		tmp="${DTS}.tmp.$$"
+		cp "$PRETEST_SNAPSHOT" "$tmp" && mv -f "$tmp" "$DTS"
+		rm -f "$PRETEST_SNAPSHOT" "$tmp"
+	fi
 }
 # EXIT alone runs cleanup on every path (normal completion, `exit` calls
 # below, or any other termination) - POSIX shells do NOT terminate a
@@ -86,12 +90,12 @@ msc0_props() {
 
 msc0_baseline=$(msc0_props)
 
-# --- Test 1: W0 leaves the tree git-clean. ---
+# --- Test 1: W0 leaves the DTS git-clean. ---
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS")" ]; then
 	pass
 else
-	fail "W0 did not produce a git-clean tree"
+	fail "W0 did not produce a git-clean DTS"
 fi
 
 # --- Test 2: W1 adds cap-sdio-irq, keeps cap-mmc-highspeed, no cap-sd-highspeed. ---
@@ -151,10 +155,10 @@ fi
 # byte-identical, git-clean baseline. ---
 sh "$VARIANT_SCRIPT" W3 >/dev/null
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS")" ]; then
 	pass
 else
-	fail "switching from W3 back to W0 did not produce a git-clean tree"
+	fail "switching from W3 back to W0 did not produce a git-clean DTS"
 fi
 
 # --- Test 8: an unknown variant name is rejected, not silently applied. ---

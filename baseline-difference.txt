@@ -6,7 +6,7 @@
 IDENTICAL: kernel.config (after environment-path normalization)
 IDENTICAL: halley5_v30.dts
 IDENTICAL: buildroot.config (after environment-path normalization)
-IDENTICAL: halley5-nebulaos-busybox-fragment.config
+IDENTICAL: halley5-openke-busybox-fragment.config
 
 ## rootfs.squashfs content comparison
 New rootfs.squashfs file count: 0

@@ -11,8 +11,8 @@ LOGFILE=/opt/printer_data/logs/klippy.log
 PIDFILE=/var/run/klippy.pid
 
 # NebulaOS mutable-runtime closure mission (2026-07-27): prefer the
-# writable venv S04nebulaos-factory-seed creates at
-# /usr/data/nebulaos/envs/klipper - matches S56moonraker's own identical
+# writable venv S04openke-factory-seed creates at
+# /usr/data/openke/envs/klipper - matches S56moonraker's own identical
 # pattern. Required, not cosmetic: Moonraker's update_manager hardcodes
 # klipper's AppType/virtualenv detection from Klippy's own reported
 # executable (get_base_configuration() in vendor/moonraker's
@@ -25,18 +25,21 @@ PIDFILE=/var/run/klippy.pid
 # S56moonraker, so this script never fails to start Klipper over a
 # missing venv.
 PYTHON3=/usr/bin/python3
-[ -x /usr/data/nebulaos/envs/klipper/bin/python3 ] && PYTHON3=/usr/data/nebulaos/envs/klipper/bin/python3
+[ -x /usr/data/openke/envs/klipper/bin/python3 ] && PYTHON3=/usr/data/openke/envs/klipper/bin/python3
 
 start() {
 	echo "Starting klippy (using $PYTHON3)"
 	if [ ! -f /opt/klipper/klippy/chelper/c_helper.so ] || [ ! -s /opt/klipper/klippy/chelper/c_helper.so ]; then
-		if [ -f /opt/nebulaos-seeds/c_helper.so ]; then
+		if [ -f /opt/openke-seeds/c_helper.so ]; then
 			mkdir -p /opt/klipper/klippy/chelper
-			cp /opt/nebulaos-seeds/c_helper.so /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
+			cp /opt/openke-seeds/c_helper.so /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
 		fi
 	fi
 	if [ -f /opt/klipper/klippy/chelper/c_helper.so ]; then
-		touch -d "@$(( $(date +%s) + 31536000 ))" /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || touch /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
+		chelper_dir=/opt/klipper/klippy/chelper
+		newest=$(ls -t "$chelper_dir"/*.c "$chelper_dir"/*.h "$chelper_dir"/__init__.py 2>/dev/null | head -1)
+		[ -n "$newest" ] && touch -r "$newest" /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
+		touch -d "@2000000000" /opt/klipper/klippy/chelper/c_helper.so 2>/dev/null || true
 	fi
 	start-stop-daemon -S -b -m -p "$PIDFILE" \
 		-x "$PYTHON3" -- \

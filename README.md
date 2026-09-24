@@ -1,39 +1,37 @@
-# NebulaOS Firmware
+# OpenKE Firmware
 
-This is where NebulaOS actually gets built. NebulaOS is a custom Linux + Klipper stack for the
-Creality Ender-3 V3 KE — real mainline-ish kernel, real Klipper, a proper touchscreen UI, none of
-the stock firmware's binary blobs where we could avoid them.
+This is where OpenKE actually gets built. OpenKE is a custom, fully open-source Linux + Klipper distribution for the **Creality Nebula Pad** hardware platform — featuring a real Linux 6.6 kernel, upstream Klipper, Moonraker, Mainsail, and a dedicated GuppyScreen touchscreen interface, replacing stock firmware binary blobs with clean, auditable code.
+
+While the **Creality Ender-3 V3 KE** serves as our primary reference implementation and development baseline, OpenKE is architected with a modular multi-printer profile system. The project's vision and roadmap is to **support all 3D printers that Creality's Nebula Smart Kit supports** (including the Ender-3 V3 SE, Ender-3 V2, Ender-3 V2 Neo, Ender-3 S1, Ender-3 Pro, Ender-3 Base, CR-10 SE, and other models driven by the Nebula Pad).
+
+**OpenKE is an open-source fork of [NebulaOS](https://github.com/coreflake1/NebulaOS-firmware) and still uses all of NebulaOS's Klipper extensions** ([`NebulaOS-klipper-extensions`](https://github.com/coreflake1/NebulaOS-klipper-extensions)). These extensions provide critical host-side hardware integration — including PRtouch loadcell probing, autonomous Z-compensation, power-loss recovery (PLR), and sensor support.
 
 If you want to build the whole OS, this is the repo you want. The full OpenKlipperEdition/System
-OKE checkout supplies both the kernel and Buildroot; official upstream Klipper plus the pinned
-NebulaOS extras source and the
-OpenKlipperEdition/GuppyScreen OKE branch supply the application stack. The build refreshes moving
-sources, verifies immutable inputs, and puts the whole thing together into something you can flash.
+OKE checkout supplies both the kernel and Buildroot; official upstream Klipper plus all of NebulaOS's Klipper extensions and OpenKlipperEdition/GuppyScreen supply the application stack. The build refreshes moving sources, verifies immutable inputs, and puts the whole thing together into a verified flashable image.
 
 ```
 OpenKlipperEdition/System ─┐
-Mainline Klipper + extras ┼─►  NebulaOS-firmware  ─►  final rootfs + kernel + firmware image
+Mainline Klipper + extras ┼─►  OpenKE  ─►  final rootfs + kernel + SWUpdate package
 GuppyScreen (OKE) ───────┘   (this repo)
 ```
 
 - [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) — full OKE checkout providing Linux 6.6 (`kernel/kernel-6.6`) and Buildroot (`buildroot/`)
 - [`Klipper`](https://github.com/Klipper3d/klipper) — official upstream Klipper runtime (`master` branch)
-- [`NebulaOS-klipper-extensions`](https://github.com/coreflake1/NebulaOS-klipper-extensions) — pinned source for NebulaOS `klippy/extras/`
-- [`GuppyScreen`](https://github.com/OpenKlipperEdition/GuppyScreen) — touchscreen UI (`OKE` branch)
-- [`NebulaOS`](https://github.com/coreflake1/NebulaOS) — releases live here, not source
+- [`NebulaOS-klipper-extensions`](https://github.com/coreflake1/NebulaOS-klipper-extensions) — all of NebulaOS's companion Klipper extensions powering hardware integration (`prtouch_v2`, `z_compensate`, `nebulaos_power_loss_recovery`, `nebulaos_compat`)
+- [`GuppyScreen`](https://github.com/OpenKlipperEdition/GuppyScreen) — touchscreen UI
+- [`OpenKE Releases`](https://github.com/OpenKlipperEdition/OpenKE/releases) — firmware releases and SWUpdate packages
 
 The build records every external input in `manifests/dependencies.conf`. Immutable sources are
-pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot use the pinned OpenKlipperEdition/System commit, while mainline Klipper uses the upstream commit qualified by the pinned extensions manifest; the NebulaOS extras source is pinned separately, and GuppyScreen follows
-OpenKlipperEdition/GuppyScreen's `OKE` branch. The exact fetched commits are recorded in
+pinned by exact commit, tag, archive hash, or container digest. The kernel and Buildroot use the pinned OpenKlipperEdition/System commit, while mainline Klipper uses the upstream commit qualified by the pinned extensions manifest; the hardware extras source is pinned separately, and GuppyScreen follows
+OpenKlipperEdition/GuppyScreen. The exact fetched commits are recorded in
 `build-manifest.txt`. The build reuses `vendor/system` when it matches `SYSTEM_PIN`, refreshes the
-remaining moving checkout, and does not use
-unrelated local clones sitting next to this repo.
+remaining moving checkout, and does not use unrelated local clones sitting next to this repo.
 
 ## Building it
 
 ```sh
-git clone https://github.com/coreflake1/NebulaOS-firmware.git
-cd NebulaOS-firmware
+git clone https://github.com/OpenKlipperEdition/OpenKE.git
+cd OpenKE
 ./build.sh
 ```
 
@@ -46,7 +44,7 @@ no `apt-get install` beforehand, no nested containers, nothing weird.
 Budget ~15GB of disk and a few hours on a normal machine. It needs the network the whole time,
 since everything gets fetched and hash-checked as it goes.
 
-NebulaOS uses official upstream Klipper with the pinned NebulaOS host-side extras copied into its
+OpenKE uses official upstream Klipper with host-side extras copied into its
 `klippy/extras/` directory during the build. Printer configuration remains in the tracked overlay
 (`printer.cfg`, `frontend-controls.cfg`, and `moonraker.conf`); there is no separate runtime injection
 step. The webcam pipeline remains the pinned
@@ -80,15 +78,15 @@ came out right.
 
 Cloning the kernel, Klipper, or GuppyScreen repository by itself and trying to build it will not
 produce a working printer image — none of those repositories contains the complete board image. This
-repo fetches the kernel, mainline Klipper plus the pinned NebulaOS extensions, GuppyScreen, Moonraker, the retained
-`k1-ustreamer` webcam stack, Buildroot, and the tracked NebulaOS overlay, then assembles the
+repo fetches the kernel, mainline Klipper plus the hardware extensions, GuppyScreen, Moonraker, the retained
+`k1-ustreamer` webcam stack, Buildroot, and the tracked overlay, then assembles the
 flashable result.
 
 ## How reproducible is this, really
 
 Immutable inputs in `manifests/dependencies.conf` are exact commits, tags, archive hashes, or
 digests and are checked on every run. The pinned System, mainline Klipper, and GuppyScreen commits
-are recorded in `build-manifest.txt`; the NebulaOS extras source is checked against its
+are recorded in `build-manifest.txt`; the hardware extras source is checked against its
 manifest pin. The 8
 kernel variants we build on top of the OKE branch (PREEMPT_RT,
 a WiFi SDIO IRQ priority fix, VSYNC-gated display panning, a pinctrl ownership fix, the final
@@ -96,14 +94,25 @@ backlight controller, PWM state readback, the final touch driver, and disabling 
 as small, order-independent scripts under `scripts/build/`, applied by
 `scripts/build/apply-qualified-baseline.sh`.
 
-## Wait, is this the same thing as OpenKE?
+## Relationship to NebulaOS & Hardware Scope
 
-No, and it's a fair question since they're related. [OpenKE](https://github.com/coreflake1/guppyscreen)
-is a separate project — its own installer for stock Creality firmware, its own releases — that
-shares an author and some history with NebulaOS, but they're not the same project anymore.
-The kernel source is pinned to a commit from the `OKE` branch of
-[`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System); that repository is
-separate from the OpenKE installer project.
+OpenKE is an open-source fork of **NebulaOS** (`coreflake1/NebulaOS-firmware`), created to maintain and actively advance the modern Linux and Klipper stack under the [`OpenKlipperEdition`](https://github.com/OpenKlipperEdition) organization.
+
+OpenKE continues to rely on and utilize **all of NebulaOS's Klipper extensions** ([`NebulaOS-klipper-extensions`](https://github.com/coreflake1/NebulaOS-klipper-extensions)) without deviation, ensuring complete compatibility with the hardware's strain-gauge loadcells, auto Z-offset calibration routines, and EEPROM state. OpenKE builds upon this foundation with dual-slot SWUpdate streaming upgrades, refined UI workflows, and system resilience.
+
+### Hardware Scope & Nebula Smart Kit Printer Roadmap
+
+Rather than being limited to the Ender-3 V3 KE, OpenKE is designed around the **Creality Nebula Pad** hardware platform (MIPS Ingenic XBurst2 X2000 SoC). OpenKE plans to support the complete family of printers compatible with the **Creality Nebula Smart Kit**:
+
+- **Primary Reference Baseline**: **Creality Ender-3 V3 KE** — fully tested and validated hardware baseline, including PRtouch strain-gauge loadcells, auto Z-offset calibration (`z_compensate`), bed tilt calculation, and ADXL345 resonance testing.
+- **Nebula Smart Kit Family Roadmap**:
+  - **Ender-3 V3 SE** (GD32F303 MCU, CR-Touch + strain-gauge auto-Z)
+  - **Ender-3 V2 Neo** (STM32F103 MCU, CR-Touch probe-assisted tramming)
+  - **Ender-3 S1** (STM32F103 / STM32F401 MCU, Sprite direct drive + CR-Touch)
+  - **Ender-3 V2 / Ender-3 Pro / Ender-3 Base** (v4.2.2 / v4.2.7 silent boards, physical endstops or optional BLTouch)
+  - **CR-10 SE** and other Creality machines powered by or upgraded with the Nebula Pad.
+
+OpenKE features a native CLI tool (`openke-profile`) and modular configuration seed layer to switch between printer configurations while preserving user calibrations. See [`docs/MULTI_PRINTER_SUPPORT.md`](docs/MULTI_PRINTER_SUPPORT.md) for complete hardware matrices and profile usage.
 
 ## If you're setting one of these up yourself
 
@@ -111,18 +120,18 @@ Beyond just building, this repo is also where we keep the docs for installing, u
 recovering an actual device — written for developers who already have SSH/root on their printer,
 not as a polished installer walkthrough:
 
-- [`docs/A_B_SLOT_MODEL.md`](docs/A_B_SLOT_MODEL.md) — how the stock/custom partition layout works
-- [`docs/DEVELOPER_INSTALL_FROM_STOCK.md`](docs/DEVELOPER_INSTALL_FROM_STOCK.md) — putting NebulaOS on a printer for the first time
-- [`docs/DEVELOPER_UPDATE.md`](docs/DEVELOPER_UPDATE.md) — updating a printer that's already running NebulaOS
+- [`docs/MULTI_PRINTER_SUPPORT.md`](docs/MULTI_PRINTER_SUPPORT.md) — multi-printer support matrix, Nebula Smart Kit roadmap, and profile architecture
+- [`docs/A_B_SLOT_MODEL.md`](docs/A_B_SLOT_MODEL.md) — how the dual-slot A/B partition layout works
+- [`docs/DEVELOPER_INSTALL_FROM_STOCK.md`](docs/DEVELOPER_INSTALL_FROM_STOCK.md) — putting OpenKE on a printer for the first time
+- [`docs/DEVELOPER_UPDATE.md`](docs/DEVELOPER_UPDATE.md) — updating a printer that's already running OpenKE
 - [`docs/DEVELOPER_RECOVERY.md`](docs/DEVELOPER_RECOVERY.md) — what to do if something goes wrong
-- [`docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md`](docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md) — flipping between stock and custom day to day
+- [`docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md`](docs/HOW_TO_SWITCH_STOCK_AND_CUSTOM.md) — flipping between stock and OpenKE day to day
 - [`docs/BUILD_PROVENANCE.md`](docs/BUILD_PROVENANCE.md) — figuring out exactly what produced a given build
 - [`docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md`](docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md) — the upstream-Klipper frontend configuration closure
 - [`docs/NEBULAOS_BUILD_ENVIRONMENT.md`](docs/NEBULAOS_BUILD_ENVIRONMENT.md) — what's actually in the build container
-- [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) — the upstream projects and prior work this stands on
+- [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) — the upstream projects, NebulaOS roots, and prior work this stands on
 
-The other repos (kernel, Klipper, GuppyScreen, and the [`NebulaOS`](https://github.com/coreflake1/NebulaOS)
-release repo) all link back here instead of keeping their own copies of this stuff — this is the
+The other repos (kernel, Klipper, GuppyScreen) all link back here instead of keeping their own copies of this documentation — this is the
 one place it's kept up to date.
 
 ## History

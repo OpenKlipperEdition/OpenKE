@@ -990,7 +990,7 @@
 &mscaler1 {
 	status = "disabled";
 };
-/* NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN */
+/* OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN */
 /* Post-incident backlight controller redesign (2026-08-02+) -
  * DISPLAY-B-FINAL kernel-owned exclusive owner of GPC0 (as GPIO
  * and as PWM channel 0's peripheral function) and the candidate
@@ -1013,8 +1013,8 @@
 		status = "okay";
 	};
 };
-/* NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_END */
-/* --- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN --- */
+/* OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_END */
+/* --- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_BEGIN --- */
 &i2c2 {
 	/* Phase 1.9A host-MCU accelerometer/EEPROM bus enablement:
 	 * the physical BL24C16F EEPROM is wired here on the real Ender 3 V3
@@ -1163,4 +1163,4 @@
 		};
 	};
 };
-/* --- NEBULAOS_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_END --- */
+/* --- OPENKE_ACCELEROMETER_EEPROM_BUS_ENABLE_VARIANT_DTS_END --- */

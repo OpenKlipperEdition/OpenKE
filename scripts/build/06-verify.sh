@@ -222,7 +222,7 @@ check_artifact_sha256 scripts/build/overlay/lib/firmware/regulatory.db.p7s \
 	bcd81aed039ea6b9b6f3726fbf26911a0caf4a5d894210e0fa2effb384d6b326
 
 # ns2009, the display panel, brcmfmac and the RNG are all built statically
-# into vmlinux (=y, not =m) - see halley5-nebulaos-fragment.config's own
+# into vmlinux (=y, not =m) - see halley5-openke-fragment.config's own
 # comments for why each one was switched. A built-in driver produces no
 # separate .ko file under /lib/modules at all, so these are checked against
 # the actual built kernel .config instead of debugfs'd out of rootfs.ext2 -
@@ -446,8 +446,8 @@ check /lib/firmware/brcm/brcmfmac43430-sdio.txt
 echo "=== camera ==="
 check /usr/bin/ustreamer
 check /etc/init.d/S50webcam
-check /etc/nebulaos-camera-idle-controller.sh
-check /etc/init.d/S51nebulaos-camera-idle-controller
+check /etc/openke-camera-idle-controller.sh
+check /etc/init.d/S51openke-camera-idle-controller
 
 echo "=== app stack ==="
 # FIRMWARE.md sec 23 (2026-07-23): real, previously-silent bug - the
@@ -480,7 +480,7 @@ check /opt/klipper/klippy/chelper/c_helper.so
 check /opt/klipper/scripts/klippy-requirements.txt
 check /opt/klipper/scripts/install-octopi.sh
 check /opt/klipper/.nebulaos-chelper-verdict.json
-check /opt/nebulaos-seeds/klipper-chelper-verdict.json
+check /opt/openke-seeds/klipper-chelper-verdict.json
 check /opt/klipper-extensions/nebulaos-extensions.json
 echo "=== NebulaOS Klipper extras ==="
 for extra in \
@@ -505,24 +505,24 @@ for extra in \
 	check "/opt/klipper/klippy/extras/$extra"
 done
 echo "=== printer MCU firmware bundle ==="
-check /opt/nebulaos/mcu/klipper-creality.bin
-check /opt/nebulaos/mcu/klipper.bin
-check /opt/nebulaos/mcu/klipper.elf
-check /opt/nebulaos/mcu/klipper.config
-check /opt/nebulaos/mcu/manifest.env
-check /opt/nebulaos/mcu/tools/creality_flash.py
-check /opt/nebulaos/mcu/tools/creality_validator.py
-check /opt/nebulaos/mcu/tools/creality_packer.py
-check /opt/nebulaos/mcu/tools/stage4_first_flash.py
-check /etc/init.d/S57nebulaos-mcu-upgrade
-MCU_MANIFEST_CONTENT=$(debugfs -R "cat /opt/nebulaos/mcu/manifest.env" ${IMAGES}/rootfs.ext2 2>/dev/null)
+check /opt/openke/mcu/klipper-creality.bin
+check /opt/openke/mcu/klipper.bin
+check /opt/openke/mcu/klipper.elf
+check /opt/openke/mcu/klipper.config
+check /opt/openke/mcu/manifest.env
+check /opt/openke/mcu/tools/creality_flash.py
+check /opt/openke/mcu/tools/creality_validator.py
+check /opt/openke/mcu/tools/creality_packer.py
+check /opt/openke/mcu/tools/stage4_first_flash.py
+check /etc/init.d/S57openke-mcu-upgrade
+MCU_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke/mcu/manifest.env" ${IMAGES}/rootfs.ext2 2>/dev/null)
 MCU_IMAGE_SHA=$(printf "%s\n" "$MCU_MANIFEST_CONTENT" | sed -n 's/^image_sha256=//p')
 if [ -n "$MCU_IMAGE_SHA" ] && printf "%s\n" "$MCU_IMAGE_SHA" | grep -qE "^[0-9a-f]{64}$"; then
 	echo "OK   packaged printer MCU manifest contains a SHA256 image identity"
 else
 	echo "MISS packaged printer MCU manifest is missing a valid image SHA256"
 fi
-MCU_BUILT_IMAGE="$REPO_ROOT/vendor/system/buildroot/board/halley5-nebulaos-overlay/opt/nebulaos/mcu/klipper-creality.bin"
+MCU_BUILT_IMAGE="$REPO_ROOT/vendor/system/buildroot/board/halley5-openke-overlay/opt/openke/mcu/klipper-creality.bin"
 MCU_RECORDED_SHA=$(grep "^mcu_klipper_creality_bin_sha256=" "$MANIFEST_FILE" 2>/dev/null | cut -d= -f2)
 MCU_ACTUAL_SHA=$(sha256sum "$MCU_BUILT_IMAGE" 2>/dev/null | awk "{print \$1}")
 if [ -n "$MCU_RECORDED_SHA" ] && [ "$MCU_ACTUAL_SHA" = "$MCU_RECORDED_SHA" ]; then
@@ -530,7 +530,7 @@ if [ -n "$MCU_RECORDED_SHA" ] && [ "$MCU_ACTUAL_SHA" = "$MCU_RECORDED_SHA" ]; th
 else
 	echo "MISS staged printer MCU image does not match the final build manifest"
 fi
-MCU_UPGRADE_CONTENT=$(debugfs -R "cat /etc/init.d/S57nebulaos-mcu-upgrade" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MCU_UPGRADE_CONTENT=$(debugfs -R "cat /etc/init.d/S57openke-mcu-upgrade" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$MCU_UPGRADE_CONTENT" | grep -q "stage4_first_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_validator.py"; then
 	echo "OK   MCU boot service contains first-flash, update-flash, and validation paths"
 else
@@ -540,18 +540,18 @@ echo "=== Ender-3 V3 SE & V2 Neo MCU firmware artifacts ==="
 if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin" ]; then
 	echo "OK   Ender-3 V3 SE MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin"
 fi
-if debugfs -R "stat /opt/nebulaos/mcu/Ender3V3SE_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+if debugfs -R "stat /opt/openke/mcu/Ender3V3SE_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
 	echo "OK   Ender-3 V3 SE MCU firmware correctly excluded from rootfs"
 fi
 if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin" ]; then
 	echo "OK   Ender-3 V2 Neo MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin"
 fi
-if debugfs -R "stat /opt/nebulaos/mcu/Ender3V2Neo_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+if debugfs -R "stat /opt/openke/mcu/Ender3V2Neo_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
 	echo "OK   Ender-3 V2 Neo MCU firmware correctly excluded from rootfs"
 fi
-# Pure upstream Klipper does not ship the NebulaOS-specific version object;
-# build identity remains available in /opt/nebulaos-version.json.
-check /opt/nebulaos-version.json
+# Pure upstream Klipper does not ship the version object;
+# build identity remains available in /opt/openke-version.json.
+check /opt/openke-version.json
 check /opt/moonraker/moonraker/server.py
 check /usr/lib/python3.11/site-packages/streaming_form_data
 check /usr/sbin/nginx
@@ -570,7 +570,7 @@ echo "=== Phase 1.9A: host MCU (klipper_mcu) / ADXL345 / BL24C16F ==="
 # interaction with the separate GD32F303 stepper-driver MCU S50nebulaos-
 # mcu-guard manages.
 check /usr/bin/klipper_mcu
-check /etc/init.d/S54nebulaos-host-mcu
+check /etc/init.d/S54openke-host-mcu
 # bl24c16f.py stays composed for provenance (Phase 1.9A) but is retired from
 # production use as of Phase 1.9B - see the OpenKE_Settings.cfg [bl24c16f]-absence
 # check and the [nebulaos_power_loss_recovery] presence check below.
@@ -578,8 +578,8 @@ check /opt/klipper/klippy/extras/bl24c16f.py
 check /opt/klipper/klippy/extras/nebulaos_plr_journal.py
 check /opt/klipper/klippy/extras/nebulaos_power_loss_recovery.py
 
-NEBULA_CFG_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
-S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54nebulaos-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
+NEBULA_CFG_CONTENT=$(debugfs -R "cat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54openke-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
 	echo "OK   Nebula.cfg declares [mcu rpi]"
 else
@@ -611,15 +611,15 @@ else
 	echo "MISS [nebulaos_power_loss_recovery]'s eeprom_path does not match the expected at24 sysfs path"
 fi
 if echo "$S54_CONTENT" | grep -qF -- '--exec "$KLIPPER_HOST_MCU" -- -r -I "$SOCKET"'; then
-	echo "OK   S54nebulaos-host-mcu starts /usr/bin/klipper_mcu with -r -I \$SOCKET (explicit socket path)"
+	echo "OK   S54openke-host-mcu starts /usr/bin/klipper_mcu with -r -I \$SOCKET (explicit socket path)"
 else
-	echo "MISS S54nebulaos-host-mcu does not start klipper_mcu with an explicit -I socket path"
+	echo "MISS S54openke-host-mcu does not start klipper_mcu with an explicit -I socket path"
 fi
 S54_SOCKET=$(echo "$S54_CONTENT" | grep -oE "^SOCKET=.*" | cut -d= -f2)
 if [ -n "$S54_SOCKET" ] && echo "$NEBULA_CFG_CONTENT" | grep -A1 "^\[mcu rpi\]$" | grep -qF "serial: $S54_SOCKET"; then
-	echo "OK   S54nebulaos-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
+	echo "OK   S54openke-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
 else
-	echo "MISS S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
+	echo "MISS S54openke-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
 fi
 
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
@@ -661,15 +661,15 @@ if echo "$S01_CONTENT" | grep -qE "mount --bind ..PDATA. /opt/printer_data"; the
 else
 	echo "MISS S01persistent-datastore does not bind-mount printer_data onto /opt/printer_data as expected"
 fi
-if echo "$S01_CONTENT" | grep -qE "^DATA_ROOT=/usr/data/nebulaos$"; then
-	echo "OK   S01persistent-datastore uses the canonical persistent backing root /usr/data/nebulaos"
+if echo "$S01_CONTENT" | grep -qE "^DATA_ROOT=/usr/data/openke$"; then
+	echo "OK   S01persistent-datastore uses the canonical persistent backing root /usr/data/openke"
 else
-	echo "MISS S01persistent-datastore does not use /usr/data/nebulaos as the persistent backing root"
+	echo "MISS S01persistent-datastore does not use /usr/data/openke as the persistent backing root"
 fi
 
 echo "=== Moonraker update_manager / camera defaults (final implementation mission, 2026-07-27) ==="
-check /usr/libexec/nebulaos-seed-camera
-check /etc/init.d/S57nebulaos-camera-seed
+check /usr/libexec/openke-seed-camera
+check /etc/init.d/S57openke-camera-seed
 
 # Content checks against the actual shipped moonraker.conf, not just its
 # presence - the whole point of this mission was that a real, previously
@@ -814,8 +814,8 @@ check_seed_archive() {
 	fi
 	rm -rf /tmp/seed-check /tmp/seed-check.tar
 }
-check_seed_archive /opt/nebulaos-seeds/klipper.tar.gz "$KLIPPER_BRANCH" "$KLIPPER_REPO" "klipper"
-check_seed_archive /opt/nebulaos-seeds/moonraker.tar.gz master "https://github.com/Arksine/moonraker.git" "moonraker"
+check_seed_archive /opt/openke-seeds/klipper.tar.gz "$KLIPPER_BRANCH" "$KLIPPER_REPO" "klipper"
+check_seed_archive /opt/openke-seeds/moonraker.tar.gz master "https://github.com/Arksine/moonraker.git" "moonraker"
 
 # Real bug this catches if regressed: the c_helper.so committed inside
 # vendor/klippers own git history (an upstream binary) is incompatible
@@ -827,7 +827,7 @@ check_seed_archive /opt/nebulaos-seeds/moonraker.tar.gz master "https://github.c
 # immutable one, not silently reverted to the incompatible upstream blob.
 rm -rf /tmp/chelper-check
 mkdir -p /tmp/chelper-check
-debugfs -R "dump /opt/nebulaos-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+debugfs -R "dump /opt/openke-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 if tar -xzf /tmp/chelper-check.tar.gz -C /tmp/chelper-check ./klippy/chelper/c_helper.so 2>/dev/null; then
 	SEED_CHELPER_SHA=$(sha256sum /tmp/chelper-check/klippy/chelper/c_helper.so 2>/dev/null | cut -d" " -f1)
 	BASELINE_CHELPER_SHA=$(debugfs -R "cat /opt/klipper/klippy/chelper/c_helper.so" ${IMAGES}/rootfs.ext2 2>/dev/null | sha256sum | cut -d" " -f1)
@@ -840,7 +840,7 @@ else
 	echo "MISS could not extract klippy/chelper/c_helper.so from the klipper seed archive for comparison"
 fi
 rm -rf /tmp/chelper-check /tmp/chelper-check.tar.gz
-SEED_MANIFEST_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/seed-manifest.json" ${IMAGES}/rootfs.ext2 2>/dev/null)
+SEED_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke-seeds/seed-manifest.json" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$SEED_MANIFEST_CONTENT" | grep -q "git_bundle_flattened"; then
 	echo "MISS seed-manifest.json still references the removed git_bundle_flattened format"
 else
@@ -858,51 +858,51 @@ echo "=== printer_data config factory seed (Ender-3 V3 KE, auto-updates-camera-c
 # ever shipped a seed for these files at a path immune to
 # S01persistent-datastores own early, unconditional bind mount of the
 # persistent copy over /opt/printer_data. Confirms the dedicated immutable
-# seed at /opt/nebulaos-seeds/printer_data-config/ actually landed in the
+# seed at /opt/openke-seeds/printer_data-config/ actually landed in the
 # packaged image, not just the tracked overlay source.
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/printer.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/printer.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/printer.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/printer.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/printer.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/printer.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/moonraker.conf is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/moonraker.conf is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/frontend-controls.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/Nebula.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/Nebula.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
 fi
 # Camera quality presets mission (2026-08-04): same class of check as
 # frontend-controls.cfg above - confirms the two new files a fresh factory
 # seed depends on (the macro/shell-command config, and the script the shell
 # command actually invokes) really landed in the packaged image, not just
 # the tracked overlay source.
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/camera-quality.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/camera-quality.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
 fi
 rm -rf /tmp/printerdata-check
 mkdir -p /tmp/printerdata-check/GuppyScreen
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
 	else
@@ -1007,17 +1007,17 @@ fi
 rm -rf /tmp/printerdata-check
 # Confirms the actual fix logic landed in the packaged init scripts, not
 # just the seed content sitting there unused.
-S02_CONTENT=$(debugfs -R "cat /etc/init.d/S02nebulaos-namespace" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S02_CONTENT=$(debugfs -R "cat /etc/init.d/S02openke-namespace" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$S02_CONTENT" | grep -q "seed_printer_data_config"; then
-	echo "OK   S02nebulaos-namespace contains the printer_data config seeding logic"
+	echo "OK   S02openke-namespace contains the printer_data config seeding logic"
 else
-	echo "MISS S02nebulaos-namespace is missing the printer_data config seeding logic"
+	echo "MISS S02openke-namespace is missing the printer_data config seeding logic"
 fi
-S05_CONTENT=$(debugfs -R "cat /etc/init.d/S05nebulaos-activate" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S05_CONTENT=$(debugfs -R "cat /etc/init.d/S05openke-activate" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$S05_CONTENT" | grep -q "config/printer.cfg"; then
-	echo "OK   S05nebulaos-activate validates printer_data against the real required files, not just the config directory"
+	echo "OK   S05openke-activate validates printer_data against the real required files, not just the config directory"
 else
-	echo "MISS S05nebulaos-activate still validates printer_data against only the config directory - a wiped copy would pass validation empty"
+	echo "MISS S05openke-activate still validates printer_data against only the config directory - a wiped copy would pass validation empty"
 fi
 
 echo "=== obsolete overlay files (must be absent - Buildroots output/target copy is additive-only, see 02-configure-buildroot.sh) ==="
@@ -1036,6 +1036,8 @@ check_absent /etc/init.d/S01tmpfs-datastore
 check_absent /etc/init.d/S39wifi
 check_absent /etc/init.d/S03nebulaos-factory-seed
 check_absent /etc/init.d/S04nebulaos-activate
+check_absent /opt/nebulaos
+check_absent /opt/nebulaos-seeds
 
 echo "=== SSH/console/recovery (FIRMWARE.md sec 18/21/22/24) ==="
 check /usr/sbin/dropbear
@@ -1043,37 +1045,41 @@ check /usr/sbin/wpa_cli
 check /etc/init.d/S00revert-safety
 check /etc/init.d/S01persistent-datastore
 check /etc/init.d/S01wifi
-check /etc/nebulaos-stable-mac.sh
-check /etc/nebulaos-wifi-power-save.sh
-check /usr/libexec/nebulaos-wifi-power-save
-check /etc/nebulaos-wifi-boot-wait.sh
+check /etc/openke-stable-mac.sh
+check /etc/openke-wifi-power-save.sh
+check /usr/libexec/openke-wifi-power-save
+check /etc/openke-wifi-boot-wait.sh
 check /etc/init.d/S99confirm-good
 check /etc/ota_marker.sh
 check /etc/hwrevision
 check /etc/swupdate.cfg
 check /opt/printer_data/config/GuppyScreen/scripts/static_ip.py
 
-echo "=== NebulaOS memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="
+echo "=== OpenKE memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="
 check /sbin/mkswap
 check /sbin/swapon
 check /sbin/swapoff
 check /usr/bin/free
 check /etc/init.d/S00zram-swap
-check /etc/init.d/S03nebulaos-diskswap
-check /etc/init.d/S02nebulaos-namespace
-check /etc/init.d/S02nebulaos-boot-timing
-check /etc/init.d/S04nebulaos-factory-seed
-check /etc/init.d/S05nebulaos-activate
-check /etc/init.d/S45nebulaos-cleanup
-check /etc/nebulaos-retention.sh
-check /etc/nebulaos-healthcheck.sh
-check /opt/nebulaos-seeds/klipper.tar.gz
-check /opt/nebulaos-seeds/moonraker.tar.gz
-check /opt/nebulaos-seeds/seed-manifest.json
+check /etc/init.d/S03openke-diskswap
+check /etc/init.d/S02openke-namespace
+check /etc/init.d/S02openke-boot-timing
+check /etc/init.d/S04openke-factory-seed
+check /etc/init.d/S05openke-activate
+check /etc/init.d/S45openke-cleanup
+check /etc/openke-retention.sh
+check /etc/openke-healthcheck.sh
+check /opt/openke-seeds/klipper.tar.gz
+check /opt/openke-seeds/moonraker.tar.gz
+check /opt/openke-seeds/seed-manifest.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/profile.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/printer.cfg
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-se/profile.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v2-neo/profile.json
 check /usr/sbin/ntpd
-check /etc/init.d/S40nebulaos-ntpsync
-check /etc/nebulaos-update-supervisor.sh
-check /etc/init.d/S59nebulaos-update-supervisor
+check /etc/init.d/S40openke-ntpsync
+check /etc/openke-update-supervisor.sh
+check /etc/init.d/S59openke-update-supervisor
 
 # Phase 7 live qualification: Moonraker machine.py needs real iproute2
 # JSON output (`ip -json -det address`), which BusyBox ip cannot produce

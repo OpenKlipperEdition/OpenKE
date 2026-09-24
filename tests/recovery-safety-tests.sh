@@ -41,10 +41,12 @@ ACCEPTED_FILES="gcode_macro.py virtual_sdcard.py pause_resume.py tmcstatus.py gu
 
 test_branch_consistency() {
 	manifest_branch="$KLIPPER_BRANCH"
+	factory_seed_script="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04openke-factory-seed"
 	factory_seed_branch=$(grep -o 'seed_git_app klipper [a-zA-Z0-9_-]*' \
-		"$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-factory-seed" | awk '{print $3}')
+		"$factory_seed_script" | awk '{print $3}')
+	migrate_script="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04openke-migrate"
 	migrate_branch=$(grep -o 'reseed_git_app klipper [a-zA-Z0-9_-]*' \
-		"$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-migrate" | awk '{print $3}')
+		"$migrate_script" | awk '{print $3}')
 
 	if [ "$manifest_branch" = "master" ] && [ "$manifest_branch" = "$factory_seed_branch" ] \
 		&& [ "$manifest_branch" = "$migrate_branch" ]; then

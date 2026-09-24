@@ -76,7 +76,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/touch-irq-gate.patch"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$REPO_ROOT/build-work/touch-irq-variant-applied.txt"
 
 AFFECTED_FILES="
@@ -84,8 +84,8 @@ kernel/kernel-6.6/drivers/input/touchscreen/Kconfig
 kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c
 "
 
-BEGIN_MARK="#--- NEBULAOS_TOUCH_IRQ_GATE_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_TOUCH_IRQ_GATE_VARIANT_END ---"
+BEGIN_MARK="#--- OPENKE_TOUCH_IRQ_GATE_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_TOUCH_IRQ_GATE_VARIANT_END ---"
 
 case "$VARIANT" in
 	I0|I1) ;;

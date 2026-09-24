@@ -1,6 +1,8 @@
-# Multi-Printer Support & Profile Architecture
+# Multi-Printer Support & Nebula Smart Kit Profile Architecture
 
-OpenKE / NebulaOS provides built-in multi-printer support for running the Nebula Pad on multiple printer models with automatic hardware configuration, calibration state preservation, and seamless GUI/CLI profile switching.
+OpenKE is engineered around the **Creality Nebula Pad** hardware platform (Ingenic XBurst2 X2000 MIPS SoC). While the **Creality Ender-3 V3 KE** serves as the initial development baseline and reference target, OpenKE is intentionally architected to support **all 3D printers compatible with Creality's Nebula Smart Kit**.
+
+OpenKE provides built-in multi-printer support for running the Nebula Pad across multiple printer models with automatic hardware configuration, calibration state preservation, and seamless GUI/CLI profile switching.
 
 ---
 
@@ -66,20 +68,20 @@ Defines the physical kinematics, stepper pinouts, direction inversions, step rot
 
 ### Directory Layout
 - **Factory Default Seeds**: `/opt/nebulaos-seeds/printer_profiles/<profile-id>/` (Immutable squashfs overlay)
-- **User Live Configurations**: `/usr/data/nebulaos/printer_profiles/<profile-id>/` (Mutable persistent flash)
-- **Active System Config**: `/usr/data/nebulaos/printer_data/config/` (Bound to `/opt/printer_data/config`)
-- **Historical Backups**: `/usr/data/nebulaos/backups/printer_config/`
+- **User Live Configurations**: `/usr/data/openke/printer_profiles/<profile-id>/` (Mutable persistent flash)
+- **Active System Config**: `/usr/data/openke/printer_data/config/` (Bound to `/opt/printer_data/config`)
+- **Historical Backups**: `/usr/data/openke/backups/printer_config/`
 
 ### State Preservation Flow
 1. When switching away from Profile A:
-   - The current `printer.cfg` (including all `SAVE_CONFIG` blocks, calibrated Z-offsets, bed meshes, and PID values) is saved to `/usr/data/nebulaos/printer_profiles/<Profile-A>/printer.cfg`.
-   - A timestamped backup is recorded under `/usr/data/nebulaos/backups/printer_config/`.
+   - The current `printer.cfg` (including all `SAVE_CONFIG` blocks, calibrated Z-offsets, bed meshes, and PID values) is saved to `/usr/data/openke/printer_profiles/<Profile-A>/printer.cfg`.
+   - A timestamped backup is recorded under `/usr/data/openke/backups/printer_config/`.
 2. When switching to Profile B:
    - If Profile B was previously calibrated by the user, its saved configuration and calibrations are restored.
    - If Profile B has never been used, it is seeded from factory defaults (`/opt/nebulaos-seeds/printer_profiles/<Profile-B>/`).
    - If non-KE profiles are selected, `mcu-auto-upgrade.disabled` is written to prevent serial contention during boot.
 3. Mainsail / Fluidd File Manager Integration:
-   - `/usr/data/nebulaos/printer_profiles/` is linked directly inside the Moonraker config root (`/opt/printer_data/config/printer_profiles`), allowing users to browse, download, and back up all printer profiles directly through the web UI.
+   - `/usr/data/openke/printer_profiles/` is linked directly inside the Moonraker config root (`/opt/printer_data/config/printer_profiles`), allowing users to browse, download, and back up all printer profiles directly through the web UI.
 
 ---
 

@@ -17,7 +17,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 BUILD_SCRIPT="$REPO_ROOT/scripts/build/04-cross-compile-app-stack.sh"
-HOST_MCU_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S54nebulaos-host-mcu"
+HOST_MCU_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S54openke-host-mcu"
 KLIPPER_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S55klipper"
 OPENKE_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/OpenKE_Settings.cfg"
 NEBULA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/Nebula.cfg"
@@ -37,9 +37,9 @@ pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 echo "--- File existence and permissions ---"
 
 if [ -x "$HOST_MCU_SERVICE" ]; then
-    pass "S54nebulaos-host-mcu exists and is executable"
+    pass "S54 host-mcu exists and is executable"
 else
-    fail "S54nebulaos-host-mcu missing or not executable at $HOST_MCU_SERVICE"
+    fail "S54 host-mcu missing or not executable at $HOST_MCU_SERVICE"
 fi
 
 if [ -f "$OPENKE_CFG" ]; then
@@ -192,13 +192,13 @@ fi
 # 5. S54nebulaos-host-mcu service: starts klipper_mcu, correct ordering
 # =========================================================================
 
-echo "--- S54nebulaos-host-mcu service behavior ---"
+echo "--- S54 host-mcu service behavior ---"
 
 if [ -f "$HOST_MCU_SERVICE" ]; then
     if grep -qF -- '--exec "$KLIPPER_HOST_MCU" -- -r -I "$SOCKET"' "$HOST_MCU_SERVICE"; then
-        pass "S54nebulaos-host-mcu starts /usr/bin/klipper_mcu with -r -I \$SOCKET (explicit socket path)"
+        pass "S54 host-mcu starts /usr/bin/klipper_mcu with -r -I \$SOCKET (explicit socket path)"
     else
-        fail "S54nebulaos-host-mcu does not start klipper_mcu with an explicit -I socket path"
+        fail "S54 host-mcu does not start klipper_mcu with an explicit -I socket path"
     fi
 
     # Architecture-review requirement: the service's socket path and
@@ -209,15 +209,15 @@ if [ -f "$HOST_MCU_SERVICE" ]; then
     SOCKET_IN_SERVICE=$(grep -oE '^SOCKET=.*' "$HOST_MCU_SERVICE" | cut -d= -f2)
     if [ -n "$SOCKET_IN_SERVICE" ] && [ -f "$NEBULA_CFG" ] \
         && grep -A1 "^\[mcu rpi\]$" "$NEBULA_CFG" | grep -qF "serial: $SOCKET_IN_SERVICE"; then
-        pass "S54nebulaos-host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
+        pass "S54 host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
     else
-        fail "S54nebulaos-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
+        fail "S54 host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
     fi
 
     if grep -q "FORCE_SHUTDOWN" "$HOST_MCU_SERVICE"; then
-        pass "S54nebulaos-host-mcu parks GPIOs via FORCE_SHUTDOWN before killing the process, matching stock's own shutdown handshake"
+        pass "S54 host-mcu parks GPIOs via FORCE_SHUTDOWN before killing the process, matching stock's own shutdown handshake"
     else
-        fail "S54nebulaos-host-mcu does not send FORCE_SHUTDOWN before stopping"
+        fail "S54 host-mcu does not send FORCE_SHUTDOWN before stopping"
     fi
 
     if [ -f "$KLIPPER_SERVICE" ]; then
@@ -225,15 +225,15 @@ if [ -f "$HOST_MCU_SERVICE" ]; then
         S55_NAME=$(basename "$KLIPPER_SERVICE")
         FIRST=$(printf '%s\n%s\n' "$S54_NAME" "$S55_NAME" | sort | head -1)
         if [ "$FIRST" = "$S54_NAME" ]; then
-            pass "S54nebulaos-host-mcu sorts before S55klipper - host MCU is available before Klippy starts"
+            pass "S54 host-mcu sorts before S55klipper - host MCU is available before Klippy starts"
         else
-            fail "S54nebulaos-host-mcu does not sort before S55klipper"
+            fail "S54 host-mcu does not sort before S55klipper"
         fi
     else
         fail "S55klipper not found - cannot verify ordering"
     fi
 else
-    fail "cannot check service behavior - S54nebulaos-host-mcu missing"
+    fail "cannot check service behavior - S54 host-mcu missing"
 fi
 
 # =========================================================================

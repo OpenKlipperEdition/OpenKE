@@ -103,13 +103,13 @@ if [ -n "$PRINTER_IP" ]; then
     if command -v ssh >/dev/null 2>&1; then
         echo "Pushing dev server config via SSH..."
         ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "root@$PRINTER_IP" \
-            "echo 'dev_server_url=$DEV_SERVER_URL' > /usr/data/nebulaos/openke-update.conf && echo 'dev_server_url=$DEV_SERVER_URL' > /tmp/openke-dev-url" \
+            "mkdir -p /usr/data/openke && echo 'dev_server_url=$DEV_SERVER_URL' > /usr/data/openke/openke-update.conf && echo 'dev_server_url=$DEV_SERVER_URL' > /tmp/openke-dev-url" \
             && echo "Successfully configured printer update server!" || echo "Could not SSH to printer (will rely on manual config)."
     fi
 else
     echo "To configure your printer to see this dev server:"
     echo "  1. SSH to printer: root@<PRINTER_IP>"
-    echo "  2. Run: echo 'dev_server_url=$DEV_SERVER_URL' > /usr/data/nebulaos/openke-update.conf"
+    echo "  2. Run: echo 'dev_server_url=$DEV_SERVER_URL' > /usr/data/openke/openke-update.conf"
     echo "     (Or create /usr/data/openke-dev-url containing: $DEV_SERVER_URL)"
     echo "  3. Open the Firmware Update panel on GuppyScreen and tap 'Scan USB'"
 fi

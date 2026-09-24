@@ -35,11 +35,11 @@ set -eu
 VARIANT="${1:?usage: $0 <R0|R1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$REPO_ROOT/build-work/preempt-variant-applied.txt"
 
-BEGIN_MARK="#--- NEBULAOS_PREEMPT_RT_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_PREEMPT_RT_VARIANT_END ---"
+BEGIN_MARK="#--- OPENKE_PREEMPT_RT_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_PREEMPT_RT_VARIANT_END ---"
 
 case "$VARIANT" in
 	R0|R1) ;;

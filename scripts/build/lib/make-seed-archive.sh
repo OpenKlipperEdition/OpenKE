@@ -68,7 +68,10 @@ make_seed_archive() {
 	# Preserve the cross-compiled helper as newer than the archived sources so
 	# first boot never falls back to an unavailable on-device gcc.
 	if [ -f "$tmp/klippy/chelper/c_helper.so" ]; then
-		touch -d "@$(( $(date +%s) + 31536000 ))" "$tmp/klippy/chelper/c_helper.so"
+		chelper_dir="$tmp/klippy/chelper"
+		newest=$(ls -t "$chelper_dir"/*.c "$chelper_dir"/*.h "$chelper_dir"/__init__.py 2>/dev/null | head -1)
+		[ -n "$newest" ] && touch -r "$newest" "$tmp/klippy/chelper/c_helper.so" 2>/dev/null || true
+		touch -d "@2000000000" "$tmp/klippy/chelper/c_helper.so" 2>/dev/null || true
 	fi
 
 	# Real bug found live (first full first-boot qualification, 2026-07-28):

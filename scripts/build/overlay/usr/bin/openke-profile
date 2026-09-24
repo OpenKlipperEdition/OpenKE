@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenKE / NebulaOS Multi-Printer Profile Manager
+OpenKE Multi-Printer Profile Manager
 Provides CLI, JSON API, and lifecycle management for printer models on Nebula Pad.
 Supports persistent per-profile configuration storage with automatic state restoration.
 """
@@ -15,11 +15,11 @@ import socket
 import urllib.request
 from datetime import datetime, timezone
 
-DEFAULT_SEEDS_DIR = "/opt/nebulaos-seeds/printer_profiles"
-USER_PROFILES_DIR = "/usr/data/nebulaos/printer_profiles"
-CONFIG_DIR = "/usr/data/nebulaos/printer_data/config"
-SYSTEM_DIR = "/usr/data/nebulaos/system"
-BACKUP_DIR = "/usr/data/nebulaos/backups/printer_config"
+DEFAULT_SEEDS_DIR = "/opt/openke-seeds/printer_profiles"
+USER_PROFILES_DIR = "/usr/data/openke/printer_profiles"
+CONFIG_DIR = "/usr/data/openke/printer_data/config"
+SYSTEM_DIR = "/usr/data/openke/system"
+BACKUP_DIR = "/usr/data/openke/backups/printer_config"
 ACTIVE_MARKER = os.path.join(SYSTEM_DIR, "active-profile.json")
 DEFAULT_PROFILE_ID = "creality-ender3-v3-ke"
 
@@ -217,7 +217,7 @@ def check_mcu_architecture_change(current_profile, target_profile, quiet=False):
             elif target_id == "creality-ender3-v2-neo":
                 print("  -> Firmware Binary: Ender3V2Neo_klipper.bin (Flash via SD card)")
             elif target_id == "creality-ender3-v3-ke":
-                print("  -> Firmware Binary: Built-in / Auto-upgraded via S57nebulaos-mcu-upgrade")
+                print("  -> Firmware Binary: Built-in / Auto-upgraded via S57openke-mcu-upgrade")
             else:
                 print(f"  -> Build binary for {target_mcu} using scripts/build/build-mcu-firmware.sh")
             print("=" * 76 + "\n")
@@ -324,7 +324,7 @@ def cmd_set(args):
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(active_data, f, indent=2)
 
-    # Manage MCU auto-upgrade service: only Ender-3 V3 KE uses S57nebulaos-mcu-upgrade
+    # Manage MCU auto-upgrade service: only Ender-3 V3 KE uses S57openke-mcu-upgrade
     mcu_disabled_marker = os.path.join(system_dir, "mcu-auto-upgrade.disabled")
     if target_id == DEFAULT_PROFILE_ID:
         if os.path.exists(mcu_disabled_marker):

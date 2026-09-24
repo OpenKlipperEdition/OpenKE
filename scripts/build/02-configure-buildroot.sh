@@ -17,7 +17,7 @@
 # or the kernel fragment/buildroot.config artifacts, and before 03/05 - a real
 # bug this session (FIRMWARE.md sec 24): editing the git-tracked overlay
 # template alone does nothing, since Buildroot only ever reads from
-# vendor/system/buildroot/board/halley5-nebulaos-overlay/ (gitignored), which
+# vendor/system/buildroot/board/halley5-openke-overlay/ (gitignored), which
 # this script is what syncs the template into. A rebuild after only touching
 # the template, without re-running this first, silently uses whatever this
 # script last copied there.
@@ -73,14 +73,14 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 # same shared vendor/system/buildroot tree - running two of these at once
 # (e.g. from two terminals) would silently interleave writes. Cheap
 # insurance: a single exclusive lock file, held for the whole script.
-exec 9>"$REPO_ROOT/.nebulaos-build.lock"
-flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
+exec 9>"$REPO_ROOT/.openke-build.lock"
+flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.openke-build.lock" >&2; exit 1; }
 
 BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 ARTIFACTS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 KERNEL_SRCDIR="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
-OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-libopenssl-fingerprint"
-BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.nebulaos-busybox-fingerprint"
+OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-libopenssl-fingerprint"
+BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-busybox-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/Makefile" ]; then
 	echo "vendor/system/buildroot not found - run 00-fetch-vendor-sources.sh first" >&2
@@ -89,13 +89,13 @@ fi
 
 cp "$ARTIFACTS/buildroot.config" "$BUILDROOT_DIR/.config"
 mkdir -p "$BUILDROOT_DIR/board"
-cp "$ARTIFACTS/halley5-nebulaos-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config"
-cp "$ARTIFACTS/halley5-nebulaos-busybox-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+cp "$ARTIFACTS/halley5-openke-fragment.config" "$BUILDROOT_DIR/board/halley5-openke-fragment.config"
+cp "$ARTIFACTS/halley5-openke-busybox-fragment.config" "$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config"
 if [ -f "$REPO_ROOT/scripts/build/configs/swupdate.config" ]; then
 	cp "$REPO_ROOT/scripts/build/configs/swupdate.config" "$BUILDROOT_DIR/package/swupdate/swupdate.config"
 fi
 # Phase 11 (2026-08-15): CONFIG_EXTRA_FIRMWARE_DIR in the tracked fragment
-# is a literal "/src/board/halley5-nebulaos-overlay/lib/firmware" - valid
+# is a literal "/src/board/halley5-openke-overlay/lib/firmware" - valid
 # only under the old nested pellcorp/k1-bash-build container, which always
 # mounted this project at the fixed path /src regardless of the host
 # checkout location. Now that the pipeline runs natively (real host paths
@@ -107,17 +107,17 @@ fi
 # diff verbatim against the accepted baseline tag) to point at where the
 # overlay's firmware actually lands post-copy below: real host path, so it
 # works from any checkout location.
-sed -i "s#/src/board/halley5-nebulaos-overlay#$BUILDROOT_DIR/board/halley5-nebulaos-overlay#" \
-	"$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config"
+sed -i "s#/src/board/halley5-openke-overlay#$BUILDROOT_DIR/board/halley5-openke-overlay#" \
+	"$BUILDROOT_DIR/board/halley5-openke-fragment.config"
 cat > "$BUILDROOT_DIR/local.mk" <<EOF
 LINUX_OVERRIDE_SRCDIR = $KERNEL_SRCDIR
 EOF
-rm -rf "$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
-cp -r "$REPO_ROOT/scripts/build/overlay/." "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/comms" \
-         "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/logs" \
-         "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/gcodes"
+rm -rf "$BUILDROOT_DIR/board/halley5-openke-overlay"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-overlay"
+cp -r "$REPO_ROOT/scripts/build/overlay/." "$BUILDROOT_DIR/board/halley5-openke-overlay/"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/comms" \
+         "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/logs" \
+         "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/gcodes"
 # Real bug found live on 2026-07-28: this rm -rf/cp only cleans the BOARD
 # overlay staging dir (above), not output/target/ or
 # output/build/buildroot-fs/ext2/target/ - per the IMPORTANT comment near
@@ -140,13 +140,47 @@ for obsolete_rel in \
 	"etc/init.d/S39wifi" \
 	"etc/init.d/S03nebulaos-factory-seed" \
 	"opt/printer_data/config/simpleaf" \
-	"etc/init.d/S04nebulaos-activate"; do
+	"etc/init.d/S04nebulaos-activate" \
+	"etc/init.d/S02nebulaos-boot-timing" \
+	"etc/init.d/S02nebulaos-namespace" \
+	"etc/init.d/S02nebulaos-wifi-irq-priority" \
+	"etc/init.d/S03nebulaos-diskswap" \
+	"etc/init.d/S04nebulaos-factory-seed" \
+	"etc/init.d/S04nebulaos-migrate" \
+	"etc/init.d/S05nebulaos-activate" \
+	"etc/init.d/S40nebulaos-ntpsync" \
+	"etc/init.d/S45nebulaos-cleanup" \
+	"etc/init.d/S46nebulaos-dropbear-keys" \
+	"etc/init.d/S51nebulaos-camera-idle-controller" \
+	"etc/init.d/S54nebulaos-host-mcu" \
+	"etc/init.d/S57nebulaos-camera-seed" \
+	"etc/init.d/S57nebulaos-mcu-upgrade" \
+	"etc/init.d/S59nebulaos-update-supervisor" \
+	"etc/init.d/S97nebulaos-display-qualified-apply" \
+	"etc/init.d/S98nebulaos-display-sleep-wake-controller" \
+	"etc/nebulaos-camera-idle-controller.sh" \
+	"etc/nebulaos-display-qualified.sh" \
+	"etc/nebulaos-display-sleep-wake-controller.sh" \
+	"etc/nebulaos-healthcheck.sh" \
+	"etc/nebulaos-maintenance-gate.sh" \
+	"etc/nebulaos-retention.sh" \
+	"etc/nebulaos-stable-mac.sh" \
+	"etc/nebulaos-update-supervisor.sh" \
+	"etc/nebulaos-wifi-boot-wait.sh" \
+	"etc/nebulaos-wifi-power-save.sh" \
+	"etc/sysctl.d/99-nebulaos-resilience.conf" \
+	"usr/libexec/nebulaos-display-qualified-write" \
+	"usr/libexec/nebulaos-seed-camera" \
+	"usr/libexec/nebulaos-wifi-power-save" \
+	"opt/nebulaos" \
+	"opt/nebulaos-seeds" \
+	"opt/nebulaos-version.json"; do
 	rm -rf "$BUILDROOT_DIR/output/target/$obsolete_rel" \
 	      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/$obsolete_rel" 2>/dev/null || true
 done
-rm -rf "$BUILDROOT_DIR/board/halley5-nebulaos-wheels"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-wheels"
-cp "$REPO_ROOT/scripts/build/vendor-wheels/"*.whl "$BUILDROOT_DIR/board/halley5-nebulaos-wheels/"
+rm -rf "$BUILDROOT_DIR/board/halley5-openke-wheels"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-wheels"
+cp "$REPO_ROOT/scripts/build/vendor-wheels/"*.whl "$BUILDROOT_DIR/board/halley5-openke-wheels/"
 cp "$REPO_ROOT/scripts/build/vendor-patches/python-matplotlib/python-matplotlib.mk" "$BUILDROOT_DIR/package/python-matplotlib/python-matplotlib.mk"
 
 echo "== normalizing .config (resolves any derived Kconfig selects) =="
@@ -175,7 +209,7 @@ busybox_input_fingerprint() {
 		printf 'system_pin=%s\n' "$SYSTEM_PIN"
 		sha256sum \
 			"$BUILDROOT_DIR/.config" \
-			"$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+			"$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config"
 	} | sha256sum | awk '{print $1}'
 }
 

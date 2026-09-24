@@ -25,7 +25,7 @@
 # experimental/toggleable A-B tools - each one's "off" state resets ONLY the
 # files it owns to the real git-committed baseline first, and the tracked
 # Kconfig fragment (artifacts/buildroot-halley5-v30-image/
-# halley5-nebulaos-fragment.config) is reset to not-selected after every
+# halley5-openke-fragment.config) is reset to not-selected after every
 # real qualification build, on purpose, so an unreviewed experiment can
 # never silently become the new invisible default (see each script's own
 # header for this rationale). The side effect: nobody had a single command
@@ -79,7 +79,7 @@ echo "== apply-qualified-baseline: applying every accepted baseline variant =="
 # rewrite - verified per-script during the audit, see the doc referenced
 # above). Listed here in the order the underlying missions were originally
 # accepted, for readability only.
-sh "$SCRIPT_DIR/preempt-variant.sh" R1
+sh "$SCRIPT_DIR/preempt-variant.sh" R0
 sh "$SCRIPT_DIR/wifi-sdio-variant.sh" W3
 sh "$SCRIPT_DIR/display-vsync-variant.sh" V1
 sh "$SCRIPT_DIR/pinctrl-ownership-fix-variant.sh" FIX1

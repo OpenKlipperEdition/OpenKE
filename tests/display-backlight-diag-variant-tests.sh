@@ -28,7 +28,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/display-backlight-diag-variant.sh"
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
 DTS="$SYSTEM_DIR/$DTS_REL"
 DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_probe_diag.c"
@@ -253,8 +253,8 @@ probe_cmd_body=$(awk '/^static int nebulaos_bl_diag_cmd_probe/,/^}/' "$DRIVER")
 # with -EINVAL at the parser level, never reaching probe logic in the
 # first place. ---
 command_write_body=$(awk '/^static ssize_t nebulaos_bl_diag_command_write/,/^}/' "$DRIVER")
-whitelist_check_line=$(echo "$command_write_body" | grep -n 'if (rest && \*rest)' | head -1 | cut -d: -f1)
-dispatch_line=$(echo "$command_write_body" | grep -n 'if (!strcmp(cmd, "status"))' | head -1 | cut -d: -f1)
+whitelist_check_line=$(printf '%s\n' "$command_write_body" | grep -n 'if (rest && \*rest)' | head -1 | cut -d: -f1)
+dispatch_line=$(printf '%s\n' "$command_write_body" | grep -n 'if (!strcmp(cmd, "status"))' | head -1 | cut -d: -f1)
 if [ -n "$whitelist_check_line" ] && [ -n "$dispatch_line" ] && [ "$whitelist_check_line" -lt "$dispatch_line" ]; then
 	pass
 else

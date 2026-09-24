@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Builds a self-contained, verified SWUpdate package (.swu) for OpenKE / NebulaOS.
+# Builds a self-contained, verified SWUpdate package (.swu) for OpenKE.
 #
 # Generates a libconfig-formatted sw-description with SHA256 digests, bundles
 # the kernel image (xImage -> /dev/mmcblk0p6), rootfs image (rootfs.squashfs
@@ -46,6 +46,7 @@ if [ ! -f "$ROOTFS_IMAGE" ]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
 WORK_DIR=$(mktemp -d "/tmp/openke-swu-build.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT INT TERM
 
@@ -174,11 +175,11 @@ PYEOF
 	fi
 
 	# 5. Snapshot user printer configuration before update
-	if [ -d /usr/data/nebulaos/printer_data/config ]; then
+	if [ -d /usr/data/openke/printer_data/config ]; then
 		backup_tag=$(date +%Y%m%d_%H%M%S 2>/dev/null || echo "auto")
-		backup_dir="/usr/data/nebulaos/backups/printer_config/pre_swupdate_${backup_tag}"
+		backup_dir="/usr/data/openke/backups/printer_config/pre_swupdate_${backup_tag}"
 		mkdir -p "$backup_dir" 2>/dev/null || true
-		cp -a /usr/data/nebulaos/printer_data/config/. "$backup_dir/" 2>/dev/null || true
+		cp -a /usr/data/openke/printer_data/config/. "$backup_dir/" 2>/dev/null || true
 		echo "OpenKE SWUpdate pre-install: User configuration preserved to $backup_dir"
 	fi
 
@@ -215,19 +216,23 @@ elif [ "$TARGET_SLOT" = "slot2" ]; then
 fi
 
 # Sync runtime platform markers to persistent Klipper checkout if mounted
-if [ -d /usr/data/nebulaos/apps/klipper/.git ]; then
+klipper_app=""
+if [ -d /usr/data/openke/apps/klipper/.git ]; then
+	klipper_app="/usr/data/openke/apps/klipper"
+fi
+if [ -n "$klipper_app" ]; then
 	echo "Syncing platform runtime markers to persistent Klipper checkout..."
-	if [ -f /opt/nebulaos-seeds/klipper-chelper-verdict.json ]; then
-		cp /opt/nebulaos-seeds/klipper-chelper-verdict.json /usr/data/nebulaos/apps/klipper/.nebulaos-chelper-verdict.json 2>/dev/null || true
+	if [ -f /opt/openke-seeds/klipper-chelper-verdict.json ]; then
+		cp /opt/openke-seeds/klipper-chelper-verdict.json "$klipper_app/.nebulaos-chelper-verdict.json" 2>/dev/null || true
 	elif [ -f /opt/klipper/.nebulaos-chelper-verdict.json ]; then
-		cp /opt/klipper/.nebulaos-chelper-verdict.json /usr/data/nebulaos/apps/klipper/.nebulaos-chelper-verdict.json 2>/dev/null || true
+		cp /opt/klipper/.nebulaos-chelper-verdict.json "$klipper_app/.nebulaos-chelper-verdict.json" 2>/dev/null || true
 	fi
-	if [ -d /usr/data/nebulaos/apps/klipper/.git/info ]; then
-		printf '/.nebulaos-chelper-verdict.json\n' >> /usr/data/nebulaos/apps/klipper/.git/info/exclude 2>/dev/null || true
+	if [ -d "$klipper_app/.git/info" ]; then
+		printf '/.nebulaos-chelper-verdict.json\n' >> "$klipper_app/.git/info/exclude" 2>/dev/null || true
 	fi
 	if [ -f /opt/klipper/scripts/install-octopi.sh ]; then
-		mkdir -p /usr/data/nebulaos/apps/klipper/scripts
-		cp /opt/klipper/scripts/install-octopi.sh /usr/data/nebulaos/apps/klipper/scripts/ 2>/dev/null || true
+		mkdir -p "$klipper_app/scripts"
+		cp /opt/klipper/scripts/install-octopi.sh "$klipper_app/scripts/" 2>/dev/null || true
 	fi
 fi
 
@@ -236,8 +241,8 @@ echo "openke ${VERSION}" > /etc/sw-versions 2>/dev/null || true
 echo "${VERSION}" > /etc/openke-version 2>/dev/null || true
 
 # Write pending what's new changelog for GuppyScreen on first boot
-mkdir -p /usr/data/nebulaos 2>/dev/null || true
-cat > /usr/data/nebulaos/.pending_whats_new <<'CL_EOF'
+mkdir -p /usr/data/openke 2>/dev/null || true
+cat > /usr/data/openke/.pending_whats_new <<'CL_EOF'
 __CHANGELOG_CONTENT__
 CL_EOF
 
