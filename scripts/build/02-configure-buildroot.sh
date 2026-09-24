@@ -188,8 +188,12 @@ echo "== normalizing .config (resolves any derived Kconfig selects) =="
 # The checkout may be mounted on a filesystem (for example a Windows/WSL
 # bind mount) that cannot represent the numeric owners stored in some source
 # archives.  Keep extraction portable by making Buildroot's tar invocations
-# ignore archive ownership metadata; this is a command-line override so the
-# tracked baseline .config remains unchanged.
+# If conf was compiled on a host with newer libc than the container, wipe it so make rebuilds it
+if [ -f "$BUILDROOT_DIR/output/build/buildroot-config/conf" ]; then
+	if ! "$BUILDROOT_DIR/output/build/buildroot-config/conf" -h >/dev/null 2>&1; then
+		rm -rf "$BUILDROOT_DIR/output/build/buildroot-config"
+	fi
+fi
 ( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner olddefconfig )
 
 # Buildroot does not invalidate package stamps when a package suboption or
