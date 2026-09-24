@@ -7,6 +7,7 @@
 # re-sync the overlay or force a kernel rebuild itself, so a change to
 # either that hasn't gone through 02/03 first will silently not appear here.
 set -e
+export FORCE_UNSAFE_CONFIGURE=1
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)

@@ -72,6 +72,7 @@
 # 02-configure-buildroot.sh's own Phase 11 note for why (one unified
 # container now, no per-stage container boundary, no per-stage apt-get).
 set -e
+export FORCE_UNSAFE_CONFIGURE=1
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)

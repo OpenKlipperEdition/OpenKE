@@ -111,6 +111,7 @@ exec "$ENGINE" run --rm \
 	-e HOME=/tmp \
 	-e OPENKE_REPO_ROOT="$OPENKE_REPO_ROOT" \
 	-e OPENKE_CANDIDATE_BUILD="${OPENKE_CANDIDATE_BUILD:-0}" \
+	-e FORCE_UNSAFE_CONFIGURE=1 \
 	-v "$SCRIPT_DIR:$OPENKE_REPO_ROOT" \
 	-v "$SCRIPT_DIR:/workspace/NebulaOS-firmware" \
 	-w "$OPENKE_REPO_ROOT" \
