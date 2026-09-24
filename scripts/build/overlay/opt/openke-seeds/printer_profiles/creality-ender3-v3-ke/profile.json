@@ -1,0 +1,17 @@
+{
+  "id": "creality-ender3-v3-ke",
+  "name": "Ender-3 V3 KE",
+  "manufacturer": "Creality",
+  "kinematics": "cartesian",
+  "bed_size": [
+    220,
+    220,
+    240
+  ],
+  "max_velocity": 500,
+  "max_accel": 8000,
+  "probe": "cr_touch",
+  "mcu": "GD32F303",
+  "description": "Creality Ender-3 V3 KE native configuration",
+  "enabled": true
+}

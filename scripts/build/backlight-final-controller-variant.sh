@@ -1,7 +1,7 @@
 #!/bin/sh
 # Applies the DISPLAY-B-FINAL kernel-owned backlight final controller
 # (post-incident redesign, 2026-08-02+ - see
-# vendor/x2000_kernel_6.6/kernel/kernel-6.6/module_drivers/drivers/misc/
+# vendor/system/kernel/kernel-6.6/module_drivers/drivers/misc/
 # nebulaos_backlight_final_controller.c's own file header for the full
 # incident writeup and design rationale, and
 # scripts/build/patches/backlight-final-controller.patch) to the vendor
@@ -82,23 +82,23 @@ set -eu
 VARIANT="${1:?usage: $0 <FINAL0|FINAL1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/backlight-final-controller.patch"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+DTS="$SYSTEM_DIR/$DTS_REL"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$REPO_ROOT/build-work/backlight-final-controller-variant-applied.txt"
 
 NEW_DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c"
 
-BEGIN_MARK="#--- NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_END ---"
+BEGIN_MARK="#--- OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_END ---"
 # Plain alphanumeric+underscore only, same rationale as
 # display-backlight-diag-variant.sh's DTS_MARK_BEGIN/END - used directly as
 # an unanchored sed /pattern/ substring match, avoiding any need to
 # regex-escape the /* */ C-comment delimiters wrapped around it in the DTS.
-DTS_MARK_BEGIN="NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN"
-DTS_MARK_END="NEBULAOS_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_END"
+DTS_MARK_BEGIN="OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_BEGIN"
+DTS_MARK_END="OPENKE_BACKLIGHT_FINAL_CONTROLLER_VARIANT_DTS_END"
 
 case "$VARIANT" in
 	FINAL0|FINAL1) ;;
@@ -128,10 +128,10 @@ esac
 # `git checkout --` on it alone would fail with "did not match any files" -
 # remove it directly instead, then let a fresh `git apply` recreate it if
 # FINAL1 was requested.
-git -C "$KERNEL_DIR" checkout -- \
+git -C "$SYSTEM_DIR" checkout -- \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Makefile
-rm -f "$KERNEL_DIR/$NEW_DRIVER_REL"
+rm -f "$SYSTEM_DIR/$NEW_DRIVER_REL"
 
 # The DTS IS shared with wifi-sdio-variant.sh/display-backlight-diag-
 # variant.sh (unrelated &msc1/&pwm nodes and top-level nodes of their own).
@@ -168,7 +168,7 @@ if grep -qF "$BEGIN_MARK" "$FRAGMENT"; then
 fi
 
 if [ "$VARIANT" = "FINAL1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 
 	# Append-only: a single new top-level node. Deliberately does NOT
 	# touch &pwm's pinctrl-0 - see the file header above and

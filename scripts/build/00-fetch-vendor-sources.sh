@@ -1,6 +1,7 @@
 #!/bin/sh
-# Clone/download every third-party source this build needs, pinned to the
-# exact refs this project used. See FIRMWARE.md for why each one was chosen.
+# Clone/download every third-party source this build needs. Dependencies use
+# exact refs except GuppyScreen, which intentionally follows its configured
+# moving branch. See FIRMWARE.md for provenance.
 #
 # 2026-08-07 baseline-repair mission: pins now live in one authoritative
 # file, manifests/dependencies.conf, sourced below - not scattered as
@@ -19,26 +20,27 @@ MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 }
 . "$MANIFEST"
 
-require_pin() {
+require_setting() {
 	var_name="$1"
 	eval "val=\${$var_name:-}"
 	if [ -z "$val" ] || [ "$val" = "UNPINNED_MUST_SET_BEFORE_BUILD" ]; then
-		echo "FATAL: $var_name is missing or unset in $MANIFEST - every dependency must have a real pin, no defaults" >&2
+		echo "FATAL: $var_name is missing or unset in $MANIFEST - this required setting is missing" >&2
 		exit 1
 	fi
 }
 
-for required in KERNEL_REPO KERNEL_BRANCH KERNEL_PIN BUILDROOT_REPO BUILDROOT_PIN \
-	PELLCORP_CREALITY_REPO PELLCORP_CREALITY_PIN KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN \
+for required in SYSTEM_REPO SYSTEM_PIN \
+	KLIPPER_REPO KLIPPER_BRANCH KLIPPER_PIN KLIPPER_EXTRAS_REPO KLIPPER_EXTRAS_PIN \
+	MCU_REPO MCU_PIN MCU_METADATA_VERSION MCU_EXPECTED_HW_ID \
 	MOONRAKER_REPO MOONRAKER_PIN K1_USTREAMER_REPO K1_USTREAMER_PIN \
 	V4L_UTILS_REPO V4L_UTILS_PIN V4L_UTILS_ARCHIVE_URL V4L_UTILS_ARCHIVE_SHA256 \
 	MAINSAIL_TAG MAINSAIL_SHA256 \
 	WIFI_FIRMWARE_RELEASE_TAG WIFI_FIRMWARE_RELEASE_URL WIFI_FIRMWARE_ARCHIVE_SHA256 \
 	WIFI_FIRMWARE_TXT_SHA256 WIFI_FIRMWARE_BIN_SHA256 WIFI_FIRMWARE_CLM_SHA256 \
-	GUPPYSCREEN_REPO GUPPYSCREEN_BRANCH GUPPYSCREEN_PIN GUPPYSCREEN_VERSION GUPPYSCREEN_THEME; do
-	require_pin "$required"
+	GUPPYSCREEN_REPO GUPPYSCREEN_PIN GUPPYSCREEN_THEME OPENKE_VERSION; do
+	require_setting "$required"
 done
-echo "== all required pins present in $MANIFEST =="
+echo "== all required dependency settings present in $MANIFEST =="
 
 # 2026-08-07 baseline-repair mission: wireless-regdb (regulatory.db, its
 # .p7s signature, and its LICENSE) is ISC-licensed and freely fetchable -
@@ -55,7 +57,7 @@ sh "$SCRIPT_DIR/../firmware/fetch-wireless-regdb.sh"
 # directly from Infineon's own upstream repo and hash-verified inside that
 # script itself (WIFI_FIRMWARE_BIN_SHA256/WIFI_FIRMWARE_CLM_SHA256 above).
 # Required to compile the kernel (CONFIG_EXTRA_FIRMWARE embeds both - see
-# artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config),
+# artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config),
 # not just to boot. See docs/NEBULAOS_WIFI_125_ENGINEERING_TEST.md for the
 # full qualification history behind this pin.
 sh "$SCRIPT_DIR/../firmware/fetch-cyw43430-wifi-firmware.sh"
@@ -120,28 +122,24 @@ echo "== WiFi firmware + CLM + NVRAM present and pin-verified =="
 mkdir -p "$VENDOR"
 cd "$VENDOR"
 
+# The former standalone Buildroot checkout is obsolete now that the full OKE
+# System repository supplies both the kernel and Buildroot. It is generated
+# vendor state, so remove only this explicit legacy checkout before proceeding.
+if [ -d "buildroot-x2000" ] || [ -L "buildroot-x2000" ]; then
+	echo "== removing obsolete standalone vendor/buildroot-x2000 checkout =="
+	rm -rf -- "buildroot-x2000"
+fi
+
 clone_pinned() {
 	name="$1"; url="$2"; ref="$3"; extra="$4"
-	staged_output=
 	if [ -d "$name/.git" ]; then
 		echo "== $name already present, verifying pin (not re-cloning) =="
 	else
-		# The CI cache can restore vendor/buildroot-x2000/output before the
-		# pinned source checkout exists. It can also restore an empty
-		# vendor/buildroot-x2000 parent left by a failed first clone. Do not
-		# let either cache-only shape make the real clone fail with Git's
-		# "destination path already exists and is not an empty directory"
-		# error. Preserve a real output tree while cloning, but reject any
-		# other unexpected contents instead of deleting them.
 		if [ -e "$name" ]; then
 			unexpected=$(find "$name" -mindepth 1 -maxdepth 1 ! -name output -print -quit)
 			if [ -n "$unexpected" ]; then
 				echo "FATAL: vendor/$name exists but is not a pinned git checkout and contains unexpected content: $unexpected" >&2
 				exit 1
-			fi
-			if [ "$name" = "buildroot-x2000" ] && [ -d "$name/output" ]; then
-				staged_output=$(mktemp -d "$VENDOR/.buildroot-output.XXXXXX")
-				mv "$name/output" "$staged_output/output"
 			fi
 			rmdir "$name" || {
 				echo "FATAL: vendor/$name could not be cleared safely before cloning" >&2
@@ -152,11 +150,6 @@ clone_pinned() {
 		git clone $extra "$url" "$name"
 		git -C "$name" fetch origin "$ref" 2>/dev/null || true
 		git -C "$name" checkout "$ref"
-		if [ -n "$staged_output" ]; then
-			mv "$staged_output/output" "$name/output"
-			rmdir "$staged_output"
-			echo "== restored cached $name/output after cloning =="
-		fi
 	fi
 	# Pin enforcement (2026-07-31, NEBULAOS_CAMERA_USB_RT_SOURCE_ANALYSIS.md's
 	# vendor-pin audit): previously this function only checked out the pinned
@@ -180,89 +173,134 @@ clone_pinned() {
 	echo "== $name pinned commit verified ($expected) =="
 }
 
-# X2000 kernel SDK, OpenKE fork (FIRMWARE.md sec 39): coreflake1/NebulaOS-kernel
-# (renamed 2026-08-14 from coreflake1/NebulaOS) is a real GitHub fork of the
-# original upstream (Llixuma/ingenic-linux-kernel6.6-x2000-v1.0-20250221 @
-# a98c2e1, "initial release"), with every OpenKE change
-# (NS2009 touch, the display panel driver, BT H5 vendor ext, watchdog fix, DTS
-# wiring, arch/mips/Kconfig compression selects) as one real, reviewable commit
-# on the `openke` branch, rather than a patch file applied at build time -
-# `main` on the fork tracks upstream unmodified. Sparse-checked-out to
-# kernel/kernel-6.6 only (the full repo is ~684MB).
-#
-# Special-cased (not clone_pinned) because of the sparse-checkout step - the
-# pin itself still comes from the manifest (KERNEL_PIN), enforced the same
-# fail-loudly way.
-if [ ! -d "x2000_kernel_6.6/.git" ]; then
-	echo "== cloning x2000_kernel_6.6 (sparse: kernel/kernel-6.6 only) =="
-	git clone --filter=blob:none --sparse \
-		"$KERNEL_REPO" \
-		x2000_kernel_6.6
-	git -C x2000_kernel_6.6 sparse-checkout set kernel/kernel-6.6
-	# Phase 11 (2026-08-15): checkout $KERNEL_PIN directly, not
-	# $KERNEL_BRANCH - a real, previously-latent bug found live doing the
-	# Phase 9-vs-Phase-11 rebuild-and-compare test. openke is a real,
-	# actively-pushed-to branch (kernel changes AND this repo's own docs
-	# both land real commits there - see coreflake1/NebulaOS-kernel's own
-	# README), so checking out the branch NAME lands wherever that branch's
-	# tip happens to be at clone time, not necessarily at KERNEL_PIN -
-	# exactly what happened here: a docs-only commit pushed to openke after
-	# this pin was recorded moved the branch tip past it, and a fresh clone
-	# landed on that newer commit, failing the fail-loud check below (this
-	# check did its job - it's the checkout strategy that was wrong, not
-	# the verification). Checking out the pin directly makes a fresh clone
-	# correct by construction; the verification below stays as defense in
-	# depth for the "already present, skipping clone" branch, where a
-	# previous run could have left the checkout on any ref.
-	git -C x2000_kernel_6.6 checkout "$KERNEL_PIN"
-else
-	echo "== x2000_kernel_6.6 already present, skipping clone =="
-fi
-kernel_actual=$(git -C x2000_kernel_6.6 rev-parse HEAD)
-if [ "$kernel_actual" != "$KERNEL_PIN" ]; then
-	echo "FATAL: vendor/x2000_kernel_6.6 HEAD is $kernel_actual, expected pinned commit $KERNEL_PIN" >&2
-	echo "The $KERNEL_BRANCH branch has moved (or this checkout was never on the pinned commit)." >&2
-	echo "If this is a deliberate, reviewed pin bump, update KERNEL_PIN in $MANIFEST." >&2
-	echo "Otherwise: git -C vendor/x2000_kernel_6.6 checkout $KERNEL_PIN" >&2
+# Moving-branch dependencies are refreshed on every build.
+# Each checkout follows the current tip of its configured upstream branch.
+# Each refresh uses a depth-1 history so the moving branch never accumulates history.
+# Generated build files are discarded before refresh so stale outputs cannot drift the checkout.
+clone_branch() {
+	name="$1"; url="$2"; branch="$3"
+	if [ -d "$name/.git" ]; then
+		if [ "$(git -C "$name" rev-parse --is-shallow-repository 2>/dev/null || echo false)" != true ]; then
+			echo "== $name is a full checkout; replacing it with a depth-1 shallow clone =="
+			git -C "$name" reset --hard >/dev/null
+			git -C "$name" clean -fdx >/dev/null
+			git -C "$name" submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
+			staging="$VENDOR/.${name}.shallow.$$"
+			if [ -e "$staging" ]; then
+				echo "FATAL: shallow-clone staging path already exists: $staging" >&2
+				exit 1
+			fi
+			git clone --depth 1 --single-branch --branch "$branch" "$url" "$staging"
+			rm -rf "$name"
+			mv "$staging" "$name"
+		else
+			echo "== $name already present, refreshing shallow origin/$branch =="
+			git -C "$name" remote set-url origin "$url"
+			git -C "$name" reset --hard >/dev/null
+			git -C "$name" clean -fdx >/dev/null
+			git -C "$name" submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
+		fi
+	else
+		echo "== cloning $name from $url ($branch, depth 1) =="
+		git clone --depth 1 --single-branch --branch "$branch" "$url" "$name"
+	fi
+	git -C "$name" fetch --prune --depth 1 origin "$branch"
+	git -C "$name" checkout -B "$branch" "origin/$branch"
+	git -C "$name" reset --hard "origin/$branch" >/dev/null
+	actual=$(git -C "$name" rev-parse HEAD)
+	remote=$(git -C "$name" rev-parse "origin/$branch")
+	[ "$actual" = "$remote" ] || {
+		echo "FATAL: vendor/$name did not land on origin/$branch" >&2
+		exit 1
+	}
+	echo "== $name follows latest origin/$branch HEAD ($actual) =="
+}
+
+# Open Klipper Edition System (FIRMWARE.md sec 39). The full OKE checkout
+# supplies both the Linux kernel and the Buildroot tree used by this build.
+# It is pinned to SYSTEM_PIN; an already-present checkout at that commit is
+# left untouched so generated Buildroot state survives.
+legacy_system_dir=x2000_kernel_6.6
+if [ ! -e "system" ] && [ -d "$legacy_system_dir/.git" ]; then
+	echo "== migrating legacy $legacy_system_dir checkout to system =="
+	mv -- "$legacy_system_dir" system
+elif [ -e "$legacy_system_dir" ]; then
+	echo "FATAL: legacy vendor/$legacy_system_dir exists alongside vendor/system; remove or rename it before building" >&2
 	exit 1
 fi
-echo "== x2000_kernel_6.6 pinned commit verified ($KERNEL_PIN) =="
+if [ -e "system" ] && [ ! -d "system/.git" ]; then
+	echo "FATAL: vendor/system exists but is not a git checkout" >&2
+	exit 1
+fi
+if [ ! -d "system/.git" ]; then
+	echo "== initializing full OpenKlipperEdition/System at pinned commit =="
+	git init system >/dev/null
+	git -C system remote add origin "$SYSTEM_REPO"
+	git -C system fetch --depth 1 origin "$SYSTEM_PIN"
+	git -C system checkout --detach "$SYSTEM_PIN"
+else
+	echo "== system already present, checking pinned commit =="
+fi
+system_actual=$(git -C system rev-parse HEAD)
+[ "$system_actual" = "$SYSTEM_PIN" ] || {
+	echo "== system is $system_actual, switching it to pinned $SYSTEM_PIN =="
+	git -C system remote set-url origin "$SYSTEM_REPO"
+	git -C system reset --hard >/dev/null
+	# A pin change invalidates generated state, including Buildroot's
+	# downloaded-source cache; do not carry sources across System pins.
+	git -C system clean -fdx >/dev/null
+	git -C system fetch --depth 1 origin "$SYSTEM_PIN"
+	git -C system checkout --detach "$SYSTEM_PIN"
+}
+system_actual=$(git -C system rev-parse HEAD)
+[ "$system_actual" = "$SYSTEM_PIN" ] || {
+	echo "FATAL: vendor/system did not land on pinned commit $SYSTEM_PIN" >&2
+	exit 1
+}
+[ -f "system/buildroot/Makefile" ] || {
+	echo "FATAL: full OpenKlipperEdition/System checkout is missing buildroot/Makefile" >&2
+	exit 1
+}
+[ -f "system/kernel/kernel-6.6/Makefile" ] || {
+	echo "FATAL: full OpenKlipperEdition/System checkout is missing kernel/kernel-6.6/Makefile" >&2
+	exit 1
+}
+echo "== system matches pinned commit $system_actual; kernel + buildroot present =="
 
-# Buildroot config for this board family (Phase 0's find).
-clone_pinned buildroot-x2000 "$BUILDROOT_REPO" "$BUILDROOT_PIN"
 
-# SimpleAF's real workflow/config/installer repo (pellcorp/creality) - this
-# project's own vocabulary has always used "SimpleAF" to mean this repo, not
-# just the pellcorp/klipper engine fork above, but until the 2026-07-29
-# SimpleAF backend integration mission it had only ever been fetched live via
-# WebFetch/GitHub-API for comparison, never actually vendored - the resulting
-# gap is documented in docs/NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md. Resolved
-# and pinned to its real HEAD at fetch time (2026-07-29) rather than tracking
-# `main`, per this project's own "never analyze/build against a moving
-# branch" rule. No LICENSE/COPYING file exists anywhere in this repo, and
-# GitHub's API reports "license": null - vendored anyway per an explicit,
-# recorded user decision (see this project's own memory record
-# feedback_simpleaf_license_risk_accepted.md), not a default assumption of
-# rights. Only a handful of its config/*.cfg files are actually vendored into
-# this project's own overlay (scripts/build/overlay/opt/printer_data/config/
-# simpleaf/) - see that directory's own per-file header comments for exactly
-# which ones and why (e.g. config/bltouch.cfg's placeholder hardware values
-# are deliberately NOT used, this project's own physically-qualified
-# printer.cfg hardware section is authoritative instead). k1/internal_macros.cfg
-# is deliberately not vendored at all - every command in it targets Creality-
-# installer-only paths (/usr/data/pellcorp/...), systemctl (no systemd here),
-# or a different camera architecture than NebulaOS's own database-seeded one.
-clone_pinned pellcorp-creality "$PELLCORP_CREALITY_REPO" "$PELLCORP_CREALITY_PIN"
-
-# NebulaOS's own fork of SimpleAF's Klipper (coreflake1/NebulaOS-klipper,
-# `nebulaos` branch) - Track 1's "SimpleAF + the probe" decision applies here
-# too: pellcorp/klipper @ 386fde4 is still the base this whole app stack
-# targets, but every klippy_extras/ file this project needs (tmcstatus,
-# guppy_config_helper, guppy_module_loader, calibrate_shaper_config,
-# prtouch_v2 + companions, z_compensate) is committed into this fork's own
-# tracked history on top of that commit, instead of being copied in as
-# untracked files by 04-cross-compile-app-stack.sh after every fetch.
+# Official upstream Klipper remains the runtime. Pin it to the commit
+# qualified by nebulaos-extensions.json so the extension API check is honest.
 clone_pinned klipper "$KLIPPER_REPO" "$KLIPPER_PIN"
+
+# Fetch the pinned NebulaOS checkout as an extras source only. Stage 04 copies
+# the selected modules into the mainline checkout before packaging it.
+clone_pinned klipper-extensions "$KLIPPER_EXTRAS_REPO" "$KLIPPER_EXTRAS_PIN"
+for extra in \
+	bl24c16f.py \
+	guppy_config_helper.py \
+	guppy_module_loader.py \
+	calibrate_shaper_config.py \
+	gcode_shell_command.py \
+	tmcstatus.py \
+	nebulaos_calibration.py \
+	nebulaos_compat.py \
+	nebulaos_plr_journal.py \
+	nebulaos_power_loss_recovery.py \
+	nebulaos_probe_pair.py \
+	nebulaos_temperature_mcu.py \
+	nebulaos_version.py \
+	nebulaos_z_offset_probe.py \
+	nozzle_clear.py \
+	prtouch_test_support.py \
+	virtual_pins.py \
+	z_compensate.py; do
+	[ -s "klipper-extensions/extras/$extra" ] || {
+		echo "FATAL: pinned NebulaOS extensions checkout is missing extras/$extra" >&2
+		exit 1
+	}
+done
+echo "== pinned NebulaOS Klipper extensions present under extras/ =="
+clone_pinned klipper-mcu "$MCU_REPO" "$MCU_PIN"
 
 # Official Moonraker - not a fork, no reason to deviate.
 clone_pinned moonraker "$MOONRAKER_REPO" "$MOONRAKER_PIN"
@@ -317,7 +355,10 @@ if [ ! -d v4l-utils/.git ]; then
 	fi
 	rm -rf v4l-utils
 	mkdir -p v4l-utils
-	tar xzf "$V4L_UTILS_ARCHIVE" -C v4l-utils
+	# Do not restore archive owners. The pinned source archive was created
+	# with a non-root owner; preserving that metadata makes Git reject the
+	# checkout as dubious when the build runs as root in the container.
+	tar --no-same-owner -xzf "$V4L_UTILS_ARCHIVE" -C v4l-utils
 	echo "== v4l-utils pinned archive verified and extracted =="
 fi
 v4l_utils_actual=$(git -C v4l-utils rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -336,9 +377,35 @@ echo "== v4l-utils pinned commit verified ($V4L_UTILS_PIN) =="
 # structured status contract) - previously NOT pinned or fetched by this
 # script at all (see manifests/dependencies.conf's own comment on this gap);
 # the actual cross-compile happens in 04-cross-compile-app-stack.sh, this
-# stage only fetches/verifies the pinned source.
-clone_pinned nebulaos-guppyscreen "$GUPPYSCREEN_REPO" "$GUPPYSCREEN_PIN"
-git -C nebulaos-guppyscreen submodule update --init --depth 1
+# stage only fetches and refreshes the moving source.
+if [ -e guppyscreen ] && [ ! -d guppyscreen/.git ]; then
+	echo "FATAL: vendor/guppyscreen exists but is not a git checkout" >&2
+	exit 1
+fi
+if [ ! -d guppyscreen/.git ]; then
+	echo "== initializing GuppyScreen at pinned commit $GUPPYSCREEN_PIN =="
+	git init guppyscreen >/dev/null
+	git -C guppyscreen remote add origin "$GUPPYSCREEN_REPO"
+	git -C guppyscreen fetch --depth 1 origin "$GUPPYSCREEN_PIN"
+	git -C guppyscreen checkout --detach "$GUPPYSCREEN_PIN"
+else
+	guppyscreen_actual=$(git -C guppyscreen rev-parse HEAD)
+	if [ "$guppyscreen_actual" != "$GUPPYSCREEN_PIN" ]; then
+		echo "== GuppyScreen is $guppyscreen_actual, switching it to pinned $GUPPYSCREEN_PIN =="
+		git -C guppyscreen remote set-url origin "$GUPPYSCREEN_REPO"
+		git -C guppyscreen reset --hard >/dev/null
+		git -C guppyscreen clean -fdx >/dev/null
+		git -C guppyscreen submodule foreach --recursive 'git reset --hard && git clean -fdx' >/dev/null 2>&1 || true
+		git -C guppyscreen fetch --depth 1 origin "$GUPPYSCREEN_PIN"
+		git -C guppyscreen checkout --detach "$GUPPYSCREEN_PIN"
+	fi
+fi
+guppyscreen_actual=$(git -C guppyscreen rev-parse HEAD)
+[ "$guppyscreen_actual" = "$GUPPYSCREEN_PIN" ] || {
+	echo "FATAL: vendor/guppyscreen did not land on pinned commit $GUPPYSCREEN_PIN" >&2
+	exit 1
+}
+git -C guppyscreen submodule update --init --depth 1
 
 # Submodule patches (this fork's own documented canonical build procedure,
 # wiki/Building-from-Source.md step 2) - lv_drivers' framebuffer-ioctls fix
@@ -348,17 +415,17 @@ git -C nebulaos-guppyscreen submodule update --init --depth 1
 # their two patches applied on every fresh checkout, or the MIPS build
 # below silently builds against unpatched fmt/DPI-scaling behavior. Guarded
 # with `git apply --check` first so re-running this script against an
-# already-patched, already-present checkout (clone_pinned's "already
+# already-patched, already-present checkout (clone_branch's "already
 # present" branch) is a safe no-op, not a failure.
 for entry in "0002-spdlog_fmt_initializer_list.patch spdlog" "0003-lvgl-dpi-text-scale.patch lvgl"; do
 	patch_file=${entry% *}
 	submodule=${entry#* }
-	patch_path="$PWD/nebulaos-guppyscreen/patches/$patch_file"
-	if git -C "nebulaos-guppyscreen/$submodule" apply --check "$patch_path" 2>/dev/null; then
-		echo "== applying $patch_file to nebulaos-guppyscreen/$submodule =="
-		git -C "nebulaos-guppyscreen/$submodule" apply "$patch_path"
+	patch_path="$PWD/guppyscreen/patches/$patch_file"
+	if git -C "guppyscreen/$submodule" apply --check "$patch_path" 2>/dev/null; then
+		echo "== applying $patch_file to guppyscreen/$submodule =="
+		git -C "guppyscreen/$submodule" apply "$patch_path"
 	else
-		echo "== $patch_file already applied (or does not cleanly apply) to nebulaos-guppyscreen/$submodule, skipping =="
+		echo "== $patch_file already applied (or does not cleanly apply) to guppyscreen/$submodule, skipping =="
 	fi
 done
 

@@ -24,7 +24,7 @@ narrative and per-mission 48/50/52-field reports this baseline draws on.
   ax88179 USB-Ethernet build recipe + modules (moved from
   ke-mainline-klipper)").
 - GuppyScreen remotes: `origin` (`github.com/coreflake1/guppyscreen.git`),
-  `nebulaos-guppyscreen` (`github.com/coreflake1/NebulaOS-guppyscreen.git`),
+  `guppyscreen` (`github.com/coreflake1/NebulaOS-guppyscreen.git`),
   `preston` (`github.com/prestonbrown/guppyscreen.git`).
 - GuppyScreen submodules: `libhv` (`v1.3.1-54-ga1d8185`, dirty - see
   below), `lv_drivers` (`v8.3.0-2-g0406ccb`), `lvgl` (`v8.3.11`), `spdlog`

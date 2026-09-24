@@ -11,13 +11,13 @@
 # PRIOR APPROACH (removed): each vendor checkout was flattened into a
 # single synthetic orphan commit ("NebulaOS factory seed snapshot of
 # <branch> @ <true_commit>") before bundling, because a plain
-# `git bundle create` of vendor/klipper's shallow clone (1-2 commits deep,
-# 00-fetch-vendor-sources.sh's clone_pinned) produces a bundle that
+# `git bundle create` of vendor/klipper's depth-1 shallow clone
+# (00-fetch-vendor-sources.sh's clone_branch) produces a bundle that
 # `git bundle verify` reports as fine but a real `git clone` of rejects
 # with "Failed to traverse parents of commit ..." / "remote did not send
 # all necessary objects" (confirmed again against git 2.55.0 - a genuine,
 # still-present git limitation, not a syntax mistake). That synthetic
-# commit had no shared ancestry with the real coreflake1/NebulaOS-klipper
+# commit had no shared ancestry with the real Klipper3d/klipper
 # or Arksine/moonraker history on GitHub, which made Moonraker's own
 # `git merge-base --is-ancestor HEAD origin/<branch>` check permanently
 # fail (return code 1) on every freshly-seeded device - HEAD could never
@@ -54,15 +54,25 @@ make_seed_archive() {
 	# only to make embedded tracebacks show real device paths instead of
 	# this function's own mktemp staging path; purely cosmetic, no
 	# functional effect on bytecode validity.
-	python3_bin="${6:-}"; mount_path="${7:-}"
+	python3_bin="${6:-}"; mount_path="${7:-}"; additional_tree="${8:-}"; additional_root_file="${9:-}"
 	tmp=$(mktemp -d)
 	cp -r "$src/." "$tmp/"
-	# Ensure the archived copy is checked out on the branch Moonraker's
-	# reserved slot actually expects, without disturbing $src itself.
-	if ! git -C "$tmp" show-ref --verify --quiet "refs/heads/$active_branch"; then
-		git -C "$tmp" branch "$active_branch"
-	fi
+	# Ensure the archived copy's branch points at the source checkout's
+	# current HEAD. A reused vendor checkout can retain an old local
+	# master branch even after clone_pinned detached HEAD at the new pin;
+	# merely checking out that branch would silently package the old commit.
+	git -C "$tmp" checkout -q --detach HEAD
+	git -C "$tmp" branch -f "$active_branch" HEAD
 	git -C "$tmp" checkout -q "$active_branch"
+	# Klipper's upstream runtime checks source mtimes before loading c_helper.so.
+	# Preserve the cross-compiled helper as newer than the archived sources so
+	# first boot never falls back to an unavailable on-device gcc.
+	if [ -f "$tmp/klippy/chelper/c_helper.so" ]; then
+		chelper_dir="$tmp/klippy/chelper"
+		newest=$(ls -t "$chelper_dir"/*.c "$chelper_dir"/*.h "$chelper_dir"/__init__.py 2>/dev/null | head -1)
+		[ -n "$newest" ] && touch -r "$newest" "$tmp/klippy/chelper/c_helper.so" 2>/dev/null || true
+		touch -d "@2000000000" "$tmp/klippy/chelper/c_helper.so" 2>/dev/null || true
+	fi
 
 	# Real bug found live (first full first-boot qualification, 2026-07-28):
 	# a plain `tar -xzf` of vendor/klipper's real working tree still has to
@@ -87,7 +97,7 @@ make_seed_archive() {
 	fi
 	# Reset ALL remotes to exactly one "origin" with the standard
 	# wildcard fetch refspec. Real bug found while validating this
-	# against the actual coreflake1/NebulaOS-klipper remote: vendor/
+	# against the actual Klipper3d/klipper remote: vendor/
 	# klipper's own "origin" remote (00-fetch-vendor-sources.sh's
 	# clone_pinned) is scoped to a narrow `+refs/heads/jun2025:
 	# refs/remotes/origin/jun2025` fetch refspec, left over from its
@@ -135,6 +145,24 @@ make_seed_archive() {
 	git -C "$tmp" config "branch.$active_branch.remote" origin
 	git -C "$tmp" config "branch.$active_branch.merge" "refs/heads/$active_branch"
 
+	# Phase 1.5 pre-qualification (2026-08-21): seed a remote-tracking
+	# ref so Moonraker's check_diverged() succeeds on first boot. The
+	# build's clone_pinned leaves multiple entries in .git/shallow
+	# (original clone HEAD + pinned commit fetch). On device, Moonraker's
+	# git_deploy does `git merge-base --is-ancestor HEAD origin/master`
+	# AFTER a `git fetch`, but a shallow clone's stale boundary between
+	# HEAD and origin/master can break the ancestor walk, producing
+	# diverged=true and is_valid=false. Creating origin/$active_branch
+	# pointing at HEAD makes the pre-fetch check trivially succeed (HEAD
+	# is its own ancestor), and the first real `git fetch` updates it to
+	# the real remote tip — at which point the ancestry chain from
+	# origin/master back to HEAD is fully fetched and the check works
+	# for real. This is a one-line fix that avoids touching .git/shallow
+	# (removing entries there breaks `git fsck` since the orphaned
+	# objects' parents are still missing).
+	mkdir -p "$tmp/.git/refs/remotes/origin"
+	git -C "$tmp" rev-parse HEAD > "$tmp/.git/refs/remotes/origin/$active_branch"
+
 	# Discard a wrong-architecture klippy/chelper/c_helper.so before
 	# packaging (e.g. a host-recompiled x86 .so left over from a
 	# developer running `make` locally, outside this project's own
@@ -149,7 +177,7 @@ make_seed_archive() {
 	# else dirty must still fail the check below.
 	#
 	# Final Baseline Closure mission (2026-08-08): c_helper.so is no
-	# longer git-tracked at all as of KLIPPER_PIN 845396f0 (it is a
+	# longer git-tracked at all as of the former Klipper pin (it is a
 	# generated build artifact, not source - see that pin's own commit
 	# message and docs/NEBULAOS_C_HELPER_DIRTY_STATE_FIX.md), so there is
 	# no longer a committed "known good" version for `git checkout` to
@@ -158,7 +186,7 @@ make_seed_archive() {
 	# achieves the same real safety property (never package a
 	# wrong-architecture binary) more directly: a missing c_helper.so
 	# fails loudly downstream (Klippy's own get_ffi() has no on-device
-	# build fallback - see NebulaOS-klipper's klippy/chelper/__init__.py)
+	# build fallback - see Klipper3d/klipper's klippy/chelper/__init__.py)
 	# rather than silently shipping a binary that would have failed just
 	# as loudly, just less predictably.
 	if [ -e "$tmp/klippy/chelper/c_helper.so" ] \
@@ -191,6 +219,35 @@ make_seed_archive() {
 		echo "ERROR: refusing to package $src - git fsck reported repository damage" >&2
 		rm -rf "$tmp"
 		return 1
+	fi
+	# Optional runtime-only files may be added after the repository cleanliness
+	# check. This is used for NebulaOS's companion Klipper extensions: the
+	# upstream checkout stays clean, while the staged seed still contains the
+	# exact files that are present in the rootfs copy.
+	if [ -n "$additional_tree" ]; then
+		[ -d "$additional_tree" ] || {
+			echo "ERROR: additional seed tree $additional_tree is missing" >&2
+			rm -rf "$tmp"
+			return 1
+		}
+		cp -P "$additional_tree"/* "$tmp/klippy/extras/"
+		# The installed extension links are intentionally outside upstream
+		# Klipper's tracked tree. Preserve the same clean-checkout behavior on
+		# the device by excluding exactly those link paths from Git status.
+		for additional_file in "$additional_tree"/*; do
+			additional_name=$(basename "$additional_file")
+			printf '/klippy/extras/%s\n' "$additional_name" >> "$tmp/.git/info/exclude"
+		done
+	fi
+	if [ -n "$additional_root_file" ]; then
+		[ -f "$additional_root_file" ] || {
+			echo "ERROR: additional seed root file $additional_root_file is missing" >&2
+			rm -rf "$tmp"
+			return 1
+		}
+		additional_root_name=$(basename "$additional_root_file")
+		cp "$additional_root_file" "$tmp/$additional_root_name"
+		printf '/%s\n' "$additional_root_name" >> "$tmp/.git/info/exclude"
 	fi
 
 	# Precompile to .pyc, deliberately AFTER the clean-tree check above,

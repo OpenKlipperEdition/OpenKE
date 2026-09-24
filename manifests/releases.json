@@ -1,0 +1,15 @@
+{
+  "channel": "stable",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "type": "stable",
+      "filename": "openke-update-1.0.0.swu",
+      "url": "https://github.com/OpenKlipperEdition/OpenKE/releases/download/v1.0.0/openke-update-1.0.0.swu",
+      "sha256": "ba83cb076ae9cd42eff8260d53e514efa485861185ddfb7f15cecc74ac5c5636",
+      "size_bytes": 353370624,
+      "release_notes": "OpenKE 1.0.0 Baseline Release with Semantic SWUpdate & GuppyScreen Integration",
+      "changelog": "• Native SWUpdate dual-slot A/B streaming upgrade system\n• GuppyScreen firmware update panel with USB auto-discovery\n• OpenKE Power-Loss Recovery (PLR) dual-generation state machine\n• PREEMPT_RT memory reclaim resilience (vm.min_free_kbytes=8192)\n• Hung task recovery and flash dirty page pacing"
+    }
+  ]
+}

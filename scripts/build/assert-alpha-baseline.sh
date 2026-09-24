@@ -130,14 +130,14 @@ fi
 R="$ROOTFS_EXTRACT/root"
 
 # Wi-Fi
-[ -f "$R/etc/nebulaos-stable-mac.sh" ] && ok "CID-derived stable-MAC script present" || bad "CID-derived stable-MAC script missing"
-if grep -q "nebulaos_stabilize_iface_mac" "$R/etc/init.d/S01wifi" 2>/dev/null; then
+[ -f "$R/etc/openke-stable-mac.sh" ] || [ -f "$R/etc/nebulaos-stable-mac.sh" ] && ok "CID-derived stable-MAC script present" || bad "CID-derived stable-MAC script missing"
+if grep -q "openke_stabilize_iface_mac\|nebulaos_stabilize_iface_mac" "$R/etc/init.d/S01wifi" 2>/dev/null; then
 	ok "stable-MAC boot integration present in S01wifi"
 else
 	bad "stable-MAC boot integration missing from S01wifi"
 fi
-[ -f "$R/etc/nebulaos-wifi-power-save.sh" ] && ok "Wi-Fi power-save script present" || bad "Wi-Fi power-save script missing"
-if grep -q "^\s*sleep 2\s*$\|nebulaos_wifi_boot_wait" "$R/etc/init.d/S01wifi" 2>/dev/null; then
+[ -f "$R/etc/openke-wifi-power-save.sh" ] || [ -f "$R/etc/nebulaos-wifi-power-save.sh" ] && ok "Wi-Fi power-save script present" || bad "Wi-Fi power-save script missing"
+if grep -q "^\s*sleep 2\s*$\|openke_wifi_boot_wait\|nebulaos_wifi_boot_wait" "$R/etc/init.d/S01wifi" 2>/dev/null; then
 	ok "fixed association sequence call site present in S01wifi (default path, not event-driven-forced)"
 else
 	bad "expected fixed-association call site not found in S01wifi"
@@ -156,8 +156,12 @@ else
 fi
 
 # Camera (C2)
-[ -f "$R/etc/nebulaos-camera-idle-controller.sh" ] && ok "C2 camera idle controller present" || bad "C2 camera idle controller missing"
-[ -f "$R/etc/init.d/S51nebulaos-camera-idle-controller" ] && ok "C2 init script present" || bad "C2 init script missing"
+CAM_IDLE_SCRIPT="$R/etc/openke-camera-idle-controller.sh"
+[ -f "$CAM_IDLE_SCRIPT" ] || CAM_IDLE_SCRIPT="$R/etc/nebulaos-camera-idle-controller.sh"
+CAM_IDLE_INITD="$R/etc/init.d/S51openke-camera-idle-controller"
+[ -f "$CAM_IDLE_INITD" ] || CAM_IDLE_INITD="$R/etc/init.d/S51nebulaos-camera-idle-controller"
+[ -f "$CAM_IDLE_SCRIPT" ] && ok "C2 camera idle controller present" || bad "C2 camera idle controller missing"
+[ -f "$CAM_IDLE_INITD" ] && ok "C2 init script present" || bad "C2 init script missing"
 if grep -q "^RESOLUTION=1920x1080" "$R/etc/init.d/S50webcam" 2>/dev/null; then
 	ok "camera active resolution (1920x1080) retained"
 else
@@ -168,24 +172,26 @@ if grep -q "^DESIRED_FPS=30" "$R/etc/init.d/S50webcam" 2>/dev/null; then
 else
 	bad "camera active fps (30) default not found in S50webcam"
 fi
-require_line "$R/etc/nebulaos-camera-idle-controller.sh" "NEBULAOS_CAMERA_IDLE_GRACE_SAMPLES" "camera idle grace-period mechanism present"
-require_line "$R/etc/nebulaos-camera-idle-controller.sh" "/pause" "ustreamer /pause integration present"
-require_line "$R/etc/nebulaos-camera-idle-controller.sh" "/resume" "ustreamer /resume integration present"
-if grep -q "nebulaos_camera_idle_run_loop\|resume" "$R/etc/init.d/S51nebulaos-camera-idle-controller" 2>/dev/null; then
+require_line "$CAM_IDLE_SCRIPT" "CAMERA_IDLE_GRACE_SAMPLES" "camera idle grace-period mechanism present"
+require_line "$CAM_IDLE_SCRIPT" "/pause" "ustreamer /pause integration present"
+require_line "$CAM_IDLE_SCRIPT" "/resume" "ustreamer /resume integration present"
+if grep -q "camera_idle_run_loop\|resume" "$CAM_IDLE_INITD" 2>/dev/null; then
 	ok "fail-safe resume-on-stop behavior present in the init script"
 else
 	bad "fail-safe resume-on-stop behavior not found in the init script"
 fi
 
 # Factory seed (c03757e)
-if grep -q "dirty_exclude" "$R/etc/init.d/S04nebulaos-factory-seed" 2>/dev/null; then
-	ok "c03757e dirty_exclude fix present in S04nebulaos-factory-seed"
+FACTORY_SEED_INITD="$R/etc/init.d/S04openke-factory-seed"
+[ -f "$FACTORY_SEED_INITD" ] || FACTORY_SEED_INITD="$R/etc/init.d/S04nebulaos-factory-seed"
+if grep -q "dirty_exclude" "$FACTORY_SEED_INITD" 2>/dev/null; then
+	ok "c03757e dirty_exclude fix present in factory seed script"
 else
-	bad "c03757e dirty_exclude fix missing from S04nebulaos-factory-seed"
+	bad "c03757e dirty_exclude fix missing from factory seed script"
 fi
-[ -f "$R/opt/nebulaos-seeds/klipper-venv-seed.tar.gz" ] && ok "klipper-venv-seed.tar.gz present" || bad "klipper-venv-seed.tar.gz missing"
-[ -f "$R/opt/nebulaos-seeds/moonraker-venv-seed.tar.gz" ] && ok "moonraker-venv-seed.tar.gz present" || bad "moonraker-venv-seed.tar.gz missing"
-if grep -q "python3 -m venv --system-site-packages" "$R/etc/init.d/S04nebulaos-factory-seed" 2>/dev/null; then
+([ -f "$R/opt/openke-seeds/klipper-venv-seed.tar.gz" ] || [ -f "$R/opt/nebulaos-seeds/klipper-venv-seed.tar.gz" ]) && ok "klipper-venv-seed.tar.gz present" || bad "klipper-venv-seed.tar.gz missing"
+([ -f "$R/opt/openke-seeds/moonraker-venv-seed.tar.gz" ] || [ -f "$R/opt/nebulaos-seeds/moonraker-venv-seed.tar.gz" ]) && ok "moonraker-venv-seed.tar.gz present" || bad "moonraker-venv-seed.tar.gz missing"
+if grep -q "python3 -m venv --system-site-packages" "$FACTORY_SEED_INITD" 2>/dev/null; then
 	ok "on-device venv-creation fallback path retained"
 else
 	bad "on-device venv-creation fallback path missing"

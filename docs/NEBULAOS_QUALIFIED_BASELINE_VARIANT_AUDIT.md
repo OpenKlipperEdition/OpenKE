@@ -186,7 +186,7 @@ original baseline," not just the kernel-variant subset:
   `frontend-controls.cfg`/`guppy_cmd.cfg` checks) - a future build already
   fails loudly if either goes missing, no separate audit needed here.
 - **z_compensate structured Klipper status contract** (commit `60e7ce5`,
-  Klipper-side; consumed by `nebulaos-guppyscreen` commit `531bc75`) -
+  Klipper-side; consumed by `guppyscreen` commit `531bc75`) -
   `klippy_extras/z_compensate.py`'s `get_status()` plus GuppyScreen's
   `recalibration_wizard_panel`/`z_compensate_status.cpp`. Previously only
   live-deployed by hand to both `/opt/klipper` and a manually-copied
@@ -194,7 +194,7 @@ original baseline," not just the kernel-variant subset:
   running; now the sole source of truth is the pinned `KLIPPER_PIN`/
   `GUPPYSCREEN_PIN` in `manifests/dependencies.conf`, fetched and built by
   `00-fetch-vendor-sources.sh`/`04-cross-compile-app-stack.sh` - see those
-  files' own 2026-08-07 comments. `nebulaos-guppyscreen` commit `be5d372`
+  files' own 2026-08-07 comments. `guppyscreen` commit `be5d372`
   (config/theme parse-safety fix, a real fixed startup crash - see
   `tests/test_config_theme_parse_safety.cpp`'s own header) is the same pin
   and is included automatically, not a separate step.

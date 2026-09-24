@@ -8,8 +8,8 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-IMAGES="$REPO_ROOT/vendor/buildroot-x2000/output/images"
-KERNEL_CONFIG="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/.config"
+IMAGES="$REPO_ROOT/vendor/system/buildroot/output/images"
+KERNEL_CONFIG="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/.config"
 MANIFEST_FILE="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/build-manifest.txt"
 
 # 2026-08-07: source the same manifests/dependencies.conf every other pin-
@@ -27,23 +27,15 @@ if [ ! -f "$IMAGES/rootfs.ext2" ]; then
 	exit 1
 fi
 
-# Vendor pin drift check (SimpleAF backend integration, 2026-07-29, see docs/
-# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md) - 00-fetch-vendor-sources.sh only
-# clones+checks-out a pin the FIRST time a vendor/ dir is absent; nothing
-# previously re-verified that an already-present checkout's HEAD still
-# matches its recorded pin (e.g. after a stray `git pull` run by hand inside
-# vendor/, or a stale checkout left over from before a pin was bumped). Keep
-# these SHAs in sync with 00-fetch-vendor-sources.sh's own clone_pinned calls
-# - duplicated here deliberately (same convention as blank_required_option's
-# two copies below) rather than sourcing the fetch script, which also
-# performs real network clones and shouldn't be pulled into a read-only
-# verify pass.
+# Vendor source pin drift checks validate the active pinned and moving
+# repositories without fetching or modifying them.
 echo "=== vendor source pin drift ==="
 # Extended 2026-07-31 (NEBULAOS_CAMERA_USB_RT_SOURCE_ANALYSIS.md's vendor-pin
 # audit): now also verifies the origin remote URL (catches a checkout quietly
 # repointed at a fork/mirror) and working-tree cleanliness against an
 # explicit per-repo allowlist of paths this project's own build scripts
-# deterministically modify (e.g. buildroot-x2000's vendor-patches copy-in) -
+# deterministically modify (e.g. the OKE System Buildroot subtree's generated
+# config-layer copy-in) -
 # an allowed path showing as different is NOT silently ignored as "fine
 # either way", it's explicitly named so a reader knows exactly why it's
 # expected, same convention as the rest of this project's "corrected in
@@ -56,14 +48,14 @@ check_vendor_pin() {
 	shift 4
 	vp_dir="$REPO_ROOT/vendor/$vp_name"
 	if [ ! -d "$vp_dir/.git" ]; then
-		echo "MISS vendor/$vp_name is not a git checkout - cannot verify its pin"
+		echo "MISS vendor/$vp_name is not a git checkout - cannot verify its expected commit"
 		return
 	fi
 	vp_actual=$(git -C "$vp_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
 	if [ "$vp_actual" = "$vp_expected" ]; then
-		echo "OK   vendor/$vp_name HEAD matches its pinned commit ($vp_expected)"
+		echo "OK   vendor/$vp_name HEAD matches its expected commit ($vp_expected)"
 	else
-		echo "MISS vendor/$vp_name HEAD is $vp_actual, expected pinned commit $vp_expected"
+		echo "MISS vendor/$vp_name HEAD is $vp_actual, expected commit $vp_expected"
 	fi
 	if [ -n "$vp_expected_url" ]; then
 		vp_remotes=$(git -C "$vp_dir" remote -v 2>/dev/null)
@@ -88,31 +80,29 @@ check_vendor_pin() {
 		printf '%s\n' "$vp_dirty" | sed 's/^/     /'
 	fi
 }
-# klipper: pin bumped 2026-07-31 to d839d0375 in 00-fetch-vendor-sources.sh
-# (previously stuck one real, already-shipped commit behind - see that
-# script's own comment). `klippy/chelper/c_helper.so` is expected to differ
-# (the correctly cross-compiled MIPS binary vs. whatever's tracked in git -
-# same allowlisted-path convention as make-seed-archive.sh's own dirty-tree
-# guard fix).
+# Klipper runtime remains official upstream, pinned to the extension
+# manifest's compatibility-qualified commit.
 check_vendor_pin klipper "$KLIPPER_PIN" \
 	"$KLIPPER_REPO" 0 \
 	klippy/chelper/c_helper.so
+check_vendor_pin klipper-extensions "$KLIPPER_EXTRAS_PIN" \
+	"$KLIPPER_EXTRAS_REPO" 0
+check_vendor_pin klipper-mcu "$MCU_PIN" \
+	"$MCU_REPO" 0 \
+	scripts/build.sh \
+	configs/ender3-v3-se.defconfig \
+	configs/ender3-v2-neo.defconfig
 check_vendor_pin moonraker "$MOONRAKER_PIN" \
 	"$MOONRAKER_REPO" 0
-check_vendor_pin pellcorp-creality "$PELLCORP_CREALITY_PIN" \
-	"$PELLCORP_CREALITY_REPO" 0
-# buildroot-x2000: the .mk change and board/halley5-nebulaos-* files are
-# deterministically copied in by 02-configure-buildroot.sh from tracked
-# sources in this repo (scripts/build/vendor-patches/, this project's own
-# config layer) - expected every time, not accidental drift.
-check_vendor_pin buildroot-x2000 "$BUILDROOT_PIN" \
-	"$BUILDROOT_REPO" 0 \
-	package/python-matplotlib/python-matplotlib.mk \
-	board/halley5-nebulaos-busybox-fragment.config \
-	board/halley5-nebulaos-fragment.config \
-	board/halley5-nebulaos-overlay/ \
-	board/halley5-nebulaos-wheels/ \
-	local.mk
+# Buildroot is the `buildroot/` subtree of the same OKE System checkout as
+# the kernel. The shared checkout is validated above; verify the subtree is
+# present and has the expected Buildroot entry point after configuration.
+buildroot_dir="$REPO_ROOT/vendor/system/buildroot"
+if [ -f "$buildroot_dir/Makefile" ]; then
+	echo "OK   vendor/system/buildroot is the active OKE Buildroot subtree"
+else
+	echo "MISS vendor/system/buildroot is missing its Buildroot Makefile"
+fi
 check_vendor_pin k1-ustreamer "$K1_USTREAMER_PIN" \
 	"$K1_USTREAMER_REPO" 0
 # k1-ustreamer's own real git submodules (jpeg-9d, ustreamer) - pinned via
@@ -135,32 +125,38 @@ fi
 check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
 	"$V4L_UTILS_REPO" 0 \
 	messages.mo
-# x2000_kernel_6.6: same pin source as 00-fetch-vendor-sources.sh's own
-# KERNEL_PIN and 01-apply-kernel-patches.sh's independent check - all three
-# now read manifests/dependencies.conf directly rather than keeping
-# independent hardcoded copies that can (and did - see this file's own
-# 2026-08-07 header comment) drift out of sync.
-# Remote name is "nebulaos" here, not "origin" - check_vendor_pin's URL check
-# greps all remotes, so this is remote-name-agnostic.
+# system: immutable dependency. Stages 00 and 01 check the checkout against
+# SYSTEM_PIN before variants are composed.
 #
 # bulk_dirty_expected=1: this checkout is DELIBERATELY left dirty by
 # apply-qualified-baseline.sh (8 accepted variant patches applied on top of
-# the pinned commit) by the time this verify step runs - not drift.
+# the fetched branch HEAD) by the time this verify step runs - not drift.
 # assert-baseline-config.sh (run earlier in the pipeline) is the real,
 # precise content-level check of what that dirt should contain.
-check_vendor_pin x2000_kernel_6.6 "$KERNEL_PIN" \
-	"$KERNEL_REPO" 1
-# GuppyScreen: added 2026-08-07 - previously not pin-checked here at all
-# (it was still a manually-copied binary with no vendor checkout to check
-# when this script was last touched). `submodule status` confirms all four
-# submodules stay pinned at their exact recorded commits (no +/- marker) -
-# the three allowlisted below show as modified in the PARENT's own status
-# only because of real, expected in-place content changes: 00-fetch-
-# vendor-sources.sh's two submodule patches (spdlog, lvgl), and libhv's own
-# working-tree state after scripts/build-mips.sh's native/MIPS library
-# swap-and-restore (04-cross-compile-app-stack.sh). Verified empirically
-# against a real build, not assumed.
-check_vendor_pin nebulaos-guppyscreen "$GUPPYSCREEN_PIN" \
+system_dir="$REPO_ROOT/vendor/system"
+system_actual=$(git -C "$system_dir" rev-parse HEAD 2>/dev/null || echo "unknown")
+if [ "$system_actual" = "$SYSTEM_PIN" ]; then
+	echo "OK   vendor/system matches pinned commit $system_actual"
+else
+	echo "MISS vendor/system is HEAD=$system_actual, expected pinned commit $SYSTEM_PIN"
+fi
+system_remotes=$(git -C "$system_dir" remote -v 2>/dev/null)
+if printf '%s\n' "$system_remotes" | grep -qF "$SYSTEM_REPO"; then
+	echo "OK   vendor/system has a remote matching $SYSTEM_REPO"
+else
+	echo "MISS vendor/system has no remote matching expected URL $SYSTEM_REPO"
+fi
+system_dirty=$(git -C "$system_dir" status --porcelain -uall 2>/dev/null)
+if [ -z "$system_dirty" ]; then
+	echo "OK   vendor/system working tree has no unexplained changes"
+else
+	echo "OK   vendor/system working tree is dirty, as expected after apply-qualified-baseline.sh:"
+	printf '%s\n' "$system_dirty" | sed 's/^/     /'
+fi
+# GuppyScreen is pinned by GUPPYSCREEN_PIN; verify both the pinned HEAD and the
+# expected remote URL. The three allowlisted submodules are modified
+# deterministically by the fetch/build stages (spdlog, lvgl, and libhv).
+check_vendor_pin guppyscreen "$GUPPYSCREEN_PIN" \
 	"$GUPPYSCREEN_REPO" 0 \
 	libhv \
 	lvgl \
@@ -184,15 +180,11 @@ check_artifact_sha256() {
 check_artifact_sha256 vendor/mainsail-dist/mainsail.zip \
 	df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
 
-# 2026-08-07: GuppyScreen is no longer a fixed prebuilt binary (see
-# manifests/dependencies.conf's GUPPYSCREEN_PIN and
-# 04-cross-compile-app-stack.sh) - it's rebuilt from pinned source every
-# run, and the resulting bytes are NOT deterministic across builds (the
-# toolchain embeds a build timestamp), even from byte-identical source. A
-# fixed expected hash here would report a false MISS on every correct
-# build. Check self-consistency against THIS run's own build-manifest.txt
+# GuppyScreen's source is pinned, but its binary is still validated against
+# the build manifest rather than a fixed hash because the toolchain embeds a
+# build timestamp. Check self-consistency against THIS run's build-manifest.txt
 # instead (already-recorded guppyscreen_sha256/guppybeep_sha256, right
-# next to the source pin git_commit_guppyscreen that actually determines
+# next to the source commit git_commit_guppyscreen that actually determines
 # correctness) plus a real MIPS-ELF sanity check.
 check_guppyscreen_binary() {
 	gb_path="$REPO_ROOT/$1"
@@ -230,7 +222,7 @@ check_artifact_sha256 scripts/build/overlay/lib/firmware/regulatory.db.p7s \
 	bcd81aed039ea6b9b6f3726fbf26911a0caf4a5d894210e0fa2effb384d6b326
 
 # ns2009, the display panel, brcmfmac and the RNG are all built statically
-# into vmlinux (=y, not =m) - see halley5-nebulaos-fragment.config's own
+# into vmlinux (=y, not =m) - see halley5-openke-fragment.config's own
 # comments for why each one was switched. A built-in driver produces no
 # separate .ko file under /lib/modules at all, so these are checked against
 # the actual built kernel .config instead of debugfs'd out of rootfs.ext2 -
@@ -282,6 +274,17 @@ if [ -f "$KERNEL_CONFIG" ]; then
 	# with sqlite3.OperationalError: database is locked on its very first
 	# database open. Affects anything using file locks, not just sqlite.
 	check_builtin CONFIG_FILE_LOCKING
+	# Phase 1.9A/1.9B: ADXL345's bit-banged SPI bus and the physical
+	# BL24C16F EEPROM's real production driver (at24/nvmem, NOT
+	# [bl24c16f]/i2c-chardev - see accelerometer-eeprom-bus-enable-
+	# variant.sh and OpenKE_Settings.cfg's own Phase 1.9B history).
+	check_builtin CONFIG_SPI_GPIO
+	check_builtin CONFIG_EEPROM_AT24
+	if grep -q "^CONFIG_I2C_CHARDEV=y$" "$KERNEL_CONFIG"; then
+		echo "MISS CONFIG_I2C_CHARDEV is set - Phase 1.9B retired its only consumer ([bl24c16f]/klipper_mcu i2c.c); it should no longer be needed"
+	else
+		echo "OK   CONFIG_I2C_CHARDEV not set (retired, Phase 1.9B - at24 is a real kernel driver, no /dev/i2c-* chardev needed)"
+	fi
 else
 	echo "MISS $KERNEL_CONFIG not found - run 03-build-kernel-and-rootfs.sh first"
 fi
@@ -292,8 +295,8 @@ fi
 # intentionally-disabled reference-design block disabled, and every required
 # product device enabled. Decompiles with the dtc host tool Buildroot already
 # builds (output/host/bin/dtc) - no Docker/network needed for this check.
-DTB="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
-DTC="$REPO_ROOT/vendor/buildroot-x2000/output/host/bin/dtc"
+DTB="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
+DTC="$REPO_ROOT/vendor/system/buildroot/output/host/bin/dtc"
 echo "=== production DTB capability assertions ==="
 if [ -f "$DTB" ] && [ -x "$DTC" ]; then
 	DECOMPILED=$(mktemp)
@@ -373,6 +376,33 @@ if [ -f "$DTB" ] && [ -x "$DTC" ]; then
 	assert_status "otg (USB)"           'otg@13500000 {'    enabled
 	assert_status "rtc"                 'rtc@10003000 {'    enabled
 	assert_status "watchdog"            'watchdog@10002000 {' enabled
+	assert_status "i2c2 (BL24C16F EEPROM bus)" 'i2c@10052000 {' enabled
+
+	echo "--- Phase 1.9A/1.9B accelerometer/EEPROM node content ---"
+	if grep -q 'spi_gpio_adxl345 {' "$DECOMPILED" && grep -q 'spi2 = "/spi_gpio_adxl345"' "$DECOMPILED"; then
+		echo "OK   spi_gpio_adxl345 node and spi2 alias present"
+	else
+		echo "MISS spi_gpio_adxl345 node or spi2 alias missing"
+	fi
+	if grep -A8 'eeprom@50 {' "$DECOMPILED" | grep -q 'compatible = "atmel,24c16"'; then
+		echo "OK   eeprom@50 node present with compatible = \"atmel,24c16\""
+	else
+		echo "MISS eeprom@50 node missing or wrong compatible string"
+	fi
+	if grep -A8 'eeprom@50 {' "$DECOMPILED" | grep -q 'reg = <0x50>'; then
+		echo "OK   eeprom@50 reg = <0x50>"
+	else
+		echo "MISS eeprom@50 reg is not <0x50>"
+	fi
+	EEPROM_BODY=$(awk '/eeprom@50 \{/,/^\t+\};/' "$DECOMPILED")
+	if echo "$EEPROM_BODY" | grep -q 'pagesize = <0x10>' \
+		&& echo "$EEPROM_BODY" | grep -q 'size = <0x800>' \
+		&& echo "$EEPROM_BODY" | grep -q 'address-width = <0x8>' \
+		&& echo "$EEPROM_BODY" | grep -q 'num-addresses = <0x8>'; then
+		echo "OK   eeprom@50 geometry matches BL24C16F exactly (pagesize=16, size=2048, address-width=8, num-addresses=8)"
+	else
+		echo "MISS eeprom@50 geometry does not match the expected BL24C16F values - dtc prints decimal DT integers in hex, compared here as such"
+	fi
 
 	rm -f "$DECOMPILED"
 else
@@ -416,8 +446,8 @@ check /lib/firmware/brcm/brcmfmac43430-sdio.txt
 echo "=== camera ==="
 check /usr/bin/ustreamer
 check /etc/init.d/S50webcam
-check /etc/nebulaos-camera-idle-controller.sh
-check /etc/init.d/S51nebulaos-camera-idle-controller
+check /etc/openke-camera-idle-controller.sh
+check /etc/init.d/S51openke-camera-idle-controller
 
 echo "=== app stack ==="
 # FIRMWARE.md sec 23 (2026-07-23): real, previously-silent bug - the
@@ -447,14 +477,81 @@ check /usr/lib/python3.11/site-packages/numpy
 check /usr/bin/python3.11
 check /opt/klipper/klippy/klippy.py
 check /opt/klipper/klippy/chelper/c_helper.so
-# Clean-Update + Virgin Baseline mission, Phase 6: nebulaos_version.py
-# ships from the forks own klippy/extras/ directory (the earlier cp -r
-# klippy step already carries it, same as z_compensate.py and
-# prtouch_*.py) - this is what catches a forgotten fork sync before the
-# image ever reaches a device, rather than a printer.cfg [nebulaos_version]
-# section that fails to load at boot.
-check /opt/klipper/klippy/extras/nebulaos_version.py
-check /opt/nebulaos-version.json
+check /opt/klipper/scripts/klippy-requirements.txt
+check /opt/klipper/scripts/install-octopi.sh
+check /opt/klipper/.nebulaos-chelper-verdict.json
+check /opt/openke-seeds/klipper-chelper-verdict.json
+check /opt/klipper-extensions/nebulaos-extensions.json
+echo "=== NebulaOS Klipper extras ==="
+for extra in \
+	bl24c16f.py \
+	guppy_config_helper.py \
+	guppy_module_loader.py \
+	calibrate_shaper_config.py \
+	gcode_shell_command.py \
+	tmcstatus.py \
+	nebulaos_calibration.py \
+	nebulaos_compat.py \
+	nebulaos_plr_journal.py \
+	nebulaos_power_loss_recovery.py \
+	nebulaos_probe_pair.py \
+	nebulaos_temperature_mcu.py \
+	nebulaos_version.py \
+	nebulaos_z_offset_probe.py \
+	nozzle_clear.py \
+	prtouch_test_support.py \
+	virtual_pins.py \
+	z_compensate.py; do
+	check "/opt/klipper/klippy/extras/$extra"
+done
+echo "=== printer MCU firmware bundle ==="
+check /opt/openke/mcu/klipper-creality.bin
+check /opt/openke/mcu/klipper.bin
+check /opt/openke/mcu/klipper.elf
+check /opt/openke/mcu/klipper.config
+check /opt/openke/mcu/manifest.env
+check /opt/openke/mcu/tools/creality_flash.py
+check /opt/openke/mcu/tools/creality_validator.py
+check /opt/openke/mcu/tools/creality_packer.py
+check /opt/openke/mcu/tools/stage4_first_flash.py
+check /etc/init.d/S57openke-mcu-upgrade
+MCU_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke/mcu/manifest.env" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MCU_IMAGE_SHA=$(printf "%s\n" "$MCU_MANIFEST_CONTENT" | sed -n 's/^image_sha256=//p')
+if [ -n "$MCU_IMAGE_SHA" ] && printf "%s\n" "$MCU_IMAGE_SHA" | grep -qE "^[0-9a-f]{64}$"; then
+	echo "OK   packaged printer MCU manifest contains a SHA256 image identity"
+else
+	echo "MISS packaged printer MCU manifest is missing a valid image SHA256"
+fi
+MCU_BUILT_IMAGE="$REPO_ROOT/vendor/system/buildroot/board/halley5-openke-overlay/opt/openke/mcu/klipper-creality.bin"
+MCU_RECORDED_SHA=$(grep "^mcu_klipper_creality_bin_sha256=" "$MANIFEST_FILE" 2>/dev/null | cut -d= -f2)
+MCU_ACTUAL_SHA=$(sha256sum "$MCU_BUILT_IMAGE" 2>/dev/null | awk "{print \$1}")
+if [ -n "$MCU_RECORDED_SHA" ] && [ "$MCU_ACTUAL_SHA" = "$MCU_RECORDED_SHA" ]; then
+	echo "OK   staged printer MCU image matches the final build manifest ($MCU_ACTUAL_SHA)"
+else
+	echo "MISS staged printer MCU image does not match the final build manifest"
+fi
+MCU_UPGRADE_CONTENT=$(debugfs -R "cat /etc/init.d/S57openke-mcu-upgrade" ${IMAGES}/rootfs.ext2 2>/dev/null)
+if echo "$MCU_UPGRADE_CONTENT" | grep -q "stage4_first_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_validator.py"; then
+	echo "OK   MCU boot service contains first-flash, update-flash, and validation paths"
+else
+	echo "MISS MCU boot service is missing one or more safety-gated paths"
+fi
+echo "=== Ender-3 V3 SE & V2 Neo MCU firmware artifacts ==="
+if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin" ]; then
+	echo "OK   Ender-3 V3 SE MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin"
+fi
+if debugfs -R "stat /opt/openke/mcu/Ender3V3SE_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+	echo "OK   Ender-3 V3 SE MCU firmware correctly excluded from rootfs"
+fi
+if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin" ]; then
+	echo "OK   Ender-3 V2 Neo MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin"
+fi
+if debugfs -R "stat /opt/openke/mcu/Ender3V2Neo_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+	echo "OK   Ender-3 V2 Neo MCU firmware correctly excluded from rootfs"
+fi
+# Pure upstream Klipper does not ship the version object;
+# build identity remains available in /opt/openke-version.json.
+check /opt/openke-version.json
 check /opt/moonraker/moonraker/server.py
 check /usr/lib/python3.11/site-packages/streaming_form_data
 check /usr/sbin/nginx
@@ -464,6 +561,66 @@ check /etc/init.d/S56moonraker
 check /etc/init.d/S50nginx
 check /opt/printer_data/config/printer.cfg
 check /opt/printer_data/config/moonraker.conf
+
+echo "=== Phase 1.9A: host MCU (klipper_mcu) / ADXL345 / BL24C16F ==="
+# klipper_mcu is Klipper's own MACH_LINUX build target, compiled as a native
+# MIPS Linux program with the project's mipsel-buildroot-linux-gnu-
+# toolchain (04-cross-compile-app-stack.sh) - serves [mcu rpi] for the
+# physical accelerometer and EEPROM, both wired directly to the SoC. No
+# interaction with the separate GD32F303 stepper-driver MCU S50nebulaos-
+# mcu-guard manages.
+check /usr/bin/klipper_mcu
+check /etc/init.d/S54openke-host-mcu
+# bl24c16f.py stays composed for provenance (Phase 1.9A) but is retired from
+# production use as of Phase 1.9B - see the OpenKE_Settings.cfg [bl24c16f]-absence
+# check and the [nebulaos_power_loss_recovery] presence check below.
+check /opt/klipper/klippy/extras/bl24c16f.py
+check /opt/klipper/klippy/extras/nebulaos_plr_journal.py
+check /opt/klipper/klippy/extras/nebulaos_power_loss_recovery.py
+
+NEBULA_CFG_CONTENT=$(debugfs -R "cat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54openke-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
+	echo "OK   Nebula.cfg declares [mcu rpi]"
+else
+	echo "MISS Nebula.cfg does not declare [mcu rpi]"
+fi
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[adxl345\]$"; then
+	echo "OK   Nebula.cfg declares [adxl345]"
+else
+	echo "MISS Nebula.cfg does not declare [adxl345]"
+fi
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[resonance_tester\]$"; then
+	echo "OK   Nebula.cfg declares [resonance_tester]"
+else
+	echo "MISS Nebula.cfg does not declare [resonance_tester]"
+fi
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[bl24c16f\]$"; then
+	echo "MISS Nebula.cfg declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner (should be [nebulaos_power_loss_recovery] over at24 instead)"
+else
+	echo "OK   Nebula.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+fi
+if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[nebulaos_power_loss_recovery\]$"; then
+	echo "OK   Nebula.cfg declares [nebulaos_power_loss_recovery]"
+else
+	echo "MISS Nebula.cfg does not declare [nebulaos_power_loss_recovery]"
+fi
+if echo "$NEBULA_CFG_CONTENT" | grep -A2 "^\[nebulaos_power_loss_recovery\]$" | grep -qF "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
+	echo "OK   [nebulaos_power_loss_recovery]'s eeprom_path matches the at24 eeprom@50 DT node's sysfs path"
+else
+	echo "MISS [nebulaos_power_loss_recovery]'s eeprom_path does not match the expected at24 sysfs path"
+fi
+if echo "$S54_CONTENT" | grep -qF -- '--exec "$KLIPPER_HOST_MCU" -- -r -I "$SOCKET"'; then
+	echo "OK   S54openke-host-mcu starts /usr/bin/klipper_mcu with -r -I \$SOCKET (explicit socket path)"
+else
+	echo "MISS S54openke-host-mcu does not start klipper_mcu with an explicit -I socket path"
+fi
+S54_SOCKET=$(echo "$S54_CONTENT" | grep -oE "^SOCKET=.*" | cut -d= -f2)
+if [ -n "$S54_SOCKET" ] && echo "$NEBULA_CFG_CONTENT" | grep -A1 "^\[mcu rpi\]$" | grep -qF "serial: $S54_SOCKET"; then
+	echo "OK   S54openke-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
+else
+	echo "MISS S54openke-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
+fi
 
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
 # A newly reported Mainsail "Config Files -> config folder appears empty"
@@ -504,15 +661,15 @@ if echo "$S01_CONTENT" | grep -qE "mount --bind ..PDATA. /opt/printer_data"; the
 else
 	echo "MISS S01persistent-datastore does not bind-mount printer_data onto /opt/printer_data as expected"
 fi
-if echo "$S01_CONTENT" | grep -qE "^DATA_ROOT=/usr/data/nebulaos$"; then
-	echo "OK   S01persistent-datastore uses the canonical persistent backing root /usr/data/nebulaos"
+if echo "$S01_CONTENT" | grep -qE "^DATA_ROOT=/usr/data/openke$"; then
+	echo "OK   S01persistent-datastore uses the canonical persistent backing root /usr/data/openke"
 else
-	echo "MISS S01persistent-datastore does not use /usr/data/nebulaos as the persistent backing root"
+	echo "MISS S01persistent-datastore does not use /usr/data/openke as the persistent backing root"
 fi
 
 echo "=== Moonraker update_manager / camera defaults (final implementation mission, 2026-07-27) ==="
-check /usr/libexec/nebulaos-seed-camera
-check /etc/init.d/S57nebulaos-camera-seed
+check /usr/libexec/openke-seed-camera
+check /etc/init.d/S57openke-camera-seed
 
 # Content checks against the actual shipped moonraker.conf, not just its
 # presence - the whole point of this mission was that a real, previously
@@ -551,18 +708,9 @@ check_conf_present() {
 		echo "MISS moonraker.conf missing: $desc"
 	fi
 }
-# SimpleAF backend integration (2026-07-29) needs a real, non-empty
-# [file_manager] section (enable_object_processing: True, required for
-# exclude_object polygon data) - this check used to forbid the whole
-# section outright, which conflicts with that legitimate need. The real
-# original worry was narrower: vendor/moonraker/moonraker/components/
-# file_manager/file_manager.py only reads two deprecated path-override
-# options from this section, config_path and log_path (config.get(...,
-# deprecate=True) for both) - anything else here, including
-# enable_object_processing, cannot divert the config root away from
-# -d /opt/printer_data. Scope the check to just those two options,
-# the same way the update_manager section check below scopes to its own
-# reserved-option list rather than forbidding the section itself.
+# [file_manager] must retain enable_object_processing so Moonraker populates
+# exclude_object polygons from sliced-gcode metadata. The verifier only rejects
+# deprecated config_path/log_path overrides that could redirect the config root.
 FILE_MANAGER_SECTION_BODY=$(echo "$MOONRAKER_CONF_CONTENT" | awk "
 	/^\[file_manager\]\$/ { grab=1; next }
 	/^\[/ { grab=0 }
@@ -666,8 +814,8 @@ check_seed_archive() {
 	fi
 	rm -rf /tmp/seed-check /tmp/seed-check.tar
 }
-check_seed_archive /opt/nebulaos-seeds/klipper.tar.gz master "https://github.com/coreflake1/NebulaOS-klipper.git" "klipper"
-check_seed_archive /opt/nebulaos-seeds/moonraker.tar.gz master "https://github.com/Arksine/moonraker.git" "moonraker"
+check_seed_archive /opt/openke-seeds/klipper.tar.gz "$KLIPPER_BRANCH" "$KLIPPER_REPO" "klipper"
+check_seed_archive /opt/openke-seeds/moonraker.tar.gz master "https://github.com/Arksine/moonraker.git" "moonraker"
 
 # Real bug this catches if regressed: the c_helper.so committed inside
 # vendor/klippers own git history (an upstream binary) is incompatible
@@ -679,7 +827,7 @@ check_seed_archive /opt/nebulaos-seeds/moonraker.tar.gz master "https://github.c
 # immutable one, not silently reverted to the incompatible upstream blob.
 rm -rf /tmp/chelper-check
 mkdir -p /tmp/chelper-check
-debugfs -R "dump /opt/nebulaos-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+debugfs -R "dump /opt/openke-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
 if tar -xzf /tmp/chelper-check.tar.gz -C /tmp/chelper-check ./klippy/chelper/c_helper.so 2>/dev/null; then
 	SEED_CHELPER_SHA=$(sha256sum /tmp/chelper-check/klippy/chelper/c_helper.so 2>/dev/null | cut -d" " -f1)
 	BASELINE_CHELPER_SHA=$(debugfs -R "cat /opt/klipper/klippy/chelper/c_helper.so" ${IMAGES}/rootfs.ext2 2>/dev/null | sha256sum | cut -d" " -f1)
@@ -692,7 +840,7 @@ else
 	echo "MISS could not extract klippy/chelper/c_helper.so from the klipper seed archive for comparison"
 fi
 rm -rf /tmp/chelper-check /tmp/chelper-check.tar.gz
-SEED_MANIFEST_CONTENT=$(debugfs -R "cat /opt/nebulaos-seeds/seed-manifest.json" ${IMAGES}/rootfs.ext2 2>/dev/null)
+SEED_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke-seeds/seed-manifest.json" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$SEED_MANIFEST_CONTENT" | grep -q "git_bundle_flattened"; then
 	echo "MISS seed-manifest.json still references the removed git_bundle_flattened format"
 else
@@ -710,88 +858,72 @@ echo "=== printer_data config factory seed (Ender-3 V3 KE, auto-updates-camera-c
 # ever shipped a seed for these files at a path immune to
 # S01persistent-datastores own early, unconditional bind mount of the
 # persistent copy over /opt/printer_data. Confirms the dedicated immutable
-# seed at /opt/nebulaos-seeds/printer_data-config/ actually landed in the
+# seed at /opt/openke-seeds/printer_data-config/ actually landed in the
 # packaged image, not just the tracked overlay source.
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/printer.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/printer.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/printer.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/printer.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/printer.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/printer.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/moonraker.conf is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/moonraker.conf is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/frontend-controls.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
+fi
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/Nebula.cfg is present"
+else
+	echo "MISS /opt/openke-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
 fi
 # Camera quality presets mission (2026-08-04): same class of check as
 # frontend-controls.cfg above - confirms the two new files a fresh factory
 # seed depends on (the macro/shell-command config, and the script the shell
 # command actually invokes) really landed in the packaged image, not just
 # the tracked overlay source.
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/camera-quality.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/camera-quality.cfg is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
-	echo "OK   /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
+if debugfs -R "stat /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
 else
-	echo "MISS /opt/nebulaos-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
 fi
 rm -rf /tmp/printerdata-check
-mkdir -p /tmp/printerdata-check/GuppyScreen /tmp/printerdata-check/simpleaf
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-# SimpleAF backend integration (2026-07-29, see docs/
-# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md) - these 8 files are now what
-# printer.cfg actually includes for the print-control/workflow closure;
-# frontend-controls.cfg is dumped above only because it is still shipped on
-# disk as an unused reference, not because printer.cfg includes it any more.
-for simpleaf_f in homing.cfg useful_macros.cfg fan_control.cfg client.cfg start_end.cfg Line_Purge.cfg Smart_Park.cfg bltouch_macro.cfg; do
-	debugfs -R "dump /opt/nebulaos-seeds/printer_data-config/simpleaf/$simpleaf_f /tmp/printerdata-check/simpleaf/$simpleaf_f" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-done
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
-else
-	echo "OK   packaged printer.cfg seed contains no SAVE_CONFIG calibration block"
-fi
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^\[include camera-quality.cfg\]$" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "OK   packaged printer.cfg seed includes camera-quality.cfg"
-else
-	echo "MISS packaged printer.cfg seed does not include camera-quality.cfg"
-fi
-# Clean-Update + Virgin Baseline mission, Phase 6: confirms the seeded
-# printer.cfg actually loads the new version-truth printer object, not
-# just that nebulaos_version.py exists on disk (checked separately above)
-# - a missing config section would leave the file shipped but inert.
-if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^\[nebulaos_version\]$" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
-	echo "OK   packaged printer.cfg seed includes [nebulaos_version]"
-else
-	echo "MISS packaged printer.cfg seed does not include [nebulaos_version]"
-fi
-# A bare "key:" is only actually blank if nothing indented follows on the
-# next line - moonraker.confs own trusted_clients/cors_domains use this
-# multi-line list form legitimately; a naive single-line check flagged
-# them as false positives the first time this ran for real. Written to a
-# temp file rather than an inline awk single-quote block - this whole
-# section already lives inside one big single-quoted docker bash -c
-# argument, and a nested single quote here would close that early exactly
-# like the apostrophe bugs found earlier in this same mission.
-# SimpleAF backend integration (2026-07-29): "gcode:" is explicitly excluded
-# below - the gcode_macro directive gcode option is genuinely allowed to be
-# blank (a variable-only macro with no action, e.g. the
-# [gcode_macro _HOMING_PARAMS] section in simpleaf/homing.cfg), confirmed
-# directly against vendor/klipper/klippy/extras/gcode_macro.py, in the
-# load_template() function there, which happily wraps an empty string.
-# Every other option name is still caught - keep this in sync with the
-# identical copy in 04-cross-compile-app-stack.sh.
-cat > /tmp/blank-required-option.awk <<'AWKPROG'
+mkdir -p /tmp/printerdata-check/GuppyScreen
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	debugfs -R "dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
+		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
+	else
+		echo "OK   packaged printer.cfg seed contains no SAVE_CONFIG calibration block"
+	fi
+	# Pure upstream Klipper does not load the fork-only camera-quality or
+	# nebulaos_version configuration sections.
+	# A bare "key:" is only actually blank if nothing indented follows on the
+	# next line - moonraker.confs own trusted_clients/cors_domains use this
+	# multi-line list form legitimately; a naive single-line check flagged
+	# them as false positives the first time this ran for real. Written to a
+	# temp file rather than an inline awk single-quote block - this whole
+	# section already lives inside one big single-quoted docker bash -c
+	# argument, and a nested single quote here would close that early exactly
+	# like the apostrophe bugs found earlier in this same mission.
+	# Klipper's gcode option is explicitly excluded below because an empty
+	# gcode body is valid for variable-only macros. Every other option present
+	# without a value must either be a valid multiline list or fail.
+	# Every other option name is still caught - keep this in sync with the
+	# identical copy in 04-cross-compile-app-stack.sh.
+	cat > /tmp/blank-required-option.awk <<'AWKPROG'
 {
 	if (pending != "") {
 		if ($0 !~ /^[ \t]/) { print pending; exit 1 }
@@ -801,44 +933,42 @@ cat > /tmp/blank-required-option.awk <<'AWKPROG'
 }
 END { if (pending != "") { print pending; exit 1 } }
 AWKPROG
-blank_required_option() {
-	awk -f /tmp/blank-required-option.awk "$1"
-}
-blank_found=0
-for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/simpleaf/*.cfg; do
-	[ -s "$f" ] || continue
-	if ! blank_required_option "$f" >/dev/null; then
-		blank_found=1
-	fi
-done
-if [ "$blank_found" = "1" ]; then
-	echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg/simpleaf/*.cfg seed has an option present but syntactically blank"
-else
-	echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg/simpleaf/*.cfg seed has no syntactically blank options"
-fi
-
-# Print-control config closure validation against the actual packaged
-# seed (not just the tracked source) - mainline print-controls mission,
-# 2026-07-29, see docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md. The includes
-# in printer.cfg are just concatenated here (this codebase only ever uses
-# plain literal filenames in its config includes, one level of
-# GuppyScreen/ nesting, never glob patterns), so this is a deliberately
-# simple closure builder, not a general Klipper config parser. Grep
-# patterns below use double quotes only, and the awk program is written
-# to a temp file via a quoted heredoc rather than inline - see the
-# blank_required_option note above this same docker bash -c block about
-# why a literal single quote here would break the outer quoting.
-if [ -s /tmp/printerdata-check/printer.cfg ]; then
-	# SimpleAF backend integration (2026-07-29, see docs/
-	# NEBULAOS_SIMPLEAF_BACKEND_INTEGRATION.md): printer.cfg no longer
-	# includes frontend-controls.cfg - simpleaf/client.cfg + simpleaf/
-	# start_end.cfg now provide the same required sections instead.
-	if grep -q "^\[include simpleaf/client\.cfg\]" /tmp/printerdata-check/printer.cfg && grep -q "^\[include simpleaf/start_end\.cfg\]" /tmp/printerdata-check/printer.cfg; then
-		echo "OK   packaged printer.cfg includes simpleaf/client.cfg and simpleaf/start_end.cfg"
+	blank_required_option() {
+		awk -f /tmp/blank-required-option.awk "$1"
+	}
+	blank_found=0
+	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/Nebula.cfg; do
+		[ -s "$f" ] || continue
+		if ! blank_required_option "$f" >/dev/null; then
+			blank_found=1
+		fi
+	done
+	if [ "$blank_found" = "1" ]; then
+		echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has an option present but syntactically blank"
 	else
-		echo "MISS packaged printer.cfg does not include simpleaf/client.cfg and simpleaf/start_end.cfg"
+		echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has no syntactically blank options"
 	fi
-	cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/simpleaf/*.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+
+	# Print-control config closure validation against the actual packaged
+	# seed (not just the tracked source) - mainline print-controls mission,
+	# 2026-07-29, see docs/NEBULAOS_FRONTEND_PRINT_CONTROLS.md. The includes
+	# in printer.cfg are just concatenated here (this codebase only ever uses
+	# plain literal filenames in its config includes, one level of
+	# GuppyScreen/ nesting, never glob patterns), so this is a deliberately
+	# simple closure builder, not a general Klipper config parser. Grep
+	# patterns below use double quotes only, and the awk program is written
+	# to a temp file via a quoted heredoc rather than inline - see the
+	# blank_required_option note above this same docker bash -c block about
+	# why a literal single quote here would break the outer quoting.
+	if [ -s /tmp/printerdata-check/printer.cfg ]; then
+		# printer.cfg must include the NebulaOS-owned frontend controls, which provide
+		# the single virtual_sdcard/pause_resume/display_status/macro closure.
+		if grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/printer.cfg || grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/OpenKE_Settings.cfg 2>/dev/null; then
+			echo "OK   packaged printer.cfg includes frontend-controls.cfg"
+		else
+			echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
+		fi
+		cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/OpenKE_Settings.cfg /tmp/printerdata-check/Nebula.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
@@ -877,17 +1007,17 @@ fi
 rm -rf /tmp/printerdata-check
 # Confirms the actual fix logic landed in the packaged init scripts, not
 # just the seed content sitting there unused.
-S02_CONTENT=$(debugfs -R "cat /etc/init.d/S02nebulaos-namespace" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S02_CONTENT=$(debugfs -R "cat /etc/init.d/S02openke-namespace" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$S02_CONTENT" | grep -q "seed_printer_data_config"; then
-	echo "OK   S02nebulaos-namespace contains the printer_data config seeding logic"
+	echo "OK   S02openke-namespace contains the printer_data config seeding logic"
 else
-	echo "MISS S02nebulaos-namespace is missing the printer_data config seeding logic"
+	echo "MISS S02openke-namespace is missing the printer_data config seeding logic"
 fi
-S05_CONTENT=$(debugfs -R "cat /etc/init.d/S05nebulaos-activate" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S05_CONTENT=$(debugfs -R "cat /etc/init.d/S05openke-activate" ${IMAGES}/rootfs.ext2 2>/dev/null)
 if echo "$S05_CONTENT" | grep -q "config/printer.cfg"; then
-	echo "OK   S05nebulaos-activate validates printer_data against the real required files, not just the config directory"
+	echo "OK   S05openke-activate validates printer_data against the real required files, not just the config directory"
 else
-	echo "MISS S05nebulaos-activate still validates printer_data against only the config directory - a wiped copy would pass validation empty"
+	echo "MISS S05openke-activate still validates printer_data against only the config directory - a wiped copy would pass validation empty"
 fi
 
 echo "=== obsolete overlay files (must be absent - Buildroots output/target copy is additive-only, see 02-configure-buildroot.sh) ==="
@@ -906,6 +1036,8 @@ check_absent /etc/init.d/S01tmpfs-datastore
 check_absent /etc/init.d/S39wifi
 check_absent /etc/init.d/S03nebulaos-factory-seed
 check_absent /etc/init.d/S04nebulaos-activate
+check_absent /opt/nebulaos
+check_absent /opt/nebulaos-seeds
 
 echo "=== SSH/console/recovery (FIRMWARE.md sec 18/21/22/24) ==="
 check /usr/sbin/dropbear
@@ -913,35 +1045,41 @@ check /usr/sbin/wpa_cli
 check /etc/init.d/S00revert-safety
 check /etc/init.d/S01persistent-datastore
 check /etc/init.d/S01wifi
-check /etc/nebulaos-stable-mac.sh
-check /etc/nebulaos-wifi-power-save.sh
-check /usr/libexec/nebulaos-wifi-power-save
-check /etc/nebulaos-wifi-boot-wait.sh
+check /etc/openke-stable-mac.sh
+check /etc/openke-wifi-power-save.sh
+check /usr/libexec/openke-wifi-power-save
+check /etc/openke-wifi-boot-wait.sh
 check /etc/init.d/S99confirm-good
 check /etc/ota_marker.sh
+check /etc/hwrevision
+check /etc/swupdate.cfg
 check /opt/printer_data/config/GuppyScreen/scripts/static_ip.py
 
-echo "=== NebulaOS memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="
+echo "=== OpenKE memory resilience (docs/NEBULAOS_MEMORY_RESILIENCE.md) ==="
 check /sbin/mkswap
 check /sbin/swapon
 check /sbin/swapoff
 check /usr/bin/free
 check /etc/init.d/S00zram-swap
-check /etc/init.d/S03nebulaos-diskswap
-check /etc/init.d/S02nebulaos-namespace
-check /etc/init.d/S02nebulaos-boot-timing
-check /etc/init.d/S04nebulaos-factory-seed
-check /etc/init.d/S05nebulaos-activate
-check /etc/init.d/S45nebulaos-cleanup
-check /etc/nebulaos-retention.sh
-check /etc/nebulaos-healthcheck.sh
-check /opt/nebulaos-seeds/klipper.tar.gz
-check /opt/nebulaos-seeds/moonraker.tar.gz
-check /opt/nebulaos-seeds/seed-manifest.json
+check /etc/init.d/S03openke-diskswap
+check /etc/init.d/S02openke-namespace
+check /etc/init.d/S02openke-boot-timing
+check /etc/init.d/S04openke-factory-seed
+check /etc/init.d/S05openke-activate
+check /etc/init.d/S45openke-cleanup
+check /etc/openke-retention.sh
+check /etc/openke-healthcheck.sh
+check /opt/openke-seeds/klipper.tar.gz
+check /opt/openke-seeds/moonraker.tar.gz
+check /opt/openke-seeds/seed-manifest.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/profile.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/printer.cfg
+check /opt/openke-seeds/printer_profiles/creality-ender3-v3-se/profile.json
+check /opt/openke-seeds/printer_profiles/creality-ender3-v2-neo/profile.json
 check /usr/sbin/ntpd
-check /etc/init.d/S40nebulaos-ntpsync
-check /etc/nebulaos-update-supervisor.sh
-check /etc/init.d/S59nebulaos-update-supervisor
+check /etc/init.d/S40openke-ntpsync
+check /etc/openke-update-supervisor.sh
+check /etc/init.d/S59openke-update-supervisor
 
 # Phase 7 live qualification: Moonraker machine.py needs real iproute2
 # JSON output (`ip -json -det address`), which BusyBox ip cannot produce

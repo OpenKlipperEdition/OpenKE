@@ -1,0 +1,17 @@
+{
+  "id": "creality-ender3-v3-se",
+  "name": "Ender-3 V3 SE",
+  "manufacturer": "Creality",
+  "kinematics": "cartesian",
+  "bed_size": [
+    220,
+    220,
+    250
+  ],
+  "max_velocity": 300,
+  "max_accel": 4000,
+  "probe": "cr_touch",
+  "mcu": "GD32F303",
+  "description": "Creality Ender-3 V3 SE with Nebula Pad",
+  "enabled": true
+}

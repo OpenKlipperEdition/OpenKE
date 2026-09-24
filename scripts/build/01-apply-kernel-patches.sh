@@ -5,11 +5,9 @@
 # are present in the checked-out kernel tree.
 #
 # FIRMWARE.md sec 39: these changes used to be applied here at build time from
-# patches/x2000_kernel_6.6-openke.patch. They're now real, reviewable commits
-# on the `openke` branch of a genuine fork (github.com/coreflake1/NebulaOS-kernel,
-# renamed 2026-08-14 from coreflake1/NebulaOS - forked from the original
-# upstream Llixuma/ingenic-linux-kernel6.6-x2000-v1.0-20250221) -
-# 00-fetch-vendor-sources.sh checks out that branch directly,
+# patches/x2000_kernel_6.6-openke.patch. They're now carried by the requested
+# Open Klipper Edition System `OKE` checkout, and 00-fetch-vendor-sources.sh
+# verifies it against the pinned commit,
 # so there's nothing left to apply here. This script stays as stage "01" (kept
 # numbered/in-sequence on purpose, so existing docs/muscle-memory still work)
 # purely as a sanity check that the fork's content actually landed correctly.
@@ -17,43 +15,28 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
+DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 
-if [ ! -d "$KERNEL_DIR/.git" ]; then
-	echo "vendor/x2000_kernel_6.6 not found - run 00-fetch-vendor-sources.sh first" >&2
+[ -f "$DEPS_MANIFEST" ] || { echo "FATAL: $DEPS_MANIFEST not found" >&2; exit 1; }
+. "$DEPS_MANIFEST"
+
+if [ ! -d "$SYSTEM_DIR/.git" ]; then
+	echo "vendor/system not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
 
-cd "$KERNEL_DIR"
+cd "$SYSTEM_DIR"
 
-# Phase 11 (2026-08-15): used to require `git rev-parse --abbrev-ref HEAD`
-# == "openke" here - broke live during the Phase 9-vs-Phase-11 rebuild-and-
-# compare test the moment 00-fetch-vendor-sources.sh was fixed (same
-# mission) to check out $KERNEL_PIN directly instead of $KERNEL_BRANCH:
-# checking out an exact commit SHA is normal, correct, DETACHED HEAD in
-# git - `--abbrev-ref HEAD` reports the literal string "HEAD" there, not a
-# branch name, so this check started failing a checkout that was actually
-# exactly correct. Removed rather than special-cased: the pin check two
-# lines below already independently verifies the real invariant that
-# matters (are we at the exact accepted commit), with its own hardcoded
-# constant, regardless of which branch (if any) that commit happens to be
-# reachable from - being "on" a named branch was never actually load-
-# bearing for anything this script does after this point.
-#
-# Defense in depth (2026-07-31, NEBULAOS_CAMERA_USB_RT_SOURCE_ANALYSIS.md's
-# vendor-pin audit): 00-fetch-vendor-sources.sh already enforces this exact
-# pin and fails loudly on drift, but this script shouldn't silently trust
-# that it ran first/correctly - keep the same pin constant here and verify
-# independently, so a hand-run `git pull` inside this checkout between the
-# two scripts still gets caught.
-X2000_KERNEL_6_6_PIN=295b7101d751fd888ae39e6f1746a4a940664a5f
+# Defense in depth: stage 00 verified the checkout, but verify here that the
+# build is still at the pinned commit before composing the accepted variants.
 ACTUAL_SHA=$(git rev-parse HEAD)
-if [ "$ACTUAL_SHA" != "$X2000_KERNEL_6_6_PIN" ]; then
-	echo "vendor/x2000_kernel_6.6 HEAD is $ACTUAL_SHA, expected pinned commit $X2000_KERNEL_6_6_PIN - re-run 00-fetch-vendor-sources.sh (it will refuse to proceed and explain why)" >&2
+if [ "$ACTUAL_SHA" != "$SYSTEM_PIN" ]; then
+	echo "vendor/system HEAD is $ACTUAL_SHA, expected pinned commit $SYSTEM_PIN - re-run 00-fetch-vendor-sources.sh" >&2
 	exit 1
 fi
 
-echo "== confirming the openke branch's real changes are present =="
+echo "== confirming pinned OKE HEAD ($ACTUAL_SHA) real changes are present =="
 test -f kernel/kernel-6.6/drivers/input/touchscreen/ns2009.c
 test -f kernel/kernel-6.6/module_drivers/drivers/video/fbdev/ingenic/displays/panel-openke-general-480x272.c
 grep -q "openke,bcm4343x-bt" kernel/kernel-6.6/drivers/bluetooth/hci_h5.c

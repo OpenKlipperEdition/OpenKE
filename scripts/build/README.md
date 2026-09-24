@@ -4,8 +4,8 @@ These scripts reproduce everything documented in `FIRMWARE.md` §8-14: a custom 
 kernel + Buildroot rootfs for the Ender 3 V3 KE's Nebula Pad (Ingenic X2000), with touch, display,
 WiFi, Bluetooth, camera, and a full Klipper/Moonraker/nginx/Mainsail/GuppyScreen app stack (Stage 04
 fetches, cross-compiles, and installs GuppyScreen automatically - it was deliberately deferred/manual
-early in this project's history, but that gap was closed 2026-08-07, see `manifests/dependencies.conf`'s
-own `GUPPYSCREEN_PIN` history) - everything except the real-hardware boot test itself (needs the user
+early in this project's history, but that gap was closed 2026-08-07; the
+ GuppyScreen pin is documented in `manifests/dependencies.conf`) - everything except the real-hardware boot test itself (needs the user
 present, not something a script can do).
 
 **Read this before running anything**: these scripts encode the *correct*, clean sequence -  not a
@@ -19,7 +19,7 @@ rootfs-overlay deletion gotcha) are all documented there with root causes, not j
 ## Prerequisites
 
 - Docker or Podman - `./build.sh` pulls the single, digest-pinned
-  `ghcr.io/coreflake1/nebulaos-build` image (`manifests/dependencies.conf`'s own
+  `ghcr.io/openklipperedition/openke-build` image (`manifests/dependencies.conf`'s own
   `BUILD_IMAGE_REPO`/`BUILD_IMAGE_DIGEST`, never a mutable `:latest` tag) and runs the whole
   `00`-`06` pipeline inside it. That image already contains every host build tool these scripts
   need (see `build-env/Dockerfile`) - no separate `apt-get install`, no nested container, no
@@ -36,9 +36,7 @@ rootfs-overlay deletion gotcha) are all documented there with root causes, not j
   `vendor/` directory is gitignored on purpose (large, mixed-provenance sources, see the main
   README), so nothing under `vendor/` is checked into this repo. The kernel is the one exception to
   "gitignored, nothing checked in": this project's kernel changes live as real commits on the
-  `openke` branch of a real fork, [`coreflake1/NebulaOS-kernel`](https://github.com/coreflake1/NebulaOS-kernel)
-  (renamed 2026-08-14 from `coreflake1/NebulaOS`; forked from the original upstream,
-  `Llixuma/ingenic-linux-kernel6.6-x2000-v1.0-20250221`) -
+  `OKE` branch of [`OpenKlipperEdition/System`](https://github.com/OpenKlipperEdition/System) -
   `00-fetch-vendor-sources.sh` clones that branch directly, so the kernel changes travel with their
   own real git history instead of a patch file. What else *is* checked into this repo: the small set
   of files this project actually wrote by hand (`scripts/build/overlay/` - init scripts and configs,
@@ -74,12 +72,11 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 ## What each stage does
 
-1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs
-   into `vendor/` at the exact refs this project used: the X2000 kernel SDK, this project's own
-   fork's `openke` branch (`coreflake1/NebulaOS-kernel`, forked from `Llixuma/ingenic-linux-kernel6.6-
-   x2000-v1.0-20250221`), the Buildroot config (`lone0/buildroot-x2000`), Klipper
-   (`coreflake1/NebulaOS-klipper`), GuppyScreen (`coreflake1/NebulaOS-guppyscreen`), Moonraker
-   (`Arksine/moonraker`, official), `pellcorp/k1-ustreamer`, and Mainsail's latest prebuilt release.
+1. **`00-fetch-vendor-sources.sh`** - clones/downloads every third-party source this build needs.
+   into `vendor/`, checking the pinned full OpenKlipperEdition/System OKE checkout (kernel + Buildroot), official upstream
+   Klipper at `master`, and GuppyScreen at the latest `OKE` branch HEAD. Immutable inputs such as
+   Moonraker (`Arksine/moonraker`), `pellcorp/k1-ustreamer`, and Mainsail remain pinned and
+   hash-verified.
    - **`scripts/firmware/fetch-cyw43430-wifi-firmware.sh`** - fetches the canonical 7.45.98.125
      WiFi firmware + its own matching CLM blob directly from Infineon's own upstream repo
      (`Infineon/ifx-linux-firmware`, pinned commit, hash-verified) and stages them as
@@ -92,23 +89,24 @@ Buildroot's own overlay dir). No manual step, no real device required.
 2. **`01-apply-kernel-patches.sh`** - no longer applies anything (this project's kernel changes -
    touch DT wiring, the new display panel driver, the new Bluetooth H5 Broadcom vendor extension,
    WiFi/BT/display Kconfig changes, the real ported NS2009 driver, and the upstream `binder.h`
-   build-fix - are already real commits on the fork's `openke` branch, checked out by stage 0). Just
-   verifies they're actually present, kept as stage "01" so the numbered sequence stays stable.
+   build-fix - are already present in the pinned `OKE` checkout, selected by stage 0). Just
+   verifies they're actually present and that `vendor/system` matches `SYSTEM_PIN`, kept as stage
+   "01" so the numbered sequence stays stable.
 3. **`02-configure-buildroot.sh`** - writes the real Buildroot `.config` (base `x2000_halley5_v30_
    linux` defconfig plus every option this project added - WiFi/BT/touch/display/RNG/Python3/
    nginx/etc, using a helper that finds-and-replaces each option's *real* existing line rather than
    blindly appending, which is what caused a real class of bugs this session - see `FIRMWARE.md`
-   §14), the kernel config fragment file (`halley5-nebulaos-fragment.config` - includes
+   §14), the kernel config fragment file (`halley5-openke-fragment.config` - includes
    `CONFIG_EXTRA_FIRMWARE`, which embeds the WiFi firmware directly into the kernel image rather
    than relying on the rootfs being mounted yet - `brcmfmac` is built-in and probes for it earlier
    in boot than the real root filesystem mounts, see `FIRMWARE.md` §53), `local.mk` (the
    `LINUX_OVERRIDE_SRCDIR` pointer), and copies this repo's own hand-written overlay content
    (`scripts/build/overlay/`, including whatever `fetch-cyw43430-wifi-firmware.sh` staged) into
-   `board/halley5-nebulaos-overlay/`.
+   `board/halley5-openke-overlay/`.
 4. **`03-build-kernel-and-rootfs.sh`** - the main kernel + rootfs build (`make`) - touch, display,
    WiFi, Bluetooth, camera-kernel-side, and Core SoC infra all come from this one pass, since
    they're all just kernel config + device-tree, no cross-compiled userspace extras needed yet.
-5. **`04-cross-compile-app-stack.sh`** - cross-compiles the handful of things that need the
+5. **`04-cross-compile-app-stack.sh`** - first builds and validates the pinned Ender-3 V3 KE printer MCU image and stages its Creality firmware plus identity-gated flash/verification tools under `/opt/nebulaos/mcu`, then cross-compiles the handful of things that need the
    Buildroot-built toolchain directly rather than going through a Buildroot package (Klipper's
    `chelper` C extension, Moonraker's `streaming-form-data` C extension, and `ustreamer` itself),
    and assembles the full app-stack overlay (Klipper/Moonraker source trees, Mainsail's static
@@ -122,7 +120,7 @@ Buildroot's own overlay dir). No manual step, no real device required.
 
 ## Output
 
-`vendor/buildroot-x2000/output/images/{xImage,rootfs.ext2,rootfs.squashfs}` (this stage's own
+`vendor/system/buildroot/output/images/{xImage,rootfs.ext2,rootfs.squashfs}` (this stage's own
 `05-final-build.sh` already copies these into `artifacts/buildroot-halley5-v30-image/` for you -
 confirmed against a real fresh-clone build 2026-08-14; this section previously said `uImage`, which
 does not match this project's actual output filename)

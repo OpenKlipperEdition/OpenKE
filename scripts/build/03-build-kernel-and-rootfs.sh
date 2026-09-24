@@ -7,7 +7,7 @@
 # IMPORTANT: never move/rename this checkout mid-build. A real bug this
 # session (FIRMWARE.md sec 14): several of Buildroot's own host tools (e.g.
 # glib-compile-schemas) get built with their RUNPATH hardcoded to whatever
-# absolute path buildroot-x2000/ was actually AT the first time they were
+# absolute path vendor/system/buildroot/ was actually AT the first time they were
 # built - a later stage run against a relocated/renamed checkout will fail
 # with "cannot open shared object file" even though nothing about the build
 # itself changed. Pick a checkout location and never move it mid-build.
@@ -22,7 +22,8 @@
 # exactly the BUILD_PATH_EMBEDDING-class artifact difference the Phase 11
 # comparison tooling expects and accounts for, not a regression.)
 #
-# IMPORTANT: this always force-cleans and rebuilds the kernel from scratch
+# IMPORTANT: this force-cleans and rebuilds the kernel from scratch when its
+# effective inputs have changed
 # (`make linux-dirclean` before `make`), rather than relying on plain `make`
 # alone. A real, previously-silent bug this session (FIRMWARE.md sec 24):
 # LINUX_OVERRIDE_SRCDIR points Buildroot at this project's own kernel
@@ -30,13 +31,14 @@
 # detect source changes there - a plain `make` after editing a DTS/Kconfig
 # file will silently keep using the last-built kernel binary, reporting
 # success while shipping stale, unpatched code. The dirclean costs a slower,
-# full kernel rebuild every time this script runs, which is a real, deliberate
-# tradeoff in favor of correctness - re-run 02-configure-buildroot.sh first
-# if scripts/build/overlay/ or the config artifacts changed, since this
-# script does not re-sync those itself.
+# tradeoff in favor of correctness. Identical inputs can reuse the previous
+# successful kernel build - re-run 02-configure-buildroot.sh first if
+# scripts/build/overlay/ or the config artifacts changed, since this script
+# does not re-sync those itself.
 #
-# IMPORTANT: also force-cleans wpa_supplicant specifically, for the same
-# reason but a different, more general cause (FIRMWARE.md sec 24/27):
+# IMPORTANT: also handles wpa_supplicant specifically for the same reason,
+# but only dircleans it when the package-input fingerprint changes
+# (FIRMWARE.md sec 24/27):
 # Buildroot does not automatically rebuild an already-built *package* just
 # because its own Kconfig options (BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE/
 # _CLI in this case) changed after it was first built - only source changes
@@ -79,20 +81,101 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 . "$DEPS_MANIFEST"
 
 # 2026-07-23: see 02-configure-buildroot.sh for why this lock exists.
-exec 9>"$REPO_ROOT/.nebulaos-build.lock"
-flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
+exec 9>"$REPO_ROOT/.openke-build.lock"
+flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.openke-build.lock" >&2; exit 1; }
 
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
-KERNEL_MOUNT="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
+KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
+KERNEL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-kernel-fingerprint"
+OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-libopenssl-fingerprint"
+BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-busybox-fingerprint"
+WPA_SUPPLICANT_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-wpa-supplicant-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 	echo "buildroot not configured - run 02-configure-buildroot.sh first" >&2
 	exit 1
 fi
+for kernel_input in \
+	"$BUILDROOT_DIR/board/halley5-openke-fragment.config" \
+	"$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config" \
+	"$BUILDROOT_DIR/local.mk"; do
+	[ -f "$kernel_input" ] || {
+		echo "kernel input missing: $kernel_input - run 02-configure-buildroot.sh first" >&2
+		exit 1
+	}
+done
+
+openssl_input_fingerprint() {
+	{
+		printf 'package=libopenssl\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+busybox_input_fingerprint() {
+	{
+		printf 'package=busybox\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config"
+	} | sha256sum | awk '{print $1}'
+}
+wpa_supplicant_input_fingerprint() {
+	{
+		printf 'package=wpa_supplicant\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+
+OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
+BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
+WPA_SUPPLICANT_INPUT_FINGERPRINT=$(wpa_supplicant_input_fingerprint)
+WPA_SUPPLICANT_REBUILD_REQUIRED=1
+if [ -f "$WPA_SUPPLICANT_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$WPA_SUPPLICANT_FINGERPRINT_FILE")" = "$WPA_SUPPLICANT_INPUT_FINGERPRINT" ]; then
+	WPA_SUPPLICANT_REBUILD_REQUIRED=0
+fi
+if [ "$WPA_SUPPLICANT_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== wpa_supplicant inputs unchanged ($WPA_SUPPLICANT_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== wpa_supplicant inputs changed or no successful fingerprint; refreshing package =="
+fi
+
+# Compute this before touching the kernel's generated files. The System pin
+# is included explicitly, while the content-addressed diff captures the
+# accepted variant changes applied on top of that pin.
+kernel_input_fingerprint() {
+	{
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		printf 'system_head='
+		git -C "$REPO_ROOT/vendor/system" rev-parse HEAD
+		printf 'kernel_diff\n'
+		git -C "$REPO_ROOT/vendor/system" diff --binary --no-ext-diff HEAD -- kernel/kernel-6.6
+		printf 'kernel_status\n'
+		git -C "$REPO_ROOT/vendor/system" status --porcelain=v2 -uall -- kernel/kernel-6.6
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-openke-fragment.config" \
+			"$BUILDROOT_DIR/local.mk"
+	} | sha256sum | awk '{print $1}'
+}
+
+KERNEL_INPUT_FINGERPRINT=$(kernel_input_fingerprint)
+KERNEL_REBUILD_REQUIRED=1
+if [ -f "$KERNEL_FINGERPRINT_FILE" ] && \
+	[ -f "$BUILDROOT_DIR/output/build/linux-custom/.stamp_built" ] && \
+	[ "$(cat "$KERNEL_FINGERPRINT_FILE")" = "$KERNEL_INPUT_FINGERPRINT" ]; then
+	KERNEL_REBUILD_REQUIRED=0
+	echo "== kernel inputs unchanged ($KERNEL_INPUT_FINGERPRINT); reusing successful kernel build =="
+else
+	echo "== kernel inputs changed or no successful fingerprint; forcing kernel rebuild =="
+fi
 
 # Stale-config purge (2026-07-31, per the NEBULAOS_CAMERA_USB_RT_SOURCE
 # _ANALYSIS.md vendor-pin audit): a real, previously-undetected gotcha was
-# found on this exact checkout - vendor/x2000_kernel_6.6/kernel/kernel-6.6/
+# found on this exact checkout - vendor/system/kernel/kernel-6.6/
 # .config and .config.old, dated well before a real Kconfig fragment fix
 # (the BCMDHD-disable change), sitting stale in the mounted kernel source
 # tree. Whether `make linux-dirclean` below reliably wipes an
@@ -100,17 +183,23 @@ fi
 # every host/Buildroot version combination is not something this project
 # trusts blindly (this file's own header already documents three separate,
 # real instances of Buildroot's stamp/config invalidation not doing what
-# you'd assume) - so wipe them explicitly here first, unconditionally,
-# before dirclean even runs. This guarantees the kernel source tree never
+# you'd assume) - so wipe them explicitly before a fingerprint-mismatched
+# rebuild. This guarantees the kernel source tree never
 # carries forward a stale Kconfig resolution from a previous, possibly-
 # different build.
-rm -f "$KERNEL_MOUNT/.config" "$KERNEL_MOUNT/.config.old"
-rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
+if [ "$KERNEL_REBUILD_REQUIRED" -eq 1 ]; then
+	rm -f "$KERNEL_MOUNT/.config" "$KERNEL_MOUNT/.config.old"
+	rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
+fi
 
 (
 	cd "$BUILDROOT_DIR"
-	make linux-dirclean
-	make wpa_supplicant-dirclean
+	if [ "$KERNEL_REBUILD_REQUIRED" -eq 1 ]; then
+		make BR2_TAR_OPTIONS=--no-same-owner linux-dirclean
+	fi
+	if [ "$WPA_SUPPLICANT_REBUILD_REQUIRED" -eq 1 ]; then
+		make BR2_TAR_OPTIONS=--no-same-owner wpa_supplicant-dirclean
+	fi
 	# Same staleness class as the two dircleans above (FIRMWARE.md sec 28): a
 	# plain incremental make only rebuilds a package whose stamp is missing
 	# or whose config hash changed, and toggling a Kconfig option alone does
@@ -126,8 +215,14 @@ rm -rf "$KERNEL_MOUNT/include/config" "$KERNEL_MOUNT/include/generated"
 	# BR2_PACKAGE_HOST_PYTHON3_* options change again later, this needs a
 	# manual `make host-python3-dirclean` before the next build, same as any
 	# other already-built package whose Kconfig options changed.
-	make gcc-final-reinstall
-	make
+	make BR2_TAR_OPTIONS=--no-same-owner gcc-final-reinstall
+	make BR2_TAR_OPTIONS=--no-same-owner
 )
+
+mkdir -p "$(dirname "$KERNEL_FINGERPRINT_FILE")"
+printf '%s\n' "$KERNEL_INPUT_FINGERPRINT" > "$KERNEL_FINGERPRINT_FILE"
+printf '%s\n' "$OPENSSL_INPUT_FINGERPRINT" > "$OPENSSL_FINGERPRINT_FILE"
+printf '%s\n' "$BUSYBOX_INPUT_FINGERPRINT" > "$BUSYBOX_FINGERPRINT_FILE"
+printf '%s\n' "$WPA_SUPPLICANT_INPUT_FINGERPRINT" > "$WPA_SUPPLICANT_FINGERPRINT_FILE"
 
 echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.ext2} =="

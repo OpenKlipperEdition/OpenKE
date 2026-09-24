@@ -7,8 +7,8 @@
 > and is preserved as-is, unedited, rather than deleted or rewritten. **It describes historical state
 > and should not be read as current** — the [root `README.md`](../README.md) is the accurate,
 > up-to-date landing page. In particular, the "completely separate from the OpenKE/GuppyScreen
-> project" framing below refers to this workspace's local folder layout at the time, not this repo's
-> current identity as the canonical `NebulaOS-firmware`.
+> project" framing below refers to this workspace's local folder layout during the earliest research phase,
+> prior to the project's evolution into `NebulaOS-firmware` and its subsequent fork into `OpenKE`.
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "id": "creality-ender3-s1",
+  "name": "Ender-3 S1",
+  "manufacturer": "Creality",
+  "kinematics": "cartesian",
+  "bed_size": [
+    220,
+    220,
+    270
+  ],
+  "max_velocity": 300,
+  "max_accel": 3000,
+  "probe": "cr_touch",
+  "mcu": "STM32F401 / STM32F103",
+  "description": "Creality Ender-3 S1 with Nebula Pad",
+  "enabled": false
+}

@@ -52,7 +52,7 @@ currently installed:
 ```
 
 `migration_version` is a content-derived hash
-(`sha256(klipper_seed_commit:moonraker_seed_commit:GUPPYSCREEN_PIN)`,
+(`sha256(klipper_seed_commit:moonraker_seed_commit:GUPPYSCREEN_COMMIT)`,
 truncated to 16 hex chars), computed at build time by
 `04-cross-compile-app-stack.sh` and written into the squashfs's own
 `/opt/nebulaos-seeds/seed-manifest.json`. Deliberately NOT a manually

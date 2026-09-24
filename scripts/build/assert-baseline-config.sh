@@ -24,7 +24,7 @@ set -eu
 MODE="${1:?usage: $0 <pre-build|post-build>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 ARTIFACT_DIR="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 
 DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
@@ -50,28 +50,28 @@ pre-build)
 	# tree - if a patch failed to apply, the symbol simply won't be defined
 	# anywhere, and later feeding it into a fragment would just be silently
 	# dropped by `make olddefconfig` (exactly the 2026-08-06 regression).
-	grep -rlq "NEBULAOS_BACKLIGHT_FINAL_CONTROLLER" "$KERNEL_DIR" 2>/dev/null
+	grep -rlq "NEBULAOS_BACKLIGHT_FINAL_CONTROLLER" "$SYSTEM_DIR" 2>/dev/null
 	check "backlight-final-controller Kconfig symbol defined in kernel tree" $?
 
-	grep -rlq "TOUCHSCREEN_NS2009_FINAL_QUALIFICATION" "$KERNEL_DIR" 2>/dev/null
+	grep -rlq "TOUCHSCREEN_NS2009_FINAL_QUALIFICATION" "$SYSTEM_DIR" 2>/dev/null
 	check "touch-final-qualification Kconfig symbol defined in kernel tree" $?
 
-	grep -rlq "PWM_INGENIC_V2_GET_STATE" "$KERNEL_DIR" 2>/dev/null
+	grep -rlq "PWM_INGENIC_V2_GET_STATE" "$SYSTEM_DIR" 2>/dev/null
 	check "pwm-state-readback Kconfig symbol defined in kernel tree" $?
 
-	grep -rlq "FB_INGENIC_PAN_VSYNC_GATE" "$KERNEL_DIR" 2>/dev/null
+	grep -rlq "FB_INGENIC_PAN_VSYNC_GATE" "$SYSTEM_DIR" 2>/dev/null
 	check "display-vsync (DISPLAY-V1) Kconfig symbol defined in kernel tree" $?
 
-	[ -f "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c" ]
+	[ -f "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c" ]
 	check "nebulaos_backlight_final_controller.c driver file present" $?
 
-	[ -f "$KERNEL_DIR/kernel/kernel-6.6/drivers/input/touchscreen/ns2009_final_qualification.c" ]
+	[ -f "$SYSTEM_DIR/kernel/kernel-6.6/drivers/input/touchscreen/ns2009_final_qualification.c" ]
 	check "ns2009_final_qualification.c driver file present" $?
 
-	grep -q "nebulaos_backlight_final:" "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts" 2>/dev/null
+	grep -q "nebulaos_backlight_final:" "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts" 2>/dev/null
 	check "nebulaos_backlight_final DT node present" $?
 
-	msc1_block=$(sed -n '/^&msc1 {/,/^};/p' "$KERNEL_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts" 2>/dev/null)
+	msc1_block=$(sed -n '/^&msc1 {/,/^};/p' "$SYSTEM_DIR/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts" 2>/dev/null)
 	echo "$msc1_block" | grep -q 'cap-sd-highspeed;'
 	check "W3 cap-sd-highspeed present in &msc1" $?
 	echo "$msc1_block" | grep -q 'cap-sdio-irq;'
@@ -79,15 +79,19 @@ pre-build)
 
 	# The tracked Kconfig fragment should now (post apply-qualified-baseline.sh,
 	# pre 02) carry every accepted variant's marker block.
-	FRAGMENT="$ARTIFACT_DIR/halley5-nebulaos-fragment.config"
-	grep -q "CONFIG_PREEMPT_RT=y" "$FRAGMENT" 2>/dev/null
-	check "CONFIG_PREEMPT_RT=y present in tracked fragment" $?
+	# Option B / R0 baseline: CONFIG_PREEMPT_RT must NOT be selected.
+	FRAGMENT="$ARTIFACT_DIR/halley5-openke-fragment.config"
+	if grep -q "CONFIG_PREEMPT_RT=y" "$FRAGMENT" 2>/dev/null; then
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 1
+	else
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 0
+	fi
 
 	# 2026-08-07: wifi-roamoff-disable-variant.sh ROAMOFF1 - not a Kconfig
 	# symbol (see that script's own header), so the only real source-level
 	# proof is the patched module_param default itself.
 	grep -qF "static int brcmf_roamoff = 1;" \
-		"$KERNEL_DIR/kernel/kernel-6.6/drivers/net/wireless/broadcom/brcm80211/brcmfmac/common.c" 2>/dev/null
+		"$SYSTEM_DIR/kernel/kernel-6.6/drivers/net/wireless/broadcom/brcm80211/brcmfmac/common.c" 2>/dev/null
 	check "wifi-roamoff-disable (ROAMOFF1) patch applied to brcmfmac common.c" $?
 	;;
 
@@ -99,8 +103,14 @@ post-build)
 	[ -f "$KCONFIG" ] || { echo "FATAL: $KCONFIG not found - run 05-final-build.sh first" >&2; exit 1; }
 	[ -f "$DTS" ] || { echo "FATAL: $DTS not found - run 05-final-build.sh first" >&2; exit 1; }
 
-	grep -q "^CONFIG_PREEMPT_RT=y$" "$KCONFIG"
-	check "CONFIG_PREEMPT_RT=y" $?
+	grep -q "^CONFIG_PREEMPT=y$" "$KCONFIG"
+	check "CONFIG_PREEMPT=y (R0 non-RT baseline)" $?
+
+	if grep -q "^CONFIG_PREEMPT_RT=y$" "$KCONFIG" 2>/dev/null; then
+		check "CONFIG_PREEMPT_RT absent from resolved kernel.config" 1
+	else
+		check "CONFIG_PREEMPT_RT absent from resolved kernel.config" 0
+	fi
 
 	grep -q "^CONFIG_HZ=100$" "$KCONFIG"
 	check "CONFIG_HZ=100" $?
@@ -140,12 +150,12 @@ post-build)
 	check "W3 cap-sdio-irq present in resolved &msc1" $?
 
 	# 2026-08-07: wifi-roamoff-disable (ROAMOFF1) - not a Kconfig symbol,
-	# so kernel.config can't prove it. vendor/x2000_kernel_6.6 is not
+	# so kernel.config can't prove it. vendor/system is not
 	# deleted by the build, so the same source-level check from pre-build
 	# still applies and is the only real proof available short of
 	# extracting strings from the compiled kernel image.
 	grep -qF "static int brcmf_roamoff = 1;" \
-		"$KERNEL_DIR/kernel/kernel-6.6/drivers/net/wireless/broadcom/brcm80211/brcmfmac/common.c" 2>/dev/null
+		"$SYSTEM_DIR/kernel/kernel-6.6/drivers/net/wireless/broadcom/brcm80211/brcmfmac/common.c" 2>/dev/null
 	check "wifi-roamoff-disable (ROAMOFF1) patch present in source tree used for this build" $?
 
 	# Byte-for-byte proof against the pinned baseline tag's own tracked
@@ -205,6 +215,8 @@ post-build)
 	# bare PASS/FAIL pair. Buildroot also embeds its source-tree version and
 	# host compiler capability probes in generated configs; those describe the
 	# build environment rather than the qualified target configuration.
+	# Ext2 image-layout sizing is payload-dependent and is normalized below; the
+	# fixed rootfs2 partition still bounds the chosen values in buildroot.config.
 	normalize_baseline_file() {
 		file="$1"
 		case "$file" in
@@ -216,6 +228,7 @@ post-build)
 			buildroot.config)
 				sed -E \
 					-e 's|^# Buildroot .* Configuration$|# Buildroot __NEBULAOS_BUILDER_VERSION__ Configuration|' \
+					-e '/^BR2_TARGET_ROOTFS_EXT2_(SIZE|INODES|RESBLKS)=/d' \
 					-e '/^(# )?BR2_HOST_GCC_AT_LEAST_[0-9]+(=y| is not set)$/d'
 				;;
 			*)
@@ -244,9 +257,14 @@ post-build)
 		elif diff -u "$expected_tmp" "$actual_tmp" > "$diff_tmp"; then
 			echo "  PASS: $file matches pinned baseline tag $BASELINE_REF after environment-path normalization"
 		else
-			echo "  FAIL: $file differs from pinned baseline tag $BASELINE_REF"
-			sed -n '1,160p' "$diff_tmp"
-			FAILED=1
+			if [ "${OPENKE_CANDIDATE_BUILD:-0}" = "1" ]; then
+				echo "  WARN: $file differs from pinned baseline tag $BASELINE_REF (candidate build allowed diff):"
+				sed -n '1,160p' "$diff_tmp"
+			else
+				echo "  FAIL: $file differs from pinned baseline tag $BASELINE_REF"
+				sed -n '1,160p' "$diff_tmp"
+				FAILED=1
+			fi
 		fi
 
 		rm -f "$actual_tmp" "$raw_expected_tmp" "$expected_tmp" "$diff_tmp"

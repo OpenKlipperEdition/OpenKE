@@ -36,8 +36,18 @@ cp "$ARTIFACT_DIR/buildroot.config" "$PKG_DIR/buildroot.config"
 cp "$ARTIFACT_DIR/build-manifest.txt" "$PKG_DIR/build-manifest.txt"
 cp "$REPO_ROOT/baseline-difference.txt" "$PKG_DIR/baseline-difference.txt"
 
+if [ -f "$ARTIFACT_DIR/Ender3V3SE_klipper.bin" ]; then
+	echo "== copying Ender-3 V3 SE MCU firmware to deployment package =="
+	cp "$ARTIFACT_DIR/Ender3V3SE_klipper.bin" "$PKG_DIR/Ender3V3SE_klipper.bin"
+fi
+
+if [ -f "$ARTIFACT_DIR/Ender3V2Neo_klipper.bin" ]; then
+	echo "== copying Ender-3 V2 Neo MCU firmware to deployment package =="
+	cp "$ARTIFACT_DIR/Ender3V2Neo_klipper.bin" "$PKG_DIR/Ender3V2Neo_klipper.bin"
+fi
+
 echo "== decompiling DTB for package inclusion =="
-DTB_SRC="$REPO_ROOT/vendor/buildroot-x2000/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
+DTB_SRC="$REPO_ROOT/vendor/system/buildroot/output/build/linux-custom/module_drivers/dts/x2000/halley5_v30.dtb"
 if [ -f "$DTB_SRC" ]; then
 	cp "$DTB_SRC" "$PKG_DIR/halley5_v30.dtb"
 	{ command -v dtc >/dev/null 2>&1 && dtc -I dtb -O dts "$PKG_DIR/halley5_v30.dtb" -o "$PKG_DIR/halley5_v30.decompiled.dts" 2>/dev/null || echo "dtc not available in this environment" >&2; } \
@@ -46,8 +56,11 @@ else
 	echo "WARNING: $DTB_SRC not found - shipping source DTS only"
 fi
 
+echo "== building SWUpdate package (.swu) =="
+sh "$SCRIPT_DIR/package-swu.sh" "$PKG_DIR" "$TS"
+
 echo "== generating SHA256SUMS =="
-(cd "$PKG_DIR" && sha256sum xImage rootfs.squashfs kernel.config halley5_v30.dts buildroot.config build-manifest.txt $( [ -f halley5_v30.dtb ] && echo halley5_v30.dtb ) > SHA256SUMS)
+(cd "$PKG_DIR" && sha256sum xImage rootfs.squashfs kernel.config halley5_v30.dts buildroot.config build-manifest.txt $( [ -f halley5_v30.dtb ] && echo halley5_v30.dtb ) $( [ -f Ender3V3SE_klipper.bin ] && echo Ender3V3SE_klipper.bin ) $( [ -f Ender3V2Neo_klipper.bin ] && echo Ender3V2Neo_klipper.bin ) $(ls *.swu 2>/dev/null) > SHA256SUMS)
 
 cat > "$PKG_DIR/DEPLOYMENT_INSTRUCTIONS.md" <<'EOF'
 # Deployment instructions
@@ -94,6 +107,28 @@ ssh root@<ip> 'reboot'
 G28, G29, BED_MESH_CALIBRATE, PROBE_CALIBRATE, CRTENSE_NOZZLE_CLEAR,
 NOZZLE_CLEAR, SAFE_MOVE_Z, Z_OFFSET_CALIBRATION, Z_OFFSET_APPLY_PROBE,
 SAVE_CONFIG, any G0/G1, any heater command, any print.
+
+## Ender-3 V3 SE MCU Firmware Flashing (SD Card)
+
+If connecting the Nebula Pad to an Ender-3 V3 SE printer (GD32F303 mainboard):
+1. Format a micro-SD card (<=32GB) with FAT32 and 4096-byte cluster size.
+2. Copy `Ender3V3SE_klipper.bin` to the root of the SD card.
+   (Note: The bootloader checks filename against the previously flashed binary. If reflashing, rename to a unique name e.g. `firmware_01.bin`).
+3. Turn off the printer.
+4. Insert the SD card into the Ender-3 V3 SE mainboard's SD card slot.
+5. Turn on the printer and wait ~15-20 seconds.
+6. Switch the active profile on Nebula Pad to Ender-3 V3 SE via GuppyScreen Settings -> Printer Model (or `openke-profile set creality-ender3-v3-se`).
+
+## Ender-3 V2 Neo MCU Firmware Flashing (SD Card)
+
+If connecting the Nebula Pad to an Ender-3 V2 Neo printer (STM32F103 4.2.2 / 4.2.7 mainboard):
+1. Format a micro-SD card (<=32GB) with FAT32 and 4096-byte cluster size.
+2. Copy `Ender3V2Neo_klipper.bin` to the root of the SD card.
+   (Note: The bootloader checks filename against the previously flashed binary. If reflashing, rename to a unique name e.g. `firmware_01.bin`).
+3. Turn off the printer.
+4. Insert the SD card into the Ender-3 V2 Neo mainboard's SD card slot.
+5. Turn on the printer and wait ~15-20 seconds.
+6. Switch the active profile on Nebula Pad to Ender-3 V2 Neo via GuppyScreen Settings -> Printer Model (or `openke-profile set creality-ender3-v2-neo`).
 EOF
 
 cat > "$PKG_DIR/ROLLBACK_INSTRUCTIONS.md" <<'EOF'

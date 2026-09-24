@@ -13,7 +13,7 @@
 import subprocess
 import sys
 
-MARKER = "/usr/data/nebulaos/maintenance/camera-quality-mode"
+MARKER = "/usr/data/openke/maintenance/camera-quality-mode"
 S50WEBCAM = "/etc/init.d/S50webcam"
 VALID = ("LOW", "MED", "HIGH")
 
@@ -25,7 +25,7 @@ def main():
 
     quality = sys.argv[1]
 
-    subprocess.run(["mkdir", "-p", "/usr/data/nebulaos/maintenance"], check=True)
+    subprocess.run(["mkdir", "-p", "/usr/data/openke/maintenance"], check=True)
     with open(MARKER, "w") as f:
         f.write(quality + "\n")
 

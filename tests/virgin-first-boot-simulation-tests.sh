@@ -9,12 +9,12 @@
 # RESULTING, provisioned printer.cfg (not the source tree copy), proving
 # the full pipeline produces a config Klipper could actually start with.
 #
-# Unlike tests/nebulaos-printerdata-seed-tests.sh (which uses a synthetic
+# Unlike tests/openke-printerdata-seed-tests.sh (which uses a synthetic
 # minimal printer.cfg fixture), this test seeds from the REAL, tracked
 # scripts/build/overlay/opt/printer_data/config/ directly - the actual
-# canonical factory config this build ships, including the [z_compensate]/
-# [prtouch_v2]/[nebulaos_version] sections task 1/2 of this mission wired
-# in. The klipper git archive is still a fixture (a real, throwaway repo
+# canonical factory config this build ships with an upstream-compatible
+# profile; fork-only sections are intentionally not included. The Klipper
+# git archive is still a fixture (a real, throwaway repo
 # standing in for the canonical checkout - same convention as
 # tests/factory-seed-git-tests.sh) since this test is about the
 # provisioning PIPELINE and the REAL printer.cfg, not about re-verifying
@@ -31,11 +31,11 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 # tracked shared gate (not the real device path /etc/nebulaos-
 # maintenance-gate.sh, which does not exist on a dev machine) - exported
 # once so every `env ... sh -c` call below inherits it automatically.
-export GATE_LIB="$REPO_ROOT/scripts/build/overlay/etc/nebulaos-maintenance-gate.sh"
+export GATE_LIB="$REPO_ROOT/scripts/build/overlay/etc/openke-maintenance-gate.sh"
 MAKE_ARCHIVE_LIB="$REPO_ROOT/scripts/build/lib/make-seed-archive.sh"
-S02_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S02nebulaos-namespace"
-S04_FACTORY_SEED_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-factory-seed"
-S04_MIGRATE_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04nebulaos-migrate"
+S02_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S02openke-namespace"
+S04_FACTORY_SEED_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04openke-factory-seed"
+S04_MIGRATE_SCRIPT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04openke-migrate"
 REAL_PRINTER_DATA_CONFIG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/virgin-first-boot-tests.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
@@ -51,9 +51,9 @@ pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 . "$MAKE_ARCHIVE_LIB"
 
 test_virgin_first_boot_produces_valid_klipper_config() {
-	NEBULAOS_ROOT="$WORK/persistent-root"
+	OPENKE_ROOT="$WORK/persistent-root"
 	SEEDS="$WORK/seeds"
-	rm -rf "$NEBULAOS_ROOT" "$SEEDS"
+	rm -rf "$OPENKE_ROOT" "$SEEDS"
 	mkdir -p "$SEEDS"
 
 	# 1. Build a real, throwaway "canonical klipper" fixture archive -
@@ -66,7 +66,7 @@ test_virgin_first_boot_produces_valid_klipper_config() {
 	git -C "$klipper_src" add -A
 	git -C "$klipper_src" -c user.email=t@l -c user.name=t commit -q -m "fixture"
 	klipper_commit=$(make_seed_archive "$klipper_src" master \
-		"https://github.com/coreflake1/NebulaOS-klipper.git" "$SEEDS/klipper.tar.gz")
+		"https://github.com/Klipper3d/klipper.git" "$SEEDS/klipper.tar.gz")
 
 	cat > "$SEEDS/seed-manifest.json" <<EOF
 {
@@ -78,11 +78,11 @@ EOF
 	# 2. S02: create the empty namespace layout AND seed printer_data/
 	# config from the REAL, tracked source - exactly what a genuinely
 	# fresh device's very first boot does.
-	env S02NEBULAOS_NAMESPACE_NO_AUTORUN=1 NEBULAOS_ROOT="$NEBULAOS_ROOT" \
+	env S02OPENKE_NAMESPACE_NO_AUTORUN=1 OPENKE_ROOT="$OPENKE_ROOT" \
 		PRINTER_DATA_CONFIG_SEED="$REAL_PRINTER_DATA_CONFIG" \
 		sh -c ". '$S02_SCRIPT'; start" > "$WORK/s02.log" 2>&1
 
-	if [ ! -f "$NEBULAOS_ROOT/printer_data/config/printer.cfg" ]; then
+	if [ ! -f "$OPENKE_ROOT/printer_data/config/printer.cfg" ]; then
 		fail "virgin boot: S02 did not seed printer_data/config/printer.cfg ($(cat "$WORK/s02.log"))"
 		return
 	fi
@@ -93,21 +93,21 @@ EOF
 	# start() also seeds mainsail/venvs, out of scope for this config-
 	# focused test), then record the initial generation exactly as a
 	# real fresh boot's S04 slot would (factory-seed runs before migrate).
-	env S04NEBULAOS_FACTORY_SEED_NO_AUTORUN=1 SEEDS="$SEEDS" \
-		APPS="$NEBULAOS_ROOT/apps" SYSTEM="$NEBULAOS_ROOT/system" \
+	env S04OPENKE_FACTORY_SEED_NO_AUTORUN=1 SEEDS="$SEEDS" \
+		APPS="$OPENKE_ROOT/apps" SYSTEM="$OPENKE_ROOT/system" \
 		sh -c ". '$S04_FACTORY_SEED_SCRIPT'; \
-			seed_git_app klipper master 'https://github.com/coreflake1/NebulaOS-klipper.git' \
+			seed_git_app klipper master 'https://github.com/Klipper3d/klipper.git' \
 				klippy/chelper/c_helper.so; \
 			record_initial_generation" > "$WORK/s04-seed.log" 2>&1
 
-	if [ ! -e "$NEBULAOS_ROOT/apps/klipper/.git" ]; then
+	if [ ! -e "$OPENKE_ROOT/apps/klipper/.git" ]; then
 		fail "virgin boot: klipper checkout was not seeded ($(cat "$WORK/s04-seed.log"))"
 		return
 	fi
 	pass "virgin boot: canonical klipper checkout seeded"
 
-	if [ ! -f "$NEBULAOS_ROOT/system/app-generation.json" ] \
-		|| ! grep -q "virgin-sim-gen-1" "$NEBULAOS_ROOT/system/app-generation.json"; then
+	if [ ! -f "$OPENKE_ROOT/system/app-generation.json" ] \
+		|| ! grep -q "virgin-sim-gen-1" "$OPENKE_ROOT/system/app-generation.json"; then
 		fail "virgin boot: app-generation.json missing or wrong migration_version ($(cat "$WORK/s04-seed.log"))"
 	else
 		pass "virgin boot: correct migration/app generation recorded"
@@ -117,11 +117,11 @@ EOF
 	# be a clean no-op - the exact fresh-boot-ordering property Phase 3/4
 	# fixed and tests/app-migration-tests.sh already covers in isolation;
 	# re-confirmed here as part of the full chained pipeline.
-	env S04NEBULAOS_MIGRATE_NO_AUTORUN=1 SEEDS="$SEEDS" \
-		APPS="$NEBULAOS_ROOT/apps" SYSTEM="$NEBULAOS_ROOT/system" \
+	env S04OPENKE_MIGRATE_NO_AUTORUN=1 SEEDS="$SEEDS" \
+		APPS="$OPENKE_ROOT/apps" SYSTEM="$OPENKE_ROOT/system" \
 		LOCKDIR="$WORK/no-lock" \
 		sh -c ". '$S04_MIGRATE_SCRIPT'; start" > "$WORK/s04-migrate.log" 2>&1
-	backup_count=$(find "$NEBULAOS_ROOT/system/migration-backups" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
+	backup_count=$(find "$OPENKE_ROOT/system/migration-backups" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
 	if [ "$backup_count" -eq 0 ] && grep -q "already matches" "$WORK/s04-migrate.log"; then
 		pass "virgin boot: migrate makes no redundant backup/reseed on the same fresh boot"
 	else
@@ -139,48 +139,26 @@ EOF
 		pass "virgin boot: USER OWNED printer_data path never referenced by IMAGE OWNED app seeding"
 	fi
 
-	# 6. The real proof: parse the ACTUALLY-PROVISIONED printer.cfg (not
-	# the source tree) and drive it through real production
-	# PRTouchV2/ZCompensate code, exactly as klippy_extras/
-	# test_printer_cfg_config_validation.py does against the source file -
-	# proving the seeding pipeline didn't corrupt/truncate/mangle
-	# anything on the way from source to a provisioned device.
-	provisioned_cfg="$NEBULAOS_ROOT/printer_data/config/printer.cfg"
-	if PYTHONPATH="$REPO_ROOT" python3 - "$provisioned_cfg" <<'PYEOF'
+	# 6. Parse the ACTUALLY-PROVISIONED printer.cfg (not the source tree)
+	# with the standard library and verify the upstream-compatible profile.
+	provisioned_cfg="$OPENKE_ROOT/printer_data/config/printer.cfg"
+	if python3 - "$provisioned_cfg" <<'PYEOF'
 import configparser, sys
-sys.path.insert(0, ".")
-from klippy_extras import prtouch_test_support as fake
-from klippy_extras import prtouch_v2, z_compensate
 
-def real_section(text, section):
-    parser = configparser.ConfigParser(interpolation=None, strict=False)
-    marker = "\n[%s]\n" % section
-    start = text.index(marker) + 1
-    nxt = text.find("\n[", start + 1)
-    parser.read_string(text[start:nxt if nxt != -1 else len(text)])
-    return dict(parser[section])
-
-text = open(sys.argv[1]).read()
-prtouch_values = real_section(text, "prtouch_v2")
-printer, mcu, pins, _ = fake.build_environment(prtouch_v2_values=prtouch_values)
-prtouch_config = fake.make_prtouch_v2_config(printer, pins, prtouch_values)
-pv2 = prtouch_v2.PRTouchV2(prtouch_config)
-printer.add_object("prtouch_v2", pv2)
-
-zc_values = real_section(text, "z_compensate")
-zc_config = fake.make_z_compensate_config(printer, zc_values)
-zc = z_compensate.ZCompensate(zc_config)
-
-fake.connect(printer, mcu)
-prtouch_config.assert_all_consumed()
-zc_config.assert_all_consumed()
-assert zc.bed_add_temp == 60.0, zc.bed_add_temp
+parser = configparser.ConfigParser(interpolation=None, strict=False)
+parser.read(sys.argv[1])
+required = {"mcu", "printer", "stepper_x", "stepper_y", "stepper_z", "bltouch"}
+forbidden = {"prtouch_v2", "z_compensate", "nebulaos_version", "tmcstatus"}
+missing = sorted(required - set(parser.sections()))
+found_forbidden = sorted(forbidden & set(parser.sections()))
+if missing or found_forbidden:
+    raise SystemExit("missing=%s forbidden=%s" % (missing, found_forbidden))
 print("VALID")
 PYEOF
 	then
-		pass "virgin boot: provisioned printer.cfg reaches a valid Klipper startup configuration (real config-load validation, zero errors)"
+		pass "virgin boot: provisioned printer.cfg contains the required upstream sections and no fork-only sections"
 	else
-		fail "virgin boot: provisioned printer.cfg failed real Klipper config validation"
+		fail "virgin boot: provisioned printer.cfg failed upstream config validation"
 	fi
 }
 

@@ -34,7 +34,7 @@ fi
 
 # --- Extract just the RESOLUTION/DESIRED_FPS + quality-marker case block,
 # so a marker value can be evaluated in isolation without needing the real
-# device, v4l2-ctl, or /usr/data/nebulaos to exist. ---
+# device, v4l2-ctl, or /usr/data/openke to exist. ---
 QUALITY_BLOCK=$(awk '/^RESOLUTION=1920x1080$/,/^esac$/' "$S50WEBCAM")
 if [ -z "$QUALITY_BLOCK" ]; then
 	fail "could not extract the RESOLUTION/quality-marker block from $S50WEBCAM"
@@ -48,7 +48,7 @@ run_with_marker() {
 	fake_bin=$(mktemp -d)
 	cat > "$fake_bin/cat" <<EOF
 #!/bin/sh
-if [ "\$1" = "/usr/data/nebulaos/maintenance/camera-quality-mode" ]; then
+if [ "\$1" = "/usr/data/openke/maintenance/camera-quality-mode" ]; then
 	printf '%s' '$1'
 	exit 0
 fi
@@ -136,12 +136,14 @@ else
 	fail "camera-quality.cfg's gcode_shell_command does not point at the runtime script path"
 fi
 
-# --- Test 8: printer.cfg actually includes camera-quality.cfg - a macro
+# --- Test 8: printer.cfg actually includes camera-quality.cfg (directly or via OpenKE_Settings.cfg) - a macro
 # file nobody [include]s is invisible to both Mainsail and GuppyScreen. ---
-if grep -q '^\[include camera-quality.cfg\]$' "$PRINTER_CFG"; then
+if grep -q '^\[include camera-quality.cfg\]$' "$PRINTER_CFG" \
+	|| (grep -q '^\[include OpenKE_Settings.cfg\]$' "$PRINTER_CFG" \
+	    && grep -q '^\[include camera-quality.cfg\]$' "$(dirname "$PRINTER_CFG")/OpenKE_Settings.cfg"); then
 	pass
 else
-	fail "printer.cfg does not [include camera-quality.cfg]"
+	fail "printer.cfg does not include camera-quality.cfg (directly or via OpenKE_Settings.cfg)"
 fi
 
 echo ""

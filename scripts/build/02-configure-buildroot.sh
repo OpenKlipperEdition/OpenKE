@@ -17,7 +17,7 @@
 # or the kernel fragment/buildroot.config artifacts, and before 03/05 - a real
 # bug this session (FIRMWARE.md sec 24): editing the git-tracked overlay
 # template alone does nothing, since Buildroot only ever reads from
-# vendor/buildroot-x2000/board/halley5-nebulaos-overlay/ (gitignored), which
+# vendor/system/buildroot/board/halley5-openke-overlay/ (gitignored), which
 # this script is what syncs the template into. A rebuild after only touching
 # the template, without re-running this first, silently uses whatever this
 # script last copied there.
@@ -39,7 +39,7 @@
 # elsewhere and do not get invalidated by removing target files directly, so
 # deleting output/target/ alone leaves it mostly empty instead of clean) - a
 # renamed or deleted overlay file must also be removed by hand from
-# vendor/buildroot-x2000/output/target/ before the next 05-final-build.sh, or
+# vendor/system/buildroot/output/target/ before the next 05-final-build.sh, or
 # the build needs a full clean. 06-verify.sh also cannot catch this on its
 # own: it only inspects rootfs.ext2, and both rootfs.ext2 and rootfs.squashfs
 # are built from this same stale output/target/, so a leftover file is wrong
@@ -70,27 +70,32 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 . "$DEPS_MANIFEST"
 
 # 2026-07-23: this and the other numbered build stages all write into the
-# same shared vendor/buildroot-x2000 tree - running two of these at once
+# same shared vendor/system/buildroot tree - running two of these at once
 # (e.g. from two terminals) would silently interleave writes. Cheap
 # insurance: a single exclusive lock file, held for the whole script.
-exec 9>"$REPO_ROOT/.nebulaos-build.lock"
-flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
+exec 9>"$REPO_ROOT/.openke-build.lock"
+flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.openke-build.lock" >&2; exit 1; }
 
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
 ARTIFACTS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
-KERNEL_SRCDIR="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+KERNEL_SRCDIR="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
+OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-libopenssl-fingerprint"
+BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-busybox-fingerprint"
 
-if [ ! -d "$BUILDROOT_DIR/.git" ]; then
-	echo "vendor/buildroot-x2000 not found - run 00-fetch-vendor-sources.sh first" >&2
+if [ ! -f "$BUILDROOT_DIR/Makefile" ]; then
+	echo "vendor/system/buildroot not found - run 00-fetch-vendor-sources.sh first" >&2
 	exit 1
 fi
 
 cp "$ARTIFACTS/buildroot.config" "$BUILDROOT_DIR/.config"
 mkdir -p "$BUILDROOT_DIR/board"
-cp "$ARTIFACTS/halley5-nebulaos-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config"
-cp "$ARTIFACTS/halley5-nebulaos-busybox-fragment.config" "$BUILDROOT_DIR/board/halley5-nebulaos-busybox-fragment.config"
+cp "$ARTIFACTS/halley5-openke-fragment.config" "$BUILDROOT_DIR/board/halley5-openke-fragment.config"
+cp "$ARTIFACTS/halley5-openke-busybox-fragment.config" "$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config"
+if [ -f "$REPO_ROOT/scripts/build/configs/swupdate.config" ]; then
+	cp "$REPO_ROOT/scripts/build/configs/swupdate.config" "$BUILDROOT_DIR/package/swupdate/swupdate.config"
+fi
 # Phase 11 (2026-08-15): CONFIG_EXTRA_FIRMWARE_DIR in the tracked fragment
-# is a literal "/src/board/halley5-nebulaos-overlay/lib/firmware" - valid
+# is a literal "/src/board/halley5-openke-overlay/lib/firmware" - valid
 # only under the old nested pellcorp/k1-bash-build container, which always
 # mounted this project at the fixed path /src regardless of the host
 # checkout location. Now that the pipeline runs natively (real host paths
@@ -102,17 +107,17 @@ cp "$ARTIFACTS/halley5-nebulaos-busybox-fragment.config" "$BUILDROOT_DIR/board/h
 # diff verbatim against the accepted baseline tag) to point at where the
 # overlay's firmware actually lands post-copy below: real host path, so it
 # works from any checkout location.
-sed -i "s#/src/board/halley5-nebulaos-overlay#$BUILDROOT_DIR/board/halley5-nebulaos-overlay#" \
-	"$BUILDROOT_DIR/board/halley5-nebulaos-fragment.config"
+sed -i "s#/src/board/halley5-openke-overlay#$BUILDROOT_DIR/board/halley5-openke-overlay#" \
+	"$BUILDROOT_DIR/board/halley5-openke-fragment.config"
 cat > "$BUILDROOT_DIR/local.mk" <<EOF
 LINUX_OVERRIDE_SRCDIR = $KERNEL_SRCDIR
 EOF
-rm -rf "$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-overlay"
-cp -r "$REPO_ROOT/scripts/build/overlay/." "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/comms" \
-         "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/logs" \
-         "$BUILDROOT_DIR/board/halley5-nebulaos-overlay/opt/printer_data/gcodes"
+rm -rf "$BUILDROOT_DIR/board/halley5-openke-overlay"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-overlay"
+cp -r "$REPO_ROOT/scripts/build/overlay/." "$BUILDROOT_DIR/board/halley5-openke-overlay/"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/comms" \
+         "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/logs" \
+         "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/printer_data/gcodes"
 # Real bug found live on 2026-07-28: this rm -rf/cp only cleans the BOARD
 # overlay staging dir (above), not output/target/ or
 # output/build/buildroot-fs/ext2/target/ - per the IMPORTANT comment near
@@ -134,43 +139,111 @@ for obsolete_rel in \
 	"etc/init.d/S01tmpfs-datastore" \
 	"etc/init.d/S39wifi" \
 	"etc/init.d/S03nebulaos-factory-seed" \
-	"etc/init.d/S04nebulaos-activate"; do
-	rm -f "$BUILDROOT_DIR/output/target/$obsolete_rel" \
+	"opt/printer_data/config/simpleaf" \
+	"etc/init.d/S04nebulaos-activate" \
+	"etc/init.d/S02nebulaos-boot-timing" \
+	"etc/init.d/S02nebulaos-namespace" \
+	"etc/init.d/S02nebulaos-wifi-irq-priority" \
+	"etc/init.d/S03nebulaos-diskswap" \
+	"etc/init.d/S04nebulaos-factory-seed" \
+	"etc/init.d/S04nebulaos-migrate" \
+	"etc/init.d/S05nebulaos-activate" \
+	"etc/init.d/S40nebulaos-ntpsync" \
+	"etc/init.d/S45nebulaos-cleanup" \
+	"etc/init.d/S46nebulaos-dropbear-keys" \
+	"etc/init.d/S51nebulaos-camera-idle-controller" \
+	"etc/init.d/S54nebulaos-host-mcu" \
+	"etc/init.d/S57nebulaos-camera-seed" \
+	"etc/init.d/S57nebulaos-mcu-upgrade" \
+	"etc/init.d/S59nebulaos-update-supervisor" \
+	"etc/init.d/S97nebulaos-display-qualified-apply" \
+	"etc/init.d/S98nebulaos-display-sleep-wake-controller" \
+	"etc/nebulaos-camera-idle-controller.sh" \
+	"etc/nebulaos-display-qualified.sh" \
+	"etc/nebulaos-display-sleep-wake-controller.sh" \
+	"etc/nebulaos-healthcheck.sh" \
+	"etc/nebulaos-maintenance-gate.sh" \
+	"etc/nebulaos-retention.sh" \
+	"etc/nebulaos-stable-mac.sh" \
+	"etc/nebulaos-update-supervisor.sh" \
+	"etc/nebulaos-wifi-boot-wait.sh" \
+	"etc/nebulaos-wifi-power-save.sh" \
+	"etc/sysctl.d/99-nebulaos-resilience.conf" \
+	"usr/libexec/nebulaos-display-qualified-write" \
+	"usr/libexec/nebulaos-seed-camera" \
+	"usr/libexec/nebulaos-wifi-power-save" \
+	"opt/nebulaos" \
+	"opt/nebulaos-seeds" \
+	"opt/nebulaos-version.json"; do
+	rm -rf "$BUILDROOT_DIR/output/target/$obsolete_rel" \
 	      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/$obsolete_rel" 2>/dev/null || true
 done
-rm -rf "$BUILDROOT_DIR/board/halley5-nebulaos-wheels"
-mkdir -p "$BUILDROOT_DIR/board/halley5-nebulaos-wheels"
-cp "$REPO_ROOT/scripts/build/vendor-wheels/"*.whl "$BUILDROOT_DIR/board/halley5-nebulaos-wheels/"
+rm -rf "$BUILDROOT_DIR/board/halley5-openke-wheels"
+mkdir -p "$BUILDROOT_DIR/board/halley5-openke-wheels"
+cp "$REPO_ROOT/scripts/build/vendor-wheels/"*.whl "$BUILDROOT_DIR/board/halley5-openke-wheels/"
 cp "$REPO_ROOT/scripts/build/vendor-patches/python-matplotlib/python-matplotlib.mk" "$BUILDROOT_DIR/package/python-matplotlib/python-matplotlib.mk"
 
 echo "== normalizing .config (resolves any derived Kconfig selects) =="
-( cd "$BUILDROOT_DIR" && make olddefconfig )
+# The checkout may be mounted on a filesystem (for example a Windows/WSL
+# bind mount) that cannot represent the numeric owners stored in some source
+# archives.  Keep extraction portable by making Buildroot's tar invocations
+# ignore archive ownership metadata; this is a command-line override so the
+# tracked baseline .config remains unchanged.
+( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner olddefconfig )
 
-# Reproducibility fix (2026-07-26, NebulaOS mutable-runtime mission): a real
-# bug found by directly inspecting the built rootfs.squashfs with unsquashfs
-# instead of trusting 05-final-build.sh's exit code - enabling
-# BR2_PACKAGE_LIBOPENSSL_BIN=y (the openssl CLI) above did NOT get the
-# openssl binary into the image, because libopenssl had already been built
-# once before (as a transitive dependency of git/python3-ssl/curl) with that
-# suboption off, and Buildroot's own per-package build stamps
-# (output/build/<pkg>/.stamp_*) are not invalidated by a suboption-only
-# .config change - only by the package's own source/patch/version changing.
-# This is a general Buildroot limitation, not specific to openssl: ANY
-# suboption added to an already-built package needs an explicit dirclean, or
-# it silently keeps the old build. Forcing it here (rather than relying on
-# whoever runs this script next to remember to do it by hand, which is
-# exactly how this was first missed) makes the fix part of the tracked
-# pipeline instead of a one-off manual step - dirclean is a safe no-op if
-# the package was never built yet (e.g. on a genuinely fresh output/ tree).
+# Buildroot does not invalidate package stamps when a package suboption or
+# BusyBox fragment changes. Track those effective inputs and only dirclean
+# the affected packages when they differ from the last successful Stage 03
+# build. The marker is deliberately written by Stage 03, not here, so a
+# failed build cannot certify a package state as reusable.
+openssl_input_fingerprint() {
+	{
+		printf 'package=libopenssl\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum "$BUILDROOT_DIR/.config"
+	} | sha256sum | awk '{print $1}'
+}
+busybox_input_fingerprint() {
+	{
+		printf 'package=busybox\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/.config" \
+			"$BUILDROOT_DIR/board/halley5-openke-busybox-fragment.config"
+	} | sha256sum | awk '{print $1}'
+}
+
+OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
+BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
+OPENSSL_REBUILD_REQUIRED=1
+BUSYBOX_REBUILD_REQUIRED=1
+if [ -f "$OPENSSL_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$OPENSSL_FINGERPRINT_FILE")" = "$OPENSSL_INPUT_FINGERPRINT" ]; then
+	OPENSSL_REBUILD_REQUIRED=0
+fi
+if [ -f "$BUSYBOX_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$BUSYBOX_FINGERPRINT_FILE")" = "$BUSYBOX_INPUT_FINGERPRINT" ]; then
+	BUSYBOX_REBUILD_REQUIRED=0
+fi
+if [ "$OPENSSL_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== OpenSSL inputs unchanged ($OPENSSL_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== OpenSSL inputs changed or no successful fingerprint; refreshing package =="
+fi
+if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== BusyBox inputs unchanged ($BUSYBOX_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== BusyBox inputs changed or no successful fingerprint; refreshing package =="
+fi
+
 (
 	cd "$BUILDROOT_DIR"
-	make libopenssl-dirclean 2>/dev/null || true
-	# Same class of bug, found again (Memory Resilience Gate, 2026-07-26):
-	# adding CONFIG_FEATURE_SWAPON_PRI via the busybox config fragment had
-	# no effect on an already-built busybox (confirmed live on a flashed
-	# image: swapon rejected the priority option outright) - same
-	# stale-stamp mechanism as the libopenssl case above.
-	make busybox-dirclean 2>/dev/null || true
+	if [ "$OPENSSL_REBUILD_REQUIRED" -eq 1 ]; then
+		make libopenssl-dirclean 2>/dev/null || true
+	fi
+	if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 1 ]; then
+		make busybox-dirclean 2>/dev/null || true
+	fi
 )
 
 echo "== buildroot configured =="

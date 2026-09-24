@@ -17,8 +17,8 @@
 #   sh scripts/qa/display-live-capture.sh <device-ip> [output-dir]
 #
 # Environment overrides:
-#   NEBULAOS_SSH_PASSWORD   default: openke (custom's root password)
-#   NEBULAOS_SSH_USER       default: root
+#   OPENKE_SSH_PASSWORD   default: openke (custom's root password)
+#   OPENKE_SSH_USER       default: root
 #
 # Confirm printer identity (hostname/CID-MAC/manifest) BEFORE running the
 # full capture - this script's own "identity" group is meant to be run
@@ -29,8 +29,8 @@ set -eu
 
 DEVICE_IP="${1:?usage: $0 <device-ip> [output-dir]}"
 OUT_DIR="${2:-}"
-SSH_USER="${NEBULAOS_SSH_USER:-root}"
-SSH_PASSWORD="${NEBULAOS_SSH_PASSWORD:-openke}"
+SSH_USER="${OPENKE_SSH_USER:-root}"
+SSH_PASSWORD="${OPENKE_SSH_PASSWORD:-openke}"
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
@@ -71,7 +71,7 @@ remote() {
 group_identity() {
 	echo "== identity =="
 	remote identity-hostname "hostname; uname -a; cat /proc/cmdline; uptime"
-	remote identity-manifest "cat /usr/data/nebulaos/build-manifest.txt 2>/dev/null || cat /opt/build-manifest.txt 2>/dev/null || echo NO_MANIFEST_FOUND"
+	remote identity-manifest "cat /usr/data/openke/build-manifest.txt 2>/dev/null || cat /opt/build-manifest.txt 2>/dev/null || echo NO_MANIFEST_FOUND"
 	remote identity-root-slot "cat /proc/mounts | grep ' / ' ; cat /etc/ota_marker* 2>/dev/null || true"
 	remote identity-mac "cat /sys/class/net/wlan0/address 2>/dev/null || ip link show wlan0 2>/dev/null"
 	remote identity-klipper "curl -s --max-time 5 http://127.0.0.1:7125/printer/info 2>/dev/null || echo NO_MOONRAKER_RESPONSE"
@@ -160,7 +160,7 @@ group_kernel_logs() {
 
 group_boot_timing() {
 	echo "== boot timing =="
-	remote boot-timing "cat /var/log/nebulaos-boot-timing* 2>/dev/null || echo NO_BOOT_TIMING_LOG"
+	remote boot-timing "cat /var/log/openke-boot-timing* /var/run/openke-boot-timing* 2>/dev/null || echo NO_BOOT_TIMING_LOG"
 }
 
 echo "=== display-live-capture: target $SSH_USER@$DEVICE_IP, output $OUT_DIR ==="

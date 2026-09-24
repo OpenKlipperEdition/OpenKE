@@ -77,11 +77,11 @@ set -eu
 VARIANT="${1:?usage: $0 <DIAG0|DIAG1>}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 PATCH="$SCRIPT_DIR/patches/display-backlight-probe-diag.patch"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+DTS="$SYSTEM_DIR/$DTS_REL"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 MARKER="$REPO_ROOT/build-work/display-backlight-diag-variant-applied.txt"
 
 NEW_DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_probe_diag.c"
@@ -92,8 +92,8 @@ $NEW_DRIVER_REL
 $DTS_REL
 "
 
-BEGIN_MARK="#--- NEBULAOS_BACKLIGHT_PROBE_DIAG_VARIANT_BEGIN ---"
-END_MARK="#--- NEBULAOS_BACKLIGHT_PROBE_DIAG_VARIANT_END ---"
+BEGIN_MARK="#--- OPENKE_BACKLIGHT_PROBE_DIAG_VARIANT_BEGIN ---"
+END_MARK="#--- OPENKE_BACKLIGHT_PROBE_DIAG_VARIANT_END ---"
 # Plain alphanumeric+underscore only (no /, *, or other BRE metacharacters)
 # - these get used directly as sed address patterns below, and a DTS
 # comment needs C-style /* */ delimiters (not the # this project's other
@@ -102,8 +102,8 @@ END_MARK="#--- NEBULAOS_BACKLIGHT_PROBE_DIAG_VARIANT_END ---"
 # sidesteps that entirely - sed's unanchored /pattern/ already matches
 # these as a substring wherever they appear on a line, /* */ wrapper and
 # all, so no escaping is needed at any use site.
-DTS_MARK_BEGIN="NEBULAOS_BACKLIGHT_PROBE_DIAG_VARIANT_DTS_BEGIN"
-DTS_MARK_END="NEBULAOS_BACKLIGHT_PROBE_DIAG_VARIANT_DTS_END"
+DTS_MARK_BEGIN="OPENKE_BACKLIGHT_PROBE_DIAG_VARIANT_DTS_BEGIN"
+DTS_MARK_END="OPENKE_BACKLIGHT_PROBE_DIAG_VARIANT_DTS_END"
 
 case "$VARIANT" in
 	DIAG0|DIAG1) ;;
@@ -132,10 +132,10 @@ esac
 # `git checkout --` on it alone would fail with "did not match any
 # files" - remove it directly instead, then let a fresh `git apply`
 # recreate it if DIAG1 was requested.
-git -C "$KERNEL_DIR" checkout -- \
+git -C "$SYSTEM_DIR" checkout -- \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig \
 	kernel/kernel-6.6/module_drivers/drivers/misc/Makefile
-rm -f "$KERNEL_DIR/$NEW_DRIVER_REL"
+rm -f "$SYSTEM_DIR/$NEW_DRIVER_REL"
 
 # The DTS is different - it's ALSO touched by wifi-sdio-variant.sh (an
 # unrelated &msc1 node). Deliberately NOT a blanket
@@ -167,7 +167,7 @@ if grep -qF "$BEGIN_MARK" "$FRAGMENT"; then
 fi
 
 if [ "$VARIANT" = "DIAG1" ]; then
-	( cd "$KERNEL_DIR" && git apply "$PATCH" )
+	( cd "$SYSTEM_DIR" && git apply "$PATCH" )
 
 	# Repoint the existing &pwm node from the unused channel-1 pin to
 	# the real candidate backlight channel-0 pin - same repointing

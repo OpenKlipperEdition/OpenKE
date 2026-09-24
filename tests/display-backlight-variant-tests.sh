@@ -3,7 +3,7 @@
 # Offline, repeatable tests for scripts/build/display-backlight-variant.sh
 # (display hardware analysis mission, 2026-08-01, DISPLAY-B1 prototype).
 # Operates against the real vendor kernel checkout's tracked DTS
-# (vendor/x2000_kernel_6.6/kernel/kernel-6.6/module_drivers/dts/x2000/
+# (vendor/system/kernel/kernel-6.6/module_drivers/dts/x2000/
 # halley5_v30.dts) - same pattern as tests/wifi-sdio-variant-tests.sh.
 #
 # Powered-on investigation mission (2026-08-01) fix: the original version of
@@ -13,7 +13,7 @@
 # the file's actual content. This made tests 1 and 6 (clean-baseline /
 # clean-revert) vacuously pass every time, real bug or not - exactly the
 # kind of gap this project's own "never trust exit 0 alone" discipline
-# warns about. Fixed to check `git -C "$KERNEL_DIR" status --porcelain`
+# warns about. Fixed to check `git -C "$SYSTEM_DIR" status --porcelain`
 # instead, the nested vendor git checkout that actually tracks this file -
 # matching tests/wifi-sdio-variant-tests.sh's own (correct) pattern.
 #
@@ -24,9 +24,9 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/display-backlight-variant.sh"
-KERNEL_DIR="$REPO_ROOT/vendor/x2000_kernel_6.6"
+SYSTEM_DIR="$REPO_ROOT/vendor/system"
 DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-DTS="$KERNEL_DIR/$DTS_REL"
+DTS="$SYSTEM_DIR/$DTS_REL"
 
 PASS=0
 FAIL=0
@@ -62,10 +62,10 @@ trap 'exit 143' TERM
 # baseline needs no override at all). Checked against the NESTED vendor
 # repo, not the outer repo (which ignores vendor/ entirely). ---
 sh "$VARIANT_SCRIPT" S0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- "$DTS_REL")" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS_REL")" ]; then
 	pass
 else
-	fail "S0 did not produce a git-clean DTS file: $(git -C "$KERNEL_DIR" diff -- "$DTS_REL")"
+	fail "S0 did not produce a git-clean DTS file: $(git -C "$SYSTEM_DIR" diff -- "$DTS_REL")"
 fi
 
 # --- Test 2: S1 adds exactly one nebulaos_backlight node. ---
@@ -113,10 +113,10 @@ fi
 # dangling pwm0_pc repoint left behind). Checked against the NESTED vendor
 # repo - this is the exact check that was vacuous before this fix. ---
 sh "$VARIANT_SCRIPT" S0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- "$DTS_REL")" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS_REL")" ]; then
 	pass
 else
-	fail "switching from S1 back to S0 left the DTS modified: $(git -C "$KERNEL_DIR" diff -- "$DTS_REL")"
+	fail "switching from S1 back to S0 left the DTS modified: $(git -C "$SYSTEM_DIR" diff -- "$DTS_REL")"
 fi
 
 # --- Test 7: a forced failure while S1 is active does not corrupt the file
@@ -126,7 +126,7 @@ fi
 # state by leaving S1 applied, then confirm S0 still cleanly recovers). ---
 sh "$VARIANT_SCRIPT" S1 >/dev/null
 sh "$VARIANT_SCRIPT" S0 >/dev/null
-if [ -z "$(git -C "$KERNEL_DIR" status --porcelain -- "$DTS_REL")" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS_REL")" ]; then
 	pass
 else
 	fail "recovering to S0 after S1 was left active did not produce a clean file"

@@ -22,14 +22,14 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 . "$DEPS_MANIFEST"
 
 # 2026-07-23: see 02-configure-buildroot.sh for why this lock exists.
-exec 9>"$REPO_ROOT/.nebulaos-build.lock"
-flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.nebulaos-build.lock" >&2; exit 1; }
+exec 9>"$REPO_ROOT/.openke-build.lock"
+flock -n 9 || { echo "another build stage already owns $REPO_ROOT/.openke-build.lock" >&2; exit 1; }
 
 # Phase 11 (2026-08-15): the orphaned-container-cleanup loop and per-call
 # `--label openke-build-pid=$$` that used to live here are gone - see
 # 02-configure-buildroot.sh's own Phase 11 note.
-BUILDROOT_DIR="$REPO_ROOT/vendor/buildroot-x2000"
-KERNEL_MOUNT="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6"
+BUILDROOT_DIR="$REPO_ROOT/vendor/system/buildroot"
+KERNEL_MOUNT="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 
 # 2026-07-23: source-fingerprint check - refuse to package an image built
 # from a source tree that changed mid-build (a real risk in this project:
@@ -50,12 +50,15 @@ source_fingerprint() {
 	(
 		cd "$REPO_ROOT" && git rev-parse HEAD && \
 			git status --porcelain=v2 -- . ":(exclude)artifacts/buildroot-halley5-v30-image/"
-		cd "$REPO_ROOT/vendor/x2000_kernel_6.6" && git rev-parse HEAD && git status --porcelain=v2
+		cd "$REPO_ROOT/vendor/system" && git rev-parse HEAD && git status --porcelain=v2
 	) | sha256sum | awk '{print $1}'
 }
 FINGERPRINT_BEFORE=$(source_fingerprint)
 
-( cd "$BUILDROOT_DIR" && make )
+# Ignore archive ownership metadata so extraction also works when the
+# repository is mounted on a filesystem that does not support chown (such as
+# a Windows/WSL bind mount).
+( cd "$BUILDROOT_DIR" && make BR2_TAR_OPTIONS=--no-same-owner )
 
 mkdir -p "$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 cp "$BUILDROOT_DIR/output/images/xImage" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/xImage"
@@ -79,11 +82,11 @@ fi
 # script also produces every intermediate experimental/A-B variant build,
 # which this project routinely does against a dirty, in-progress tree - a
 # blanket rejection here would break that normal workflow. Opt-in via
-# NEBULAOS_REQUIRE_CLEAN_TREE=1 (set only for the final Phase 13 production
+# OPENKE_REQUIRE_CLEAN_TREE=1 (set only for the final Phase 13 production
 # build), default off so today's iterative builds are unaffected.
-if [ "${NEBULAOS_REQUIRE_CLEAN_TREE:-0}" = "1" ]; then
+if [ "${OPENKE_REQUIRE_CLEAN_TREE:-0}" = "1" ]; then
 	if [ -n "$(cd "$REPO_ROOT" && git status --porcelain)" ]; then
-		echo "FATAL: NEBULAOS_REQUIRE_CLEAN_TREE=1 but the main repository has uncommitted changes - a release build must come from a clean, committed tree" >&2
+		echo "FATAL: OPENKE_REQUIRE_CLEAN_TREE=1 but the main repository has uncommitted changes - a release build must come from a clean, committed tree" >&2
 		exit 1
 	fi
 fi
@@ -127,12 +130,11 @@ artifact_sha256() {
 	echo "build_image_repo=${BUILD_IMAGE_REPO:-absent}"
 	echo "build_image_digest=${BUILD_IMAGE_DIGEST:-absent}"
 	git_field git_commit_main ""
-	git_field git_commit_kernel vendor/x2000_kernel_6.6
-	git_field git_commit_buildroot vendor/buildroot-x2000
+	git_field git_commit_system vendor/system
 	git_field git_commit_klipper vendor/klipper
+	git_field git_commit_mcu vendor/klipper-mcu
 	git_field git_commit_moonraker vendor/moonraker
-	git_field git_commit_guppyscreen vendor/nebulaos-guppyscreen
-	git_field git_commit_pellcorp_creality vendor/pellcorp-creality
+	git_field git_commit_guppyscreen vendor/guppyscreen
 	git_field git_commit_k1_ustreamer vendor/k1-ustreamer
 	git_field git_commit_v4l_utils vendor/v4l-utils
 	if [ -d "$REPO_ROOT/vendor/k1-ustreamer/.git" ]; then
@@ -150,6 +152,10 @@ artifact_sha256() {
 	artifact_sha256 kernel_config_sha256 "$ARTIFACT_DIR/kernel.config"
 	artifact_sha256 buildroot_config_sha256 "$ARTIFACT_DIR/buildroot.config"
 	artifact_sha256 device_tree_sha256 "$ARTIFACT_DIR/halley5_v30.dts"
+	artifact_sha256 mcu_klipper_creality_bin_sha256 "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/openke/mcu/klipper-creality.bin"
+	artifact_sha256 mcu_klipper_raw_bin_sha256 "$BUILDROOT_DIR/board/halley5-openke-overlay/opt/openke/mcu/klipper.bin"
+	artifact_sha256 mcu_v3_se_klipper_bin_sha256 "$ARTIFACT_DIR/Ender3V3SE_klipper.bin"
+	artifact_sha256 mcu_v2_neo_klipper_bin_sha256 "$ARTIFACT_DIR/Ender3V2Neo_klipper.bin"
 	artifact_sha256 xImage_sha256 "$ARTIFACT_DIR/xImage"
 	echo "xImage_size=$(wc -c < "$ARTIFACT_DIR/xImage")"
 	artifact_sha256 rootfs_squashfs_sha256 "$ARTIFACT_DIR/rootfs.squashfs"

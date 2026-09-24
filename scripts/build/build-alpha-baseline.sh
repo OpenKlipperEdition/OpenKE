@@ -40,8 +40,8 @@ echo "=== nebulaos-alpha-baseline: applying R1 (PREEMPT_RT, HZ=100 unchanged) ==
 sh "$SCRIPT_DIR/preempt-variant.sh" R1
 
 echo "=== nebulaos-alpha-baseline: confirming the selection landed before building ==="
-DTS="$REPO_ROOT/vendor/x2000_kernel_6.6/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+DTS="$REPO_ROOT/vendor/system/kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 sed -n '/^&msc1 {/,/^};/p' "$DTS" | grep -q 'cap-sdio-irq;' || { echo "ABORT: cap-sdio-irq did not land in the DTS" >&2; exit 1; }
 sed -n '/^&msc1 {/,/^};/p' "$DTS" | grep -q 'cap-sd-highspeed;' || { echo "ABORT: cap-sd-highspeed did not land in the DTS" >&2; exit 1; }
 grep -q '^CONFIG_PREEMPT_RT=y$' "$FRAGMENT" || { echo "ABORT: CONFIG_PREEMPT_RT=y did not land in the fragment config" >&2; exit 1; }

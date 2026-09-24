@@ -1,4 +1,4 @@
-# NebulaOS unified build environment (Migration A).
+# OpenKE unified build environment (Migration A).
 #
 # Replaces two previously-nested container dependencies with one:
 #   - pellcorp/k1-bash-build (the outer Buildroot/kernel/rootfs environment)
@@ -11,15 +11,15 @@
 # socket, no `docker run` from inside the container.
 #
 # What this image is: a host-level Linux environment with every build tool
-# NebulaOS-firmware's scripts/build/00-06 pipeline actually invokes, baked in
+# OpenKE's scripts/build/00-06 pipeline actually invokes, baked in
 # at image-build time instead of `apt-get install`'d mid-firmware-build.
 #
 # What this image is NOT: a place that contains project source, or a place
 # that bundles a target MIPS compiler for the kernel/rootfs/native-app build.
 # That compiler is Buildroot's own self-bootstrapped
 # mipsel-buildroot-linux-gnu-* toolchain, built from source during Stage 03
-# from this project's own pinned Buildroot revision (manifests/
-# dependencies.conf's BUILDROOT_PIN) - this image supplies the HOST tools
+# from the pinned OKE System buildroot subtree; the System commit
+# is recorded in build-manifest.txt - this image supplies the HOST tools
 # (gcc, make, python3, ...) Buildroot's own build process needs to bootstrap
 # that target toolchain itself, not the target toolchain directly.
 #
@@ -123,7 +123,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # --- Migration A: GuppyScreen's exact current toolchain, preserved --------
-# Identical pin to NebulaOS-guppyscreen/docker/Dockerfile's own ARGs (see
+# Identical pin to OpenKlipperEdition/GuppyScreen/docker/Dockerfile's own ARGs (see
 # build-env/versions.env - single source of truth for these values, kept in
 # sync with that Dockerfile by inspection, not by import, since they live in
 # different repos). Migration A's proof is that ONLY container ownership
@@ -158,8 +158,8 @@ ENV GUPPYSCREEN_TOOLCHAIN_BIN=/toolchains/${GUPPYSCREEN_MIPS_TOOLCHAIN}/bin
 
 WORKDIR /work
 
-LABEL org.opencontainers.image.source="https://github.com/coreflake1/NebulaOS-firmware" \
-      org.opencontainers.image.title="NebulaOS Build Environment" \
-      org.opencontainers.image.description="Canonical unified build environment for NebulaOS - replaces pellcorp/k1-bash-build and ghcr.io/coreflake1/guppydev with one NebulaOS-owned, digest-pinned image. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
+LABEL org.opencontainers.image.source="https://github.com/OpenKlipperEdition/OpenKE" \
+      org.opencontainers.image.title="OpenKE Build Environment" \
+      org.opencontainers.image.description="Canonical unified build environment for OpenKE - replaces pellcorp/k1-bash-build and ghcr.io/coreflake1/guppydev with one OpenKE-owned, digest-pinned image. Does not contain project source or the Buildroot-generated target toolchain (that's built from source at build time, per manifests/dependencies.conf)."
 
 ENTRYPOINT ["sh", "-c"]

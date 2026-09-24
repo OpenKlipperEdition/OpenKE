@@ -25,7 +25,7 @@
 # experimental/toggleable A-B tools - each one's "off" state resets ONLY the
 # files it owns to the real git-committed baseline first, and the tracked
 # Kconfig fragment (artifacts/buildroot-halley5-v30-image/
-# halley5-nebulaos-fragment.config) is reset to not-selected after every
+# halley5-openke-fragment.config) is reset to not-selected after every
 # real qualification build, on purpose, so an unreviewed experiment can
 # never silently become the new invisible default (see each script's own
 # header for this rationale). The side effect: nobody had a single command
@@ -63,7 +63,7 @@
 #     default/off value. Not invoked.
 #
 # Usage: sh scripts/build/apply-qualified-baseline.sh
-# Run AFTER 00-fetch-vendor-sources.sh (needs a real vendor/x2000_kernel_6.6
+# Run AFTER 00-fetch-vendor-sources.sh (needs a real vendor/system
 # checkout) and BEFORE 02-configure-buildroot.sh, exactly like any other
 # variant script.
 
@@ -79,7 +79,7 @@ echo "== apply-qualified-baseline: applying every accepted baseline variant =="
 # rewrite - verified per-script during the audit, see the doc referenced
 # above). Listed here in the order the underlying missions were originally
 # accepted, for readability only.
-sh "$SCRIPT_DIR/preempt-variant.sh" R1
+sh "$SCRIPT_DIR/preempt-variant.sh" R0
 sh "$SCRIPT_DIR/wifi-sdio-variant.sh" W3
 sh "$SCRIPT_DIR/display-vsync-variant.sh" V1
 sh "$SCRIPT_DIR/pinctrl-ownership-fix-variant.sh" FIX1
@@ -87,5 +87,6 @@ sh "$SCRIPT_DIR/backlight-final-controller-variant.sh" FINAL1
 sh "$SCRIPT_DIR/pwm-state-readback-variant.sh" GETSTATE1
 sh "$SCRIPT_DIR/touch-final-qualification-variant.sh" FINALQUAL1
 sh "$SCRIPT_DIR/wifi-roamoff-disable-variant.sh" ROAMOFF1
+sh "$SCRIPT_DIR/accelerometer-eeprom-bus-enable-variant.sh" FIX1
 
-echo "== apply-qualified-baseline: all 8 accepted variants applied =="
+echo "== apply-qualified-baseline: all 9 accepted variants applied =="

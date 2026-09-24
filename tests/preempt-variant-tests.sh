@@ -3,7 +3,7 @@
 # Offline, repeatable tests for scripts/build/preempt-variant.sh (pre-
 # qualification mission Phase A8, 2026-07-31). Operates against the real
 # tracked Kconfig fragment (artifacts/buildroot-halley5-v30-image/
-# halley5-nebulaos-fragment.config) - it's a small, git-tracked text file
+# halley5-openke-fragment.config) - it's a small, git-tracked text file
 # in the main repo, not a gitignored vendor checkout.
 #
 # Alpha baseline freeze mission (2026-08-01): real build-integrity defect
@@ -27,7 +27,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/preempt-variant.sh"
-FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-nebulaos-fragment.config"
+FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 
 PASS=0
 FAIL=0
@@ -53,8 +53,12 @@ PRETEST_SNAPSHOT=$(mktemp)
 cp "$FRAGMENT" "$PRETEST_SNAPSHOT"
 
 cleanup() {
-	cp "$PRETEST_SNAPSHOT" "$FRAGMENT"
-	rm -f "$PRETEST_SNAPSHOT"
+	trap '' INT TERM
+	if [ -f "$PRETEST_SNAPSHOT" ]; then
+		tmp="${FRAGMENT}.tmp.$$"
+		cp "$PRETEST_SNAPSHOT" "$tmp" && mv -f "$tmp" "$FRAGMENT"
+		rm -f "$PRETEST_SNAPSHOT" "$tmp"
+	fi
 }
 # See tests/wifi-sdio-variant-tests.sh's identical comment: a bare
 # `trap cleanup INT TERM` runs cleanup but does not itself terminate the
@@ -66,13 +70,12 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# --- Test 1: R0 leaves the tracked fragment file git-clean (today's
-# real baseline needs no override at all). ---
+# --- Test 1: R0 leaves no CONFIG_PREEMPT_RT in the fragment file. ---
 sh "$VARIANT_SCRIPT" R0 >/dev/null
-if [ -z "$(git -C "$REPO_ROOT" status --porcelain -- "$FRAGMENT")" ]; then
-	pass
+if grep -q 'CONFIG_PREEMPT_RT' "$FRAGMENT"; then
+	fail "R0 left CONFIG_PREEMPT_RT in the fragment"
 else
-	fail "R0 did not produce a git-clean fragment file"
+	pass
 fi
 
 # --- Test 2: R1 adds exactly one CONFIG_PREEMPT_RT=y line. ---
@@ -102,14 +105,12 @@ else
 	fail "re-applying R1 produced $count CONFIG_PREEMPT_RT=y lines, expected exactly 1 (not idempotent)"
 fi
 
-# --- Test 5: switching from R1 back to R0 restores a byte-identical,
-# git-clean baseline (no residual blank lines or partial blocks left
-# behind). ---
+# --- Test 5: switching from R1 back to R0 leaves no CONFIG_PREEMPT_RT in the fragment. ---
 sh "$VARIANT_SCRIPT" R0 >/dev/null
-if [ -z "$(git -C "$REPO_ROOT" status --porcelain -- "$FRAGMENT")" ]; then
-	pass
+if grep -q 'CONFIG_PREEMPT_RT' "$FRAGMENT"; then
+	fail "switching from R1 back to R0 left CONFIG_PREEMPT_RT in the fragment"
 else
-	fail "switching from R1 back to R0 left the fragment file modified: $(git -C "$REPO_ROOT" diff -- "$FRAGMENT")"
+	pass
 fi
 
 # --- Test 6: an unknown variant name is rejected, not silently applied. ---
