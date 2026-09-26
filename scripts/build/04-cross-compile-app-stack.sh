@@ -518,8 +518,18 @@ echo "== cross-compiling Moonraker's one real C extension: streaming-form-data =
 STREAMING_VERSION="2.1.0"
 STREAMING_ARCHIVE=$(ls "$PYWHEELS_DIR"/streaming[-_]form[-_]data-${STREAMING_VERSION}.tar.gz 2>/dev/null | head -n 1 || true)
 if [ ! -s "$STREAMING_ARCHIVE" ]; then
-	pip3 download -d "$PYWHEELS_DIR" --no-deps --no-binary :all: "streaming-form-data==${STREAMING_VERSION}"
-	STREAMING_ARCHIVE=$(ls "$PYWHEELS_DIR"/streaming[-_]form[-_]data-${STREAMING_VERSION}.tar.gz 2>/dev/null | head -n 1 || true)
+	STREAMING_URL="https://files.pythonhosted.org/packages/dc/fd/d49f3b4e6258e865566fd8aa3da9966f47ca5a7d7fd8ca181f8209010605/streaming_form_data-2.1.0.tar.gz"
+	STREAMING_SHA256="2c5c81fc9c451ea133083bc6da959f87e9b91fba3effe99411f1f90461ea7c5b"
+	STREAMING_TARGET="$PYWHEELS_DIR/streaming_form_data-${STREAMING_VERSION}.tar.gz"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL -o "$STREAMING_TARGET" "$STREAMING_URL"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "$STREAMING_TARGET" "$STREAMING_URL"
+	else
+		python3 -c "import urllib.request; urllib.request.urlretrieve('$STREAMING_URL', '$STREAMING_TARGET')"
+	fi
+	echo "$STREAMING_SHA256  $STREAMING_TARGET" | sha256sum -c -
+	STREAMING_ARCHIVE="$STREAMING_TARGET"
 fi
 STREAMING_INPUT_FINGERPRINT=$(
 	{
