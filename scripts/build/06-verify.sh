@@ -560,6 +560,12 @@ fi
 check /opt/openke-version.json
 check /opt/moonraker/moonraker/server.py
 check /usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data
+if debugfs -R "cat /usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data/targets.py" ${IMAGES}/rootfs.ext2 2>/dev/null | grep -q "smart_open = None"; then
+	echo "OK   streaming_form_data optional cloud target dependencies verified"
+else
+	echo "FAIL streaming_form_data has unhandled smart_open dependency"
+	FAILURES=$((FAILURES + 1))
+fi
 check /usr/sbin/nginx
 check /usr/share/mainsail/index.html
 check /etc/init.d/S55klipper

@@ -536,6 +536,7 @@ STREAMING_INPUT_FINGERPRINT=$(
 		printf 'package=streaming-form-data==%s\n' "$STREAMING_VERSION"
 		printf 'system_pin=%s\n' "$SYSTEM_PIN"
 		printf 'compiler_flags=-shared -fPIC -O2\n'
+		printf 'patch=make-cloud-deps-optional-v1\n'
 		sha256sum "$STREAMING_ARCHIVE"
 		find "$SYSROOT/usr/include/$TARGET_PY_DIR" -type f -print | sort |
 			while IFS= read -r header; do sha256sum "$header"; done
@@ -566,6 +567,18 @@ if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
 	else
 		STREAMING_PKG_DIR="$STREAMING_EXTRACT_DIR/streaming_form_data"
 	fi
+	# Make optional cloud targets (smart_open, aiofiles) non-fatal on import
+	# so Moonraker's standard FileTarget/ValueTarget/SHA256Target work without
+	# pulling in huge unnecessary cloud SDKs (boto3, google-cloud-storage, etc.).
+	python3 -c "
+p = '$STREAMING_PKG_DIR/targets.py'
+with open(p, 'r') as f:
+    s = f.read()
+s = s.replace('import smart_open', 'try:\n    import smart_open\nexcept ImportError:\n    smart_open = None')
+s = s.replace('import aiofiles', 'try:\n    import aiofiles\nexcept ImportError:\n    aiofiles = None')
+with open(p, 'w') as f:
+    f.write(s)
+"
 	(
 		cd "$STREAMING_PKG_DIR"
 		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
@@ -609,6 +622,9 @@ cp "$STREAMING_PKG_DIR"/*.py \
    "$STREAMING_PKG_DIR"/*.so \
    "$SITEPKG/streaming_form_data/"
 ln -sf "_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" "$SITEPKG/streaming_form_data/_parser.so"
+if [ -n "$HOST_PYTHON3" ]; then
+	"$HOST_PYTHON3" -m compileall -q -f "$SITEPKG/streaming_form_data" >/dev/null 2>&1 || true
+fi
 
 ### 3. ustreamer (camera pipeline)
 #
