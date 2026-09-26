@@ -515,13 +515,15 @@ for whl in "$WORK"/pywheels/*.whl; do
 done
 
 echo "== cross-compiling Moonraker's one real C extension: streaming-form-data =="
-STREAMING_ARCHIVE="$PYWHEELS_DIR/streaming-form-data-1.11.0.tar.gz"
+STREAMING_VERSION="2.1.0"
+STREAMING_ARCHIVE=$(ls "$PYWHEELS_DIR"/streaming[-_]form[-_]data-${STREAMING_VERSION}.tar.gz 2>/dev/null | head -n 1 || true)
 if [ ! -s "$STREAMING_ARCHIVE" ]; then
-	pip3 download -d "$PYWHEELS_DIR" --no-deps --no-binary :all: streaming-form-data==1.11.0
+	pip3 download -d "$PYWHEELS_DIR" --no-deps --no-binary :all: "streaming-form-data==${STREAMING_VERSION}"
+	STREAMING_ARCHIVE=$(ls "$PYWHEELS_DIR"/streaming[-_]form[-_]data-${STREAMING_VERSION}.tar.gz 2>/dev/null | head -n 1 || true)
 fi
 STREAMING_INPUT_FINGERPRINT=$(
 	{
-		printf 'package=streaming-form-data==1.11.0\n'
+		printf 'package=streaming-form-data==%s\n' "$STREAMING_VERSION"
 		printf 'system_pin=%s\n' "$SYSTEM_PIN"
 		printf 'compiler_flags=-shared -fPIC -O2\n'
 		sha256sum "$STREAMING_ARCHIVE"
@@ -545,20 +547,27 @@ else
 	echo "== streaming-form-data inputs changed or no successful fingerprint; rebuilding =="
 fi
 
-rm -rf "$WORK/streaming-form-data-1.11.0"
+rm -rf "$WORK/streaming_form_data-${STREAMING_VERSION}" "$WORK/streaming-form-data-${STREAMING_VERSION}" "$WORK/streaming_form_data"
 if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
 	tar xzf "$STREAMING_ARCHIVE" -C "$WORK"
+	STREAMING_EXTRACT_DIR=$(find "$WORK" -maxdepth 1 -type d \( -name "streaming_form_data-${STREAMING_VERSION}" -o -name "streaming-form-data-${STREAMING_VERSION}" \) | head -n 1)
+	if [ -d "$STREAMING_EXTRACT_DIR/src/streaming_form_data" ]; then
+		STREAMING_PKG_DIR="$STREAMING_EXTRACT_DIR/src/streaming_form_data"
+	else
+		STREAMING_PKG_DIR="$STREAMING_EXTRACT_DIR/streaming_form_data"
+	fi
 	(
-		cd "$WORK/streaming-form-data-1.11.0"
+		cd "$STREAMING_PKG_DIR"
 		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
 		mipsel-buildroot-linux-gnu-gcc -shared -fPIC -O2 \
 			-I"$SYSROOT/usr/include/$TARGET_PY_DIR" \
-			-o "streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
-			streaming_form_data/_parser.c
+			-o "_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
+			_parser.c
 	)
 else
-	mkdir -p "$WORK/streaming-form-data-1.11.0"
-	cp -r "$STREAMING_CACHE/package/." "$WORK/streaming-form-data-1.11.0/"
+	STREAMING_PKG_DIR="$WORK/streaming_form_data/streaming_form_data"
+	mkdir -p "$STREAMING_PKG_DIR"
+	cp -r "$STREAMING_CACHE/package/streaming_form_data/." "$STREAMING_PKG_DIR/"
 fi
 
 # Production optimization mission, Phase 6 (2026-07-30): same unstripped-
@@ -567,16 +576,16 @@ fi
 # build-work, strip the copy that actually ships.
 mkdir -p "$WORK/debug-symbols"
 if [ "$STREAMING_REBUILD_REQUIRED" -eq 1 ]; then
-	cp "$WORK/streaming-form-data-1.11.0/streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
+	cp "$STREAMING_PKG_DIR/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" \
 		"$WORK/debug-symbols/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug"
 	(
-		cd "$WORK/streaming-form-data-1.11.0"
+		cd "$STREAMING_PKG_DIR"
 		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
-		mipsel-buildroot-linux-gnu-strip --strip-unneeded "streaming_form_data/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so"
+		mipsel-buildroot-linux-gnu-strip --strip-unneeded "_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so"
 	)
 	rm -rf "$STREAMING_CACHE"
-	mkdir -p "$STREAMING_CACHE/debug" "$STREAMING_CACHE/package"
-	cp -r "$WORK/streaming-form-data-1.11.0/." "$STREAMING_CACHE/package/"
+	mkdir -p "$STREAMING_CACHE/debug" "$STREAMING_CACHE/package/streaming_form_data"
+	cp -r "$STREAMING_PKG_DIR/." "$STREAMING_CACHE/package/streaming_form_data/"
 	cp "$WORK/debug-symbols/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug" \
 		"$STREAMING_CACHE/debug/_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so.debug"
 	printf '%s\n' "$STREAMING_INPUT_FINGERPRINT" > "$STREAMING_FINGERPRINT_FILE"
@@ -586,9 +595,10 @@ else
 fi
 
 mkdir -p "$SITEPKG/streaming_form_data"
-cp "$WORK"/streaming-form-data-1.11.0/streaming_form_data/*.py \
-   "$WORK"/streaming-form-data-1.11.0/streaming_form_data/*.so \
+cp "$STREAMING_PKG_DIR"/*.py \
+   "$STREAMING_PKG_DIR"/*.so \
    "$SITEPKG/streaming_form_data/"
+ln -sf "_parser.cpython-${TARGET_PY_TAG}-mipsel-linux-gnu.so" "$SITEPKG/streaming_form_data/_parser.so"
 
 ### 3. ustreamer (camera pipeline)
 #
