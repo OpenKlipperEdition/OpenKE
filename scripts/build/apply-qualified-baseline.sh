@@ -48,19 +48,9 @@
 # message for the live-verification evidence
 # (/sys/module/brcmfmac/parameters/roamoff reads 1 on the deployed device).
 #
-# Explicitly NOT applied here (audited and excluded, not merely forgotten):
-#   - touch-qualification-variant.sh (QUAL0/QUAL1) - QUAL0 (off) is the
-#     accepted state (CONFIG_TOUCHSCREEN_NS2009_QUALIFICATION is absent from
-#     the tracked kernel.config). Not invoked at all, on purpose: its own
-#     "off" step does an unconditional blanket `git checkout --` of files
-#     touch-final-qualification-variant.sh also owns, which would silently
-#     wipe that script's content if run afterward (documented in that
-#     script's own header). A pristine fresh checkout is already QUAL0.
-#   - touch-irq-variant.sh, touch-d0-diag-variant.sh, touch-i0-diag-variant.sh,
-#     display-backlight-variant.sh, display-backlight-diag-variant.sh -
-#     diagnostic/prototype tools only; none of their Kconfig symbols appear
-#     in the tracked kernel.config, confirming their accepted state is the
-#     default/off value. Not invoked.
+# Retired diagnostic variants (touch-qualification, touch-irq, touch-d0,
+# touch-i0, display-backlight, display-backlight-diag) were superseded by
+# touch-final-qualification-variant.sh and backlight-final-controller-variant.sh.
 #
 # Usage: sh scripts/build/apply-qualified-baseline.sh
 # Run AFTER 00-fetch-vendor-sources.sh (needs a real vendor/system
