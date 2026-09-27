@@ -91,7 +91,7 @@ esac
 git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES
 
 # Strip any previously-applied fragment block first, unconditionally -
-# same idempotent pattern as preempt-variant.sh. Marker text here has no
+# same idempotent pattern as sibling variant scripts. Marker text here has no
 # BRE-special characters (no "/*"/"*/"), so a direct address is safe as-is
 # (see the display-backlight-variant.sh history for why that would NOT be
 # safe if the markers contained C-comment syntax).

@@ -69,7 +69,6 @@ echo "== apply-qualified-baseline: applying every accepted baseline variant =="
 # rewrite - verified per-script during the audit, see the doc referenced
 # above). Listed here in the order the underlying missions were originally
 # accepted, for readability only.
-sh "$SCRIPT_DIR/preempt-variant.sh" R0
 sh "$SCRIPT_DIR/wifi-sdio-variant.sh" W3
 sh "$SCRIPT_DIR/display-vsync-variant.sh" V1
 sh "$SCRIPT_DIR/pinctrl-ownership-fix-variant.sh" FIX1
@@ -79,4 +78,4 @@ sh "$SCRIPT_DIR/touch-final-qualification-variant.sh" FINALQUAL1
 sh "$SCRIPT_DIR/wifi-roamoff-disable-variant.sh" ROAMOFF1
 sh "$SCRIPT_DIR/accelerometer-eeprom-bus-enable-variant.sh" FIX1
 
-echo "== apply-qualified-baseline: all 9 accepted variants applied =="
+echo "== apply-qualified-baseline: all 8 accepted variants applied =="

@@ -4,7 +4,7 @@
 # issue (NebulaOS WiFi/camera IRQ contention mission, 2026-08-03): the USB
 # controller's own IRQ thread (dwc2, servicing the UVC webcam) and the WiFi
 # SDIO controller's own IRQ thread (mmc1, servicing wlan0) both default to
-# the same SCHED_FIFO priority 50 under this kernel's PREEMPT_RT. The dwc2
+# the same SCHED_FIFO priority 50 under this kernel's threaded IRQs. The dwc2
 # thread fires an extremely high, already-documented interrupt rate
 # (~8000/sec USB start-of-frame interrupts, tied to VIDIOC_STREAMON being
 # active at all - not the configured camera resolution or fps) whenever the

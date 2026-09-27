@@ -79,12 +79,12 @@ pre-build)
 
 	# The tracked Kconfig fragment should now (post apply-qualified-baseline.sh,
 	# pre 02) carry every accepted variant's marker block.
-	# Option B / R0 baseline: CONFIG_PREEMPT_RT must NOT be selected.
+	# Standard PREEMPT baseline: CONFIG_PREEMPT_RT must NOT be selected.
 	FRAGMENT="$ARTIFACT_DIR/halley5-openke-fragment.config"
 	if grep -q "CONFIG_PREEMPT_RT=y" "$FRAGMENT" 2>/dev/null; then
-		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 1
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment" 1
 	else
-		check "CONFIG_PREEMPT_RT=y absent from tracked fragment (R0 baseline)" 0
+		check "CONFIG_PREEMPT_RT=y absent from tracked fragment" 0
 	fi
 
 	# 2026-08-07: wifi-roamoff-disable-variant.sh ROAMOFF1 - not a Kconfig
@@ -104,7 +104,7 @@ post-build)
 	[ -f "$DTS" ] || { echo "FATAL: $DTS not found - run 05-final-build.sh first" >&2; exit 1; }
 
 	grep -q "^CONFIG_PREEMPT=y$" "$KCONFIG"
-	check "CONFIG_PREEMPT=y (R0 non-RT baseline)" $?
+	check "CONFIG_PREEMPT=y (standard PREEMPT baseline)" $?
 
 	if grep -q "^CONFIG_PREEMPT_RT=y$" "$KCONFIG" 2>/dev/null; then
 		check "CONFIG_PREEMPT_RT absent from resolved kernel.config" 1
