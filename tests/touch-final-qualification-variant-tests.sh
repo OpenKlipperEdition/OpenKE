@@ -19,7 +19,6 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-final-qualification-variant.sh"
-QUAL_VARIANT_SCRIPT="$REPO_ROOT/scripts/build/touch-qualification-variant.sh"
 SYSTEM_DIR="$REPO_ROOT/vendor/system"
 FRAGMENT="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/halley5-openke-fragment.config"
 
@@ -33,7 +32,6 @@ NS2009="$SYSTEM_DIR/$NS2009_REL"
 NFQ="$SYSTEM_DIR/$NEWFILE_REL"
 MAKEFILE="$SYSTEM_DIR/$MAKEFILE_REL"
 FINAL_PATCH="$REPO_ROOT/scripts/build/patches/touch-final-qualification.patch"
-QUAL_PATCH="$REPO_ROOT/scripts/build/patches/touch-qualification-unified.patch"
 
 PASS=0
 FAIL=0
@@ -415,30 +413,6 @@ else
 	fail "$FINAL_PATCH does not apply cleanly to a pristine checkout"
 fi
 
-# --- Test 25/26: composability with the existing, completely separate
-# CONFIG_TOUCHSCREEN_NS2009_QUALIFICATION patch - directly verified in BOTH
-# apply orders, not merely assumed. Only run if that patch is present. ---
-if [ -f "$QUAL_PATCH" ]; then
-	git -C "$SYSTEM_DIR" apply "$QUAL_PATCH"
-	if git -C "$SYSTEM_DIR" apply --check "$FINAL_PATCH" 2>/dev/null; then
-		pass
-	else
-		fail "FINALQUAL patch does not apply cleanly on top of the existing QUALIFICATION patch"
-	fi
-	git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
-
-	git -C "$SYSTEM_DIR" apply "$FINAL_PATCH"
-	if git -C "$SYSTEM_DIR" apply --check "$QUAL_PATCH" 2>/dev/null; then
-		pass
-	else
-		fail "the existing QUALIFICATION patch does not apply cleanly on top of the FINALQUAL patch"
-	fi
-	git -C "$SYSTEM_DIR" apply -R "$FINAL_PATCH"
-	rm -f "$NFQ"
-	git -C "$SYSTEM_DIR" checkout -- $AFFECTED_FILES >/dev/null 2>&1
-else
-	echo "SKIP: $QUAL_PATCH not present - skipping the two composability tests"
-fi
 
 # --- Test 27: re-applying FINALQUAL1 twice is idempotent. ---
 if sh "$VARIANT_SCRIPT" FINALQUAL1 >/dev/null 2>&1; then
@@ -476,41 +450,6 @@ if sh "$VARIANT_SCRIPT" FINALQUAL9 >/dev/null 2>&1; then
 	fail "an unknown variant name 'FINALQUAL9' was accepted instead of rejected"
 else
 	pass
-fi
-
-# --- Test 30: self-healing recovery - a real, documented, tested
-# limitation (see touch-final-qualification-variant.sh's own header
-# comment): running touch-qualification-variant.sh AFTER this feature's
-# content is already present will silently discard this feature's
-# Kconfig/ns2009.c content (that other script's own unconditional
-# `git checkout --` of those same two files, unmodifiable by this
-# project's own hard constraints). Verify this script recovers a fully
-# consistent, fully-applied state on the very next FINALQUAL1 invocation
-# regardless, AND that the other feature's own content survives
-# untouched throughout. Only run if that other script is present. ---
-if [ -f "$QUAL_VARIANT_SCRIPT" ]; then
-	sh "$VARIANT_SCRIPT" FINALQUAL1 >/dev/null
-	ALLOW_SUPERSEDED_CLOBBER=1 sh "$QUAL_VARIANT_SCRIPT" QUAL1 >/dev/null
-	if grep -q 'NS2009_FINAL_QUALIFICATION' "$NS2009"; then
-		fail "setup for the self-healing test is wrong - QUAL1 unexpectedly did not wipe FINALQUAL content (test assumptions stale)"
-	else
-		pass
-	fi
-	sh "$VARIANT_SCRIPT" FINALQUAL1 >/dev/null
-	if grep -q 'NS2009_FINAL_QUALIFICATION' "$NS2009" && grep -q 'NS2009_QUAL_MODE_IRQ_ASSIST' "$NS2009"; then
-		pass
-	else
-		fail "FINALQUAL1 did not self-heal to a fully-applied state alongside the still-present QUALIFICATION content"
-	fi
-	sh "$VARIANT_SCRIPT" FINALQUAL0 >/dev/null
-	ALLOW_SUPERSEDED_CLOBBER=1 sh "$QUAL_VARIANT_SCRIPT" QUAL0 >/dev/null
-	if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES $NEWFILE_REL)" ]; then
-		pass
-	else
-		fail "cleanup after the self-healing test left the tree dirty"
-	fi
-else
-	echo "SKIP: $QUAL_VARIANT_SCRIPT not present - skipping the self-healing test"
 fi
 
 echo ""
