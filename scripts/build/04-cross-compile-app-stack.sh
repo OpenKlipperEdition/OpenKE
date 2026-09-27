@@ -759,18 +759,13 @@ cp "$USTREAMER_LIB_DIR"/*.so* "$OVERLAY/usr/lib/"
 
 ### 4. v4l2-ctl (USB/webcam stock-parity mission, FIRMWARE.md sec 60)
 #
-# Buildroot 2026.02 provides package/libv4l with BR2_PACKAGE_LIBV4L_UTILS=y
-# which compiles and installs v4l2-ctl (1.28.1) directly into output/target/usr/bin/v4l2-ctl.
+# Buildroot provides package/libv4l with BR2_PACKAGE_LIBV4L_UTILS=y
+# which compiles and installs v4l2-ctl directly into output/target/usr/bin/v4l2-ctl.
 [ -s "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" ] || {
 	echo "FATAL: Buildroot output/target/usr/bin/v4l2-ctl is missing (BR2_PACKAGE_LIBV4L_UTILS not built)" >&2
 	exit 1
 }
-echo "== v4l2-ctl verified in Buildroot target (package libv4l 1.28.1) =="
-mkdir -p "$WORK/debug-symbols" "$OVERLAY/usr/bin"
-cp "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" "$WORK/debug-symbols/v4l2-ctl.debug"
-cp "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" "$OVERLAY/usr/bin/v4l2-ctl"
-"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip" --strip-unneeded "$OVERLAY/usr/bin/v4l2-ctl" 2>/dev/null || true
-chmod 755 "$OVERLAY/usr/bin/v4l2-ctl"
+echo "== v4l2-ctl verified in Buildroot target (package libv4l) =="
 
 ### 5. Mainsail static build (already unpacked by 00-fetch-vendor-sources.sh)
 echo "== copying Mainsail static build =="
