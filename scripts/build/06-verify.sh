@@ -1,6 +1,6 @@
 #!/bin/sh
-# Confirm every piece actually landed in the built rootfs.ext2, the same way
-# this whole project verified things without real hardware: debugfs presence
+# Confirm every piece actually landed in the built rootfs.squashfs, the same way
+# this whole project verified things without real hardware: unsquashfs presence
 # checks plus readelf/file architecture checks on anything compiled. This is
 # NOT a substitute for the real boot test (needs the user present) - it only
 # proves the image contains what it's supposed to.
@@ -22,8 +22,12 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 [ -f "$DEPS_MANIFEST" ] || { echo "FATAL: $DEPS_MANIFEST not found" >&2; exit 1; }
 . "$DEPS_MANIFEST"
 
-if [ ! -f "$IMAGES/rootfs.ext2" ]; then
-	echo "rootfs.ext2 not found - run 05-final-build.sh first" >&2
+if [ -f "$IMAGES/rootfs.squashfs" ]; then
+	SQUASHFS="$IMAGES/rootfs.squashfs"
+elif [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/rootfs.squashfs" ]; then
+	SQUASHFS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image/rootfs.squashfs"
+else
+	echo "rootfs.squashfs not found - run 05-final-build.sh first" >&2
 	exit 1
 fi
 
@@ -219,7 +223,7 @@ check_artifact_sha256 scripts/build/overlay/lib/firmware/regulatory.db.p7s \
 # into vmlinux (=y, not =m) - see halley5-openke-fragment.config's own
 # comments for why each one was switched. A built-in driver produces no
 # separate .ko file under /lib/modules at all, so these are checked against
-# the actual built kernel .config instead of debugfs'd out of rootfs.ext2 -
+# the actual built kernel .config instead of unsquashfs'd out of rootfs.squashfs -
 # checking for a .ko file here would silently and permanently report MISS
 # for correctly-working built-in support.
 echo "=== built-in kernel drivers (not loadable modules) ==="
@@ -254,7 +258,7 @@ if [ -f "$KERNEL_CONFIG" ]; then
 	# FIRMWARE.md sec 53: CONFIG_BRCMFMAC=y means brcmfmac's own firmware
 	# request happens before the real rootfs is mounted - embedding the
 	# firmware in the kernel image itself is what actually makes WiFi work,
-	# not just having the files present in rootfs.ext2 (checked separately
+	# not just having the files present in rootfs.squashfs (checked separately
 	# below - both need to be true).
 	if grep -q '^CONFIG_EXTRA_FIRMWARE="brcm/brcmfmac43430-sdio\.bin brcm/brcmfmac43430-sdio\.txt' "$KERNEL_CONFIG"; then
 		echo "OK   CONFIG_EXTRA_FIRMWARE set (WiFi firmware embedded in the kernel image)"
@@ -404,9 +408,21 @@ else
 fi
 
 
+SQUASHFS_FILES=$(unsquashfs -l "$SQUASHFS" 2>/dev/null)
+
+sq_cat() {
+	unsquashfs -cat "$SQUASHFS" "${1#/}" 2>/dev/null
+}
+
+sq_dump() {
+	mkdir -p "$(dirname "$2")"
+	unsquashfs -cat "$SQUASHFS" "${1#/}" > "$2" 2>/dev/null
+}
+
 check() {
 	path="$1"
-	if debugfs -R "stat $path" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	rel="${path#/}"
+	if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/$rel$"; then
 		echo "OK   $path"
 	else
 		echo "MISS $path"
@@ -415,7 +431,8 @@ check() {
 
 check_absent() {
 	path="$1"
-	if debugfs -R "stat $path" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+	rel="${path#/}"
+	if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/$rel$"; then
 		echo "MISS $path is present but should have been removed as obsolete"
 	else
 		echo "OK   $path is absent"
@@ -516,7 +533,7 @@ check /opt/openke/mcu/tools/creality_validator.py
 check /opt/openke/mcu/tools/creality_packer.py
 check /opt/openke/mcu/tools/stage4_first_flash.py
 check /etc/init.d/S57openke-mcu-upgrade
-MCU_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke/mcu/manifest.env" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MCU_MANIFEST_CONTENT=$(sq_cat /opt/openke/mcu/manifest.env)
 MCU_IMAGE_SHA=$(printf "%s\n" "$MCU_MANIFEST_CONTENT" | sed -n 's/^image_sha256=//p')
 if [ -n "$MCU_IMAGE_SHA" ] && printf "%s\n" "$MCU_IMAGE_SHA" | grep -qE "^[0-9a-f]{64}$"; then
 	echo "OK   packaged printer MCU manifest contains a SHA256 image identity"
@@ -531,7 +548,7 @@ if [ -n "$MCU_RECORDED_SHA" ] && [ "$MCU_ACTUAL_SHA" = "$MCU_RECORDED_SHA" ]; th
 else
 	echo "MISS staged printer MCU image does not match the final build manifest"
 fi
-MCU_UPGRADE_CONTENT=$(debugfs -R "cat /etc/init.d/S57openke-mcu-upgrade" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MCU_UPGRADE_CONTENT=$(sq_cat /etc/init.d/S57openke-mcu-upgrade)
 if echo "$MCU_UPGRADE_CONTENT" | grep -q "stage4_first_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_flash.py" && echo "$MCU_UPGRADE_CONTENT" | grep -q "creality_validator.py"; then
 	echo "OK   MCU boot service contains first-flash, update-flash, and validation paths"
 else
@@ -541,13 +558,13 @@ echo "=== Ender-3 V3 SE & V2 Neo MCU firmware artifacts ==="
 if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin" ]; then
 	echo "OK   Ender-3 V3 SE MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V3SE_klipper.bin"
 fi
-if debugfs -R "stat /opt/openke/mcu/Ender3V3SE_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+if ! echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke/mcu/Ender3V3SE_klipper.bin$"; then
 	echo "OK   Ender-3 V3 SE MCU firmware correctly excluded from rootfs"
 fi
 if [ -f "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin" ]; then
 	echo "OK   Ender-3 V2 Neo MCU firmware present in artifacts/buildroot-halley5-v30-image/Ender3V2Neo_klipper.bin"
 fi
-if debugfs -R "stat /opt/openke/mcu/Ender3V2Neo_klipper.bin" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "File not found"; then
+if ! echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke/mcu/Ender3V2Neo_klipper.bin$"; then
 	echo "OK   Ender-3 V2 Neo MCU firmware correctly excluded from rootfs"
 fi
 # Pure upstream Klipper does not ship the version object;
@@ -555,7 +572,7 @@ fi
 check /opt/openke-version.json
 check /opt/moonraker/moonraker/server.py
 check /usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data
-if debugfs -R "cat /usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data/targets.py" ${IMAGES}/rootfs.ext2 2>/dev/null | grep -q "smart_open = None"; then
+if sq_cat "/usr/lib/${TARGET_PY_DIR}/site-packages/streaming_form_data/targets.py" | grep -q "smart_open = None"; then
 	echo "OK   streaming_form_data optional cloud target dependencies verified"
 else
 	echo "FAIL streaming_form_data has unhandled smart_open dependency"
@@ -585,8 +602,8 @@ check /opt/klipper/klippy/extras/bl24c16f.py
 check /opt/klipper/klippy/extras/nebulaos_plr_journal.py
 check /opt/klipper/klippy/extras/nebulaos_power_loss_recovery.py
 
-NEBULA_CFG_CONTENT=$(debugfs -R "cat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>/dev/null)
-S54_CONTENT=$(debugfs -R "cat /etc/init.d/S54openke-host-mcu" ${IMAGES}/rootfs.ext2 2>/dev/null)
+NEBULA_CFG_CONTENT=$(sq_cat /opt/openke-seeds/printer_data-config/Nebula.cfg)
+S54_CONTENT=$(sq_cat /etc/init.d/S54openke-host-mcu)
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
 	echo "OK   Nebula.cfg declares [mcu rpi]"
 else
@@ -640,9 +657,9 @@ echo "=== process launch arguments and config-path consistency (mainline print-c
 # create/read/edit/delete cycle through the real file-manager API); these
 # checks exist to keep it that way, catching a future regression at build
 # time rather than live on a real printer.
-S55_CONTENT=$(debugfs -R "cat /etc/init.d/S55klipper" ${IMAGES}/rootfs.ext2 2>/dev/null)
-S56_CONTENT=$(debugfs -R "cat /etc/init.d/S56moonraker" ${IMAGES}/rootfs.ext2 2>/dev/null)
-S01_CONTENT=$(debugfs -R "cat /etc/init.d/S01persistent-datastore" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S55_CONTENT=$(sq_cat /etc/init.d/S55klipper)
+S56_CONTENT=$(sq_cat /etc/init.d/S56moonraker)
+S01_CONTENT=$(sq_cat /etc/init.d/S01persistent-datastore)
 if echo "$S55_CONTENT" | grep -qE "^CONFIG=/opt/printer_data/config/printer.cfg$"; then
 	echo "OK   S55klipper launches Klipper against the canonical /opt/printer_data/config/printer.cfg"
 else
@@ -683,7 +700,7 @@ check /etc/init.d/S57openke-camera-seed
 # undetected content-level defect (unsupported options under the reserved
 # klipper/moonraker update_manager sections; an active, permanently
 # un-editable config-sourced default camera) shipped in a build that
-# passed every existence-only check that came before it. debugfs extracts
+# passed every existence-only check that came before it. unsquashfs extracts
 # the real file content from the built image itself, not from the source
 # tree, so a build where the overlay sync silently dropped or mismatched
 # the edit will not pass this check.
@@ -697,7 +714,7 @@ check /etc/init.d/S57openke-camera-seed
 # Use double quotes for every string/pattern added below instead - none
 # of them need a literal dollar sign or backtick, so double-quoting is
 # always safe here.
-MOONRAKER_CONF_CONTENT=$(debugfs -R "cat /opt/printer_data/config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>/dev/null)
+MOONRAKER_CONF_CONTENT=$(sq_cat /opt/printer_data/config/moonraker.conf)
 
 check_conf_absent() {
 	pattern="$1"; desc="$2"
@@ -774,7 +791,7 @@ check_seed_archive() {
 	archive_path="$1"; expected_branch="$2"; expected_origin="$3"; label="$4"
 	rm -rf /tmp/seed-check
 	mkdir -p /tmp/seed-check
-	if ! debugfs -R "dump $archive_path /tmp/seed-check.tar" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1; then
+	if ! sq_dump "$archive_path" /tmp/seed-check.tar; then
 		echo "MISS $label archive could not be dumped from the image ($archive_path)"
 		return
 	fi
@@ -834,10 +851,10 @@ check_seed_archive /opt/openke-seeds/moonraker.tar.gz master "https://github.com
 # immutable one, not silently reverted to the incompatible upstream blob.
 rm -rf /tmp/chelper-check
 mkdir -p /tmp/chelper-check
-debugfs -R "dump /opt/openke-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+sq_dump /opt/openke-seeds/klipper.tar.gz /tmp/chelper-check.tar.gz
 if tar -xzf /tmp/chelper-check.tar.gz -C /tmp/chelper-check ./klippy/chelper/c_helper.so 2>/dev/null; then
 	SEED_CHELPER_SHA=$(sha256sum /tmp/chelper-check/klippy/chelper/c_helper.so 2>/dev/null | cut -d" " -f1)
-	BASELINE_CHELPER_SHA=$(debugfs -R "cat /opt/klipper/klippy/chelper/c_helper.so" ${IMAGES}/rootfs.ext2 2>/dev/null | sha256sum | cut -d" " -f1)
+	BASELINE_CHELPER_SHA=$(sq_cat /opt/klipper/klippy/chelper/c_helper.so | sha256sum | cut -d" " -f1)
 	if [ -n "$SEED_CHELPER_SHA" ] && [ "$SEED_CHELPER_SHA" = "$BASELINE_CHELPER_SHA" ]; then
 		echo "OK   klipper seed archives c_helper.so matches the proven-working immutable baseline"
 	else
@@ -847,7 +864,7 @@ else
 	echo "MISS could not extract klippy/chelper/c_helper.so from the klipper seed archive for comparison"
 fi
 rm -rf /tmp/chelper-check /tmp/chelper-check.tar.gz
-SEED_MANIFEST_CONTENT=$(debugfs -R "cat /opt/openke-seeds/seed-manifest.json" ${IMAGES}/rootfs.ext2 2>/dev/null)
+SEED_MANIFEST_CONTENT=$(sq_cat /opt/openke-seeds/seed-manifest.json)
 if echo "$SEED_MANIFEST_CONTENT" | grep -q "git_bundle_flattened"; then
 	echo "MISS seed-manifest.json still references the removed git_bundle_flattened format"
 else
@@ -867,22 +884,22 @@ echo "=== printer_data config factory seed (Ender-3 V3 KE, auto-updates-camera-c
 # persistent copy over /opt/printer_data. Confirms the dedicated immutable
 # seed at /opt/openke-seeds/printer_data-config/ actually landed in the
 # packaged image, not just the tracked overlay source.
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/printer.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/printer.cfg$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/printer.cfg is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/printer.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/moonraker.conf" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/moonraker.conf$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/moonraker.conf is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/frontend-controls.cfg$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/frontend-controls.cfg is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/Nebula.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/Nebula.cfg$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/Nebula.cfg is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
@@ -892,24 +909,24 @@ fi
 # seed depends on (the macro/shell-command config, and the script the shell
 # command actually invokes) really landed in the packaged image, not just
 # the tracked overlay source.
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/camera-quality.cfg" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/camera-quality.cfg$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/camera-quality.cfg is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
 fi
-if debugfs -R "stat /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py" ${IMAGES}/rootfs.ext2 2>&1 | grep -q "Inode:"; then
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
 fi
 rm -rf /tmp/printerdata-check
 mkdir -p /tmp/printerdata-check/GuppyScreen
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
-	debugfs -R "dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg" ${IMAGES}/rootfs.ext2 >/dev/null 2>&1
+	sq_dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf
+	sq_dump /opt/openke-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg
 	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
 	else
@@ -1009,18 +1026,18 @@ AWKPROG2
 		echo "MISS packaged [virtual_sdcard] path is $vsd_path, expected /opt/printer_data/gcodes"
 	fi
 else
-	echo "MISS packaged printer.cfg could not be dumped from rootfs.ext2 - cannot validate print-control closure"
+	echo "MISS packaged printer.cfg could not be dumped from rootfs.squashfs - cannot validate print-control closure"
 fi
 rm -rf /tmp/printerdata-check
 # Confirms the actual fix logic landed in the packaged init scripts, not
 # just the seed content sitting there unused.
-S02_CONTENT=$(debugfs -R "cat /etc/init.d/S02openke-namespace" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S02_CONTENT=$(sq_cat /etc/init.d/S02openke-namespace)
 if echo "$S02_CONTENT" | grep -q "seed_printer_data_config"; then
 	echo "OK   S02openke-namespace contains the printer_data config seeding logic"
 else
 	echo "MISS S02openke-namespace is missing the printer_data config seeding logic"
 fi
-S05_CONTENT=$(debugfs -R "cat /etc/init.d/S05openke-activate" ${IMAGES}/rootfs.ext2 2>/dev/null)
+S05_CONTENT=$(sq_cat /etc/init.d/S05openke-activate)
 if echo "$S05_CONTENT" | grep -q "config/printer.cfg"; then
 	echo "OK   S05openke-activate validates printer_data against the real required files, not just the config directory"
 else
@@ -1034,8 +1051,7 @@ echo "=== obsolete overlay files (must be absent - Buildroots output/target copy
 # output/target/ forever unless explicitly cleaned - and it ships in the
 # real rootfs right alongside the new one. This is not cosmetic: the old,
 # pre-fix activation script sorts earlier and silently wins over the new
-# one whenever both are present. rootfs.ext2 and rootfs.squashfs are built
-# from the same stale output/target/, so debugfs against rootfs.ext2 here
+# one whenever both are present. unsquashfs against rootfs.squashfs here
 # does catch a real leftover, not just the tracked overlay source.
 # check_absent() is defined once, earlier, right after check() (both used
 # from the very first section in this docker block).
@@ -1091,13 +1107,13 @@ check /etc/init.d/S59openke-update-supervisor
 # Phase 7 live qualification: Moonraker machine.py needs real iproute2
 # JSON output (`ip -json -det address`), which BusyBox ip cannot produce
 # at all (confirmed live). /sbin/ip must be the real iproute2 ELF binary,
-# not still the busybox multi-call symlink - debugfs stat prints
-# "Fast link dest" only for symlinks, so its presence (and pointing at
+# not still the busybox multi-call symlink - unsquashfs -ll prints
+# symlink targets with '->', so its presence (and pointing at
 # busybox) is what would indicate the fix did not take.
 check /sbin/ip
-stat_out=$(debugfs -R "stat /sbin/ip" ${IMAGES}/rootfs.ext2 2>&1)
+stat_out=$(unsquashfs -ll "$SQUASHFS" "sbin/ip" 2>&1)
 case "$stat_out" in
-	*"Fast link dest"*busybox*)
+	*"-> busybox"*|*"-> /bin/busybox"*)
 		echo "MISS /sbin/ip is still the busybox applet symlink"
 		;;
 	*)
