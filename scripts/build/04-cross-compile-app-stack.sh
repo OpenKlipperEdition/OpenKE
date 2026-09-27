@@ -762,93 +762,92 @@ cp "$USTREAMER_LIB_DIR"/*.so* "$OVERLAY/usr/lib/"
 
 ### 4. v4l2-ctl (USB/webcam stock-parity mission, FIRMWARE.md sec 60)
 #
-# The camera-macro warning found in an earlier (Mainsail-warnings) mission
-# ("v4l2-ctl: command not found") was a genuinely unresolved gap: this
-# project's vendored Buildroot tree (a trimmed BSP subset) has no
-# package/v4l-utils at all. S50webcam's own dynamic UVC-node discovery (see
-# its own header comment) also depends on a real v4l2-ctl being present, not
-# just the camera macro. Built from the real upstream source pinned in
-# 00-fetch-vendor-sources.sh (v4l-utils-1.20.0, the last autotools release
-# before the 1.22 meson migration - this build container has no python3/
-# meson/ninja). Only utils/v4l2-ctl is built, not the whole suite; static
-# libv4l2 is skipped entirely (--disable-v4l2-ctl-libv4l means v4l2-ctl uses
-# raw ioctls directly, so it doesn't need libv4l2's own broken .la ordering
-# fixed) - same minimal-footprint approach as ustreamer above, same
-# toolchain, same reasoning for appending (not prepending) buildroot-host/
-# bin to PATH.
-echo "== cross-compiling v4l2-ctl (this project's own Buildroot toolchain) =="
-V4L2_CTL_INPUT_FINGERPRINT=$(
-	{
-		printf 'v4l_utils_pin=%s\n' "$V4L_UTILS_PIN"
-		printf 'v4l_utils_archive_sha256=%s\n' "$V4L_UTILS_ARCHIVE_SHA256"
-		printf 'system_pin=%s\n' "$SYSTEM_PIN"
-		printf 'configure_flags=--disable-libdvbv5 --disable-qv4l2 --disable-qvidcap --disable-gconv --disable-bpf --disable-v4l2-ctl-libv4l --disable-shared --enable-static --without-jpeg\n'
-		sha256sum \
-			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" \
-			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc-ar" \
-			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-ld" \
-			"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip"
-	} | sha256sum | awk '{print $1}'
-)
-V4L2_CTL_REBUILD_REQUIRED=1
-if [ -f "$V4L2_CTL_FINGERPRINT_FILE" ] && \
-	[ "$(cat "$V4L2_CTL_FINGERPRINT_FILE")" = "$V4L2_CTL_INPUT_FINGERPRINT" ] && \
-	[ -s "$V4L2_CTL_BIN" ]; then
-	V4L2_CTL_REBUILD_REQUIRED=0
-	echo "== v4l2-ctl inputs unchanged ($V4L2_CTL_INPUT_FINGERPRINT); reusing cached build =="
+# Buildroot 2026.02+ provides package/libv4l with BR2_PACKAGE_LIBV4L_UTILS=y
+# which compiles and installs v4l2-ctl (1.28.1) directly into output/target/usr/bin/v4l2-ctl.
+# When provided by Buildroot, sync it to the overlay; otherwise fall back to manual
+# cross-compilation from vendor/v4l-utils.
+if [ -s "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" ]; then
+	echo "== v4l2-ctl provided natively by Buildroot package libv4l =="
+	mkdir -p "$WORK/debug-symbols" "$OVERLAY/usr/bin"
+	cp "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" "$WORK/debug-symbols/v4l2-ctl.debug"
+	cp "$BUILDROOT_DIR/output/target/usr/bin/v4l2-ctl" "$OVERLAY/usr/bin/v4l2-ctl"
+	"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip" --strip-unneeded "$OVERLAY/usr/bin/v4l2-ctl" 2>/dev/null || true
+	chmod 755 "$OVERLAY/usr/bin/v4l2-ctl"
 else
-	echo "== v4l2-ctl inputs changed or no successful fingerprint; rebuilding =="
-fi
-
-if [ "$V4L2_CTL_REBUILD_REQUIRED" -eq 1 ]; then
-	(
-		set -e
-		cd "$VENDOR/v4l-utils"
-		export PATH="$PATH:$TOOLCHAIN_HOST/bin"
-		export CC=mipsel-buildroot-linux-gnu-gcc
-		export AR=mipsel-buildroot-linux-gnu-gcc-ar
-		export LD=mipsel-buildroot-linux-gnu-ld
-		export STRIP=mipsel-buildroot-linux-gnu-strip
-
-		# Phase 11 (2026-08-15): plain `autoreconf -fiv` alone is not enough on
-		# this image - v4l-utils uses two non-default-named gettext catalogs
-		# (SUBDIRS = v4l-utils-po libdvbv5-po, not the default "po"), and this
-		# image's gettext package (Ubuntu 22.04, 0.21-4ubuntu4) does not ship
-		# /usr/bin/autopoint at all (only gettextize) - confirmed via `dpkg -L
-		# gettext`. autoreconf's own internal "running: autopoint --force" step
-		# is then a silent no-op (no autopoint binary to run, no error printed
-		# either), so v4l-utils-po/Makefile.in.in never gets generated and
-		# configure fails outright ("cannot find input file"). v4l-utils ships
-		# its own bootstrap.sh precisely for this - it touches placeholder
-		# Makefile.in.in files, runs autoreconf, then explicitly runs
-		# `gettextize --po-dir=v4l-utils-po` / `--po-dir=libdvbv5-po` (gettextize
-		# IS present here). Running upstream's own bootstrap rather than
-		# hand-reimplementing its gettextize/sed steps here.
-		bash bootstrap.sh
-		./configure --host=mipsel-buildroot-linux-gnu \
-			--disable-libdvbv5 --disable-qv4l2 --disable-qvidcap \
-			--disable-gconv --disable-bpf --disable-v4l2-ctl-libv4l \
-			--disable-shared --enable-static --without-jpeg
-
-		make -C lib/libv4lconvert
-		make -C utils/v4l2-ctl
-		mipsel-buildroot-linux-gnu-strip --strip-unneeded utils/v4l2-ctl/v4l2-ctl
+	echo "== cross-compiling v4l2-ctl (this project's own Buildroot toolchain) =="
+	V4L2_CTL_INPUT_FINGERPRINT=$(
+		{
+			printf 'v4l_utils_pin=%s\n' "$V4L_UTILS_PIN"
+			printf 'v4l_utils_archive_sha256=%s\n' "$V4L_UTILS_ARCHIVE_SHA256"
+			printf 'system_pin=%s\n' "$SYSTEM_PIN"
+			printf 'configure_flags=--disable-libdvbv5 --disable-qv4l2 --disable-qvidcap --disable-gconv --disable-bpf --disable-v4l2-ctl-libv4l --disable-shared --enable-static --without-jpeg\n'
+			sha256sum \
+				"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc" \
+				"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-gcc-ar" \
+				"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-ld" \
+				"$TOOLCHAIN_HOST/bin/mipsel-buildroot-linux-gnu-strip"
+		} | sha256sum | awk '{print $1}'
 	)
-	rm -rf "$V4L2_CTL_CACHE"
-	mkdir -p "$V4L2_CTL_CACHE"
-	cp "$VENDOR/v4l-utils/utils/v4l2-ctl/v4l2-ctl" "$V4L2_CTL_BIN"
-	printf '%s\n' "$V4L2_CTL_INPUT_FINGERPRINT" > "$V4L2_CTL_FINGERPRINT_FILE"
+	V4L2_CTL_REBUILD_REQUIRED=1
+	if [ -f "$V4L2_CTL_FINGERPRINT_FILE" ] && \
+		[ "$(cat "$V4L2_CTL_FINGERPRINT_FILE")" = "$V4L2_CTL_INPUT_FINGERPRINT" ] && \
+		[ -s "$V4L2_CTL_BIN" ]; then
+		V4L2_CTL_REBUILD_REQUIRED=0
+		echo "== v4l2-ctl inputs unchanged ($V4L2_CTL_INPUT_FINGERPRINT); reusing cached build =="
+	else
+		echo "== v4l2-ctl inputs changed or no successful fingerprint; rebuilding =="
+	fi
+
+	if [ "$V4L2_CTL_REBUILD_REQUIRED" -eq 1 ]; then
+		(
+			set -e
+			cd "$VENDOR/v4l-utils"
+			export PATH="$PATH:$TOOLCHAIN_HOST/bin"
+			export CC=mipsel-buildroot-linux-gnu-gcc
+			export AR=mipsel-buildroot-linux-gnu-gcc-ar
+			export LD=mipsel-buildroot-linux-gnu-ld
+			export STRIP=mipsel-buildroot-linux-gnu-strip
+
+			# Phase 11 (2026-08-15): plain `autoreconf -fiv` alone is not enough on
+			# this image - v4l-utils uses two non-default-named gettext catalogs
+			# (SUBDIRS = v4l-utils-po libdvbv5-po, not the default "po"), and this
+			# image's gettext package (Ubuntu 22.04, 0.21-4ubuntu4) does not ship
+			# /usr/bin/autopoint at all (only gettextize) - confirmed via `dpkg -L
+			# gettext`. autoreconf's own internal "running: autopoint --force" step
+			# is then a silent no-op (no autopoint binary to run, no error printed
+			# either), so v4l-utils-po/Makefile.in.in never gets generated and
+			# configure fails outright ("cannot find input file"). v4l-utils ships
+			# its own bootstrap.sh precisely for this - it touches placeholder
+			# Makefile.in.in files, runs autoreconf, then explicitly runs
+			# `gettextize --po-dir=v4l-utils-po` / `--po-dir=libdvbv5-po` (gettextize
+			# IS present here). Running upstream's own bootstrap rather than
+			# hand-reimplementing its gettextize/sed steps here.
+			bash bootstrap.sh
+			./configure --host=mipsel-buildroot-linux-gnu \
+				--disable-libdvbv5 --disable-qv4l2 --disable-qvidcap \
+				--disable-gconv --disable-bpf --disable-v4l2-ctl-libv4l \
+				--disable-shared --enable-static --without-jpeg
+
+			make -C lib/libv4lconvert
+			make -C utils/v4l2-ctl
+			mipsel-buildroot-linux-gnu-strip --strip-unneeded utils/v4l2-ctl/v4l2-ctl
+		)
+		rm -rf "$V4L2_CTL_CACHE"
+		mkdir -p "$V4L2_CTL_CACHE"
+		cp "$VENDOR/v4l-utils/utils/v4l2-ctl/v4l2-ctl" "$V4L2_CTL_BIN"
+		printf '%s\n' "$V4L2_CTL_INPUT_FINGERPRINT" > "$V4L2_CTL_FINGERPRINT_FILE"
+	fi
+	[ -s "$V4L2_CTL_BIN" ] || {
+		echo "FATAL: cached v4l2-ctl binary is missing or empty" >&2
+		exit 1
+	}
+	file "$V4L2_CTL_BIN" | grep -q "MIPS" || {
+		echo "FATAL: $V4L2_CTL_BIN is not a MIPS binary (got: $(file "$V4L2_CTL_BIN"))" >&2
+		exit 1
+	}
+	cp "$V4L2_CTL_BIN" "$OVERLAY/usr/bin/v4l2-ctl"
+	chmod 755 "$OVERLAY/usr/bin/v4l2-ctl"
 fi
-[ -s "$V4L2_CTL_BIN" ] || {
-	echo "FATAL: cached v4l2-ctl binary is missing or empty" >&2
-	exit 1
-}
-file "$V4L2_CTL_BIN" | grep -q "MIPS" || {
-	echo "FATAL: $V4L2_CTL_BIN is not a MIPS binary (got: $(file "$V4L2_CTL_BIN"))" >&2
-	exit 1
-}
-cp "$V4L2_CTL_BIN" "$OVERLAY/usr/bin/v4l2-ctl"
-chmod 755 "$OVERLAY/usr/bin/v4l2-ctl"
 
 ### 5. Mainsail static build (already unpacked by 00-fetch-vendor-sources.sh)
 echo "== copying Mainsail static build =="
