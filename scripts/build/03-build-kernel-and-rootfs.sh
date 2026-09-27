@@ -226,4 +226,4 @@ printf '%s\n' "$OPENSSL_INPUT_FINGERPRINT" > "$OPENSSL_FINGERPRINT_FILE"
 printf '%s\n' "$BUSYBOX_INPUT_FINGERPRINT" > "$BUSYBOX_FINGERPRINT_FILE"
 printf '%s\n' "$WPA_SUPPLICANT_INPUT_FINGERPRINT" > "$WPA_SUPPLICANT_FINGERPRINT_FILE"
 
-echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.ext2} =="
+echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.squashfs} =="

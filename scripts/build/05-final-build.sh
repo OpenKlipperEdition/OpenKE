@@ -1,7 +1,7 @@
 #!/bin/sh
 # Final rootfs build - bakes everything stage 4 assembled in the overlay
 # (Klipper, Moonraker, ustreamer, Mainsail, the cross-compiled extras) into
-# the actual rootfs.ext2/rootfs.squashfs. Assumes 02 and 03 already ran in
+# the actual rootfs.squashfs. Assumes 02 and 03 already ran in
 # this same session (02 for any overlay/config changes, 03 for any kernel
 # source changes with its own forced dirclean) - this script does not
 # re-sync the overlay or force a kernel rebuild itself, so a change to
@@ -63,7 +63,6 @@ FINGERPRINT_BEFORE=$(source_fingerprint)
 
 mkdir -p "$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 cp "$BUILDROOT_DIR/output/images/xImage" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/xImage"
-cp "$BUILDROOT_DIR/output/images/rootfs.ext2" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/rootfs.ext2"
 cp "$BUILDROOT_DIR/output/images/rootfs.squashfs" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/rootfs.squashfs"
 cp "$BUILDROOT_DIR/.config" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/buildroot.config"
 cp "$BUILDROOT_DIR/output/build/linux-custom/.config" "$REPO_ROOT/artifacts/buildroot-halley5-v30-image/kernel.config"
@@ -162,6 +161,6 @@ artifact_sha256() {
 	echo "rootfs_squashfs_size=$(wc -c < "$ARTIFACT_DIR/rootfs.squashfs")"
 } > "$MANIFEST"
 
-echo "== final build complete, artifacts copied to artifacts/buildroot-halley5-v30-image/ (xImage, rootfs.ext2, rootfs.squashfs) =="
+echo "== final build complete, artifacts copied to artifacts/buildroot-halley5-v30-image/ (xImage, rootfs.squashfs) =="
 echo "== build manifest: $MANIFEST =="
 cat "$MANIFEST"

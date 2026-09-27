@@ -40,11 +40,8 @@
 # deleting output/target/ alone leaves it mostly empty instead of clean) - a
 # renamed or deleted overlay file must also be removed by hand from
 # vendor/system/buildroot/output/target/ before the next 05-final-build.sh, or
-# the build needs a full clean. 06-verify.sh also cannot catch this on its
-# own: it only inspects rootfs.ext2, and both rootfs.ext2 and rootfs.squashfs
-# are built from this same stale output/target/, so a leftover file is wrong
-# in both images identically - checking the actual packaged rootfs.squashfs
-# directly (e.g. via unsquashfs) is the only real way to confirm a removed
+# the build needs a full clean. 06-verify.sh inspects the actual
+# packaged rootfs.squashfs directly (via unsquashfs) to confirm a removed
 # file is genuinely gone.
 #
 # Phase 11 (2026-08-15, unified-build-environment migration): this script
