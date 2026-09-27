@@ -34,23 +34,8 @@ log() {
 }
 
 apply_sysctl_policy() {
-	# Conservative starting values (docs/NEBULAOS_MEMORY_RESILIENCE.md sec 6)
-	# - not copied from a desktop/server tuning guide. Applied regardless
-	# of which swap backend ends up active, since both benefit equally.
-	#
-	# vm.swappiness=10: this is a PREEMPT kernel driving real-time
-	# motion control - favor keeping working pages resident and only
-	# reach for swap under genuine pressure, rather than the kernel
-	# default (60) proactively swapping out rarely-used-but-still-warm
-	# pages during normal, low-pressure operation.
-	#
-	# vm.page-cluster=0: default (3) reads/writes swap in 2^3=8-page
-	# bursts, a tuning that assumes rotational-disk seek cost - wrong
-	# model for zram (RAM-speed either way) and mildly harmful for the
-	# disk swap file (larger writes than necessary to an eMMC-backed
-	# file). 0 = one page at a time, standard community guidance for
-	# zram-backed swap specifically.
-	echo 10 > /proc/sys/vm/swappiness 2>/dev/null
+	# vm.page-cluster=0: standard guidance for zram-backed swap to read/write
+	# one page at a time without rotational disk clustering overhead.
 	echo 0 > /proc/sys/vm/page-cluster 2>/dev/null
 }
 
