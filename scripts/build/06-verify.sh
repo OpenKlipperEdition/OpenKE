@@ -119,12 +119,6 @@ if [ -d "$REPO_ROOT/vendor/k1-ustreamer/.git" ]; then
 		echo "OK   vendor/k1-ustreamer submodules (jpeg-9d, ustreamer) match their pinned commits"
 	fi
 fi
-# v4l-utils: pinned to the exact commit v4l-utils-1.20.0 resolves to (not the
-# tag name) as of the 2026-07-31 pin audit; messages.mo is a harmless
-# untracked compiled gettext artifact.
-check_vendor_pin v4l-utils "$V4L_UTILS_PIN" \
-	"$V4L_UTILS_REPO" 0 \
-	messages.mo
 # system: immutable dependency. Stages 00 and 01 check the checkout against
 # SYSTEM_PIN before variants are composed.
 #
@@ -445,6 +439,7 @@ check /lib/firmware/brcm/brcmfmac43430-sdio.txt
 
 echo "=== camera ==="
 check /usr/bin/ustreamer
+check /usr/bin/v4l2-ctl
 check /etc/init.d/S50webcam
 check /etc/openke-camera-idle-controller.sh
 check /etc/init.d/S51openke-camera-idle-controller

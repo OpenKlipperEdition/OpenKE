@@ -137,7 +137,6 @@ artifact_sha256() {
 	git_field git_commit_moonraker vendor/moonraker
 	git_field git_commit_guppyscreen vendor/guppyscreen
 	git_field git_commit_k1_ustreamer vendor/k1-ustreamer
-	git_field git_commit_v4l_utils vendor/v4l-utils
 	if [ -d "$REPO_ROOT/vendor/k1-ustreamer/.git" ]; then
 		echo "git_submodules_k1_ustreamer=$(cd "$REPO_ROOT/vendor/k1-ustreamer" && git submodule status | awk '{printf "%s@%s;", $2, $1}')"
 	else
