@@ -14,7 +14,7 @@
 #   00-fetch-vendor-sources.sh    fetch every required source (fails loudly on
 #                                  any unpushed/unresolvable pin - see
 #                                  manifests/dependencies.conf)
-#   apply-qualified-baseline.sh   compose all 8 accepted kernel variants
+#   apply-qualified-baseline.sh   compose all 9 accepted kernel variants
 #   assert-baseline-config.sh pre-build   fail fast if a variant's source-
 #                                  level change didn't actually land, before
 #                                  spending build time
@@ -40,7 +40,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 echo "=== build-qualified-baseline: fetching every required source ==="
 sh "$SCRIPT_DIR/00-fetch-vendor-sources.sh"
 
-echo "=== build-qualified-baseline: composing all 8 accepted kernel variants ==="
+echo "=== build-qualified-baseline: composing all 9 accepted kernel variants ==="
 sh "$SCRIPT_DIR/apply-qualified-baseline.sh"
 
 echo "=== build-qualified-baseline: pre-build assertions (source-level) ==="

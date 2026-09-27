@@ -1088,11 +1088,11 @@ echo "== wrote /opt/openke-version.json: $(cat "$OVERLAY/opt/openke-version.json
 # text, activate* scripts are plain shell/text, and bin/python3 is just a
 # symlink to an external interpreter, never a copied binary - so the same
 # reasoning Phase 4 already used for bytecode precompilation applies here:
-# $HOST_PYTHON3 (Buildroot's own host-built python3.11.6 - see below) can
+# $HOST_PYTHON3 (Buildroot's own host-built python3 - see below) can
 # build the whole skeleton, which then only needs its symlinks/pyvenv.cfg/
 # activate scripts repointed from this build's own paths to the real,
 # fixed, always-identical target absolute paths (Buildroot always installs
-# to the same /usr/bin/python3.11 on this product), not literally
+# to the target /usr/bin/python3.X on this product), not literally
 # recreated per-architecture.
 if [ -n "$HOST_PYTHON3" ]; then
 	TARGET_PY_VERSION="$TARGET_PY_FULL"

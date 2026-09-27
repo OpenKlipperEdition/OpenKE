@@ -73,7 +73,7 @@ check_vendor_pin() {
 	if [ -z "$vp_dirty" ]; then
 		echo "OK   vendor/$vp_name working tree has no unexplained changes"
 	elif [ "$vp_bulk_dirty_expected" = "1" ]; then
-		echo "OK   vendor/$vp_name working tree is dirty, as expected once apply-qualified-baseline.sh has run - see assert-baseline-config.sh for the real content-level check of this checkout's variant patches (too many individual paths across 8 variants to allowlist here without this list silently going stale again):"
+		echo "OK   vendor/$vp_name working tree is dirty, as expected once apply-qualified-baseline.sh has run - see assert-baseline-config.sh for the real content-level check of this checkout's variant patches (too many individual paths across 9 variants to allowlist here without this list silently going stale again):"
 		printf '%s\n' "$vp_dirty" | sed 's/^/     /'
 	else
 		echo "MISS vendor/$vp_name has unexplained working-tree changes:"
@@ -123,7 +123,7 @@ fi
 # SYSTEM_PIN before variants are composed.
 #
 # bulk_dirty_expected=1: this checkout is DELIBERATELY left dirty by
-# apply-qualified-baseline.sh (8 accepted variant patches applied on top of
+# apply-qualified-baseline.sh (9 accepted variant patches applied on top of
 # the fetched branch HEAD) by the time this verify step runs - not drift.
 # assert-baseline-config.sh (run earlier in the pipeline) is the real,
 # precise content-level check of what that dirt should contain.

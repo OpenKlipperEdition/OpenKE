@@ -8,7 +8,7 @@
 #
 # Fetches every pinned dependency (kernel, Klipper, GuppyScreen, Moonraker,
 # Buildroot, ustreamer, Mainsail, wireless-regdb, WiFi firmware - see
-# manifests/dependencies.conf), composes all 8 accepted baseline variants,
+# manifests/dependencies.conf), composes all 9 accepted baseline variants,
 # builds the kernel/rootfs/app-stack, and verifies the result against the
 # accepted-baseline assertions - scripts/build/build-qualified-baseline.sh
 # does the actual sequencing; this is a thin, host-dependency-aware wrapper
