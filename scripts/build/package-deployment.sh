@@ -25,7 +25,7 @@ for required in "$ARTIFACT_DIR/xImage" "$ARTIFACT_DIR/rootfs.squashfs" "$ARTIFAC
 done
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-PKG_DIR="$PACKAGE_ROOT/z-compensate-guppyscreen-${TS}"
+PKG_DIR="$PACKAGE_ROOT/openke-deployment-${TS}"
 mkdir -p "$PKG_DIR"
 
 cp "$ARTIFACT_DIR/xImage" "$PKG_DIR/xImage"
