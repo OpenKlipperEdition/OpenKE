@@ -375,12 +375,23 @@ try_venv_seed() {
 	return 0
 }
 
+is_venv_valid() {
+	envdir="$1"; smoke_test="$2"
+	[ -x "$envdir/bin/python3" ] || return 1
+	venv_py_ver=$("$envdir/bin/python3" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null) || return 1
+	sys_py_ver=$(python3 -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null) || return 1
+	[ "$venv_py_ver" = "$sys_py_ver" ] || return 1
+	"$envdir/bin/python3" -c "$smoke_test" >/dev/null 2>&1 || return 1
+	return 0
+}
+
 setup_moonraker_env() {
 	envdir="$ENVS/moonraker"
-	if [ -x "$envdir/bin/python3" ]; then
-		log "moonraker venv already present ($envdir) - skipping"
+	if is_venv_valid "$envdir" "import tornado, numpy, streaming_form_data"; then
+		log "moonraker venv already present and valid ($envdir) - skipping"
 		return 0
 	fi
+	log "moonraker venv missing, invalid, or Python version mismatched - provisioning"
 	if try_venv_seed "moonraker-venv-seed.tar.gz" "$envdir" "import tornado, numpy, streaming_form_data"; then
 		log "moonraker venv seeded from prebuilt archive and verified successfully"
 		return 0
@@ -421,10 +432,11 @@ setup_moonraker_env() {
 # (S55klipper prefers this venv's python the same way).
 setup_klipper_env() {
 	envdir="$ENVS/klipper"
-	if [ -x "$envdir/bin/python3" ]; then
-		log "klipper venv already present ($envdir) - skipping"
+	if is_venv_valid "$envdir" "import greenlet, cffi, jinja2, serial, can"; then
+		log "klipper venv already present and valid ($envdir) - skipping"
 		return 0
 	fi
+	log "klipper venv missing, invalid, or Python version mismatched - provisioning"
 	if try_venv_seed "klipper-venv-seed.tar.gz" "$envdir" "import greenlet, cffi, jinja2, serial, can"; then
 		log "klipper venv seeded from prebuilt archive and verified successfully"
 		return 0
@@ -488,9 +500,9 @@ start() {
 		&& [ -f "$APPS/klipper/.nebulaos-chelper-verdict.json" ] \
 		&& [ -f "$APPS/klipper/scripts/install-octopi.sh" ] \
 		&& [ -e "$APPS/moonraker/.git" ] && [ -e "$APPS/mainsail/index.html" ] \
-		&& [ -x "$ENVS/moonraker/bin/python3" ] \
-		&& [ -x "$ENVS/klipper/bin/python3" ]; then
-		log "all components already seeded - nothing to do"
+		&& is_venv_valid "$ENVS/moonraker" "import tornado, numpy, streaming_form_data" \
+		&& is_venv_valid "$ENVS/klipper" "import greenlet, cffi, jinja2, serial, can"; then
+		log "all components already seeded and valid - nothing to do"
 		return 0
 	fi
 
