@@ -1,5 +1,5 @@
 diff --git a/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig b/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig
-index 4b5ac7e20..c4e28144f 100644
+index 4b5ac7e20..6d05a323f 100644
 --- a/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig
 +++ b/kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig
 @@ -49,3 +49,48 @@ config BCM_4345C5_RFKILL
@@ -9,7 +9,7 @@ index 4b5ac7e20..c4e28144f 100644
 +
 +config NEBULAOS_BACKLIGHT_FINAL_CONTROLLER
 +	bool "NebulaOS kernel-owned backlight final controller (GPC0/PWM0/PC22)"
-+	depends on PWM
++	depends on PWM && BACKLIGHT_CLASS_DEVICE
 +	default n
 +	help
 +	  Post-incident redesign (2026-08-02+) of the backlight hardware
@@ -65,7 +65,7 @@ new file mode 100644
 index 000000000..6a97fcadc
 --- /dev/null
 +++ b/kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c
-@@ -0,0 +1,1799 @@
+@@ -0,0 +1,1947 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NebulaOS backlight final controller - kernel-owned, exclusive owner of
@@ -564,6 +564,7 @@ index 000000000..6a97fcadc
 +#include <linux/pwm.h>
 +#include <linux/gpio/consumer.h>
 +#include <linux/pinctrl/consumer.h>
++#include <linux/backlight.h>
 +#include <linux/debugfs.h>
 +#include <linux/seq_file.h>
 +#include <linux/workqueue.h>
@@ -767,6 +768,17 @@ index 000000000..6a97fcadc
 +	char			last_restore_reason[40];
 +
 +	struct dentry		*debugfs_dir;
++
++	/* Backlight class device - exposes /sys/class/backlight/<name>
++	 * with brightness/max_brightness files so standard userspace
++	 * (GuppyScreen, etc.) can control the backlight without needing
++	 * to know about the debugfs command interface.  max_brightness=4:
++	 *   0 = off (sleep)
++	 *   1 = 25% PWM committed
++	 *   2 = 50% PWM committed
++	 *   3 = 75% PWM committed
++	 *   4 = safe-on (GPIO HIGH, full brightness) */
++	struct backlight_device	*bl_dev;
 +};
 +
 +static const char *nblc_state_name(enum nblc_state s)
@@ -1762,6 +1774,110 @@ index 000000000..6a97fcadc
 +}
 +DEFINE_SHOW_ATTRIBUTE(nblc_status);
 +
++/* ====================================================================
++ * Backlight class device - /sys/class/backlight/nebulaos_backlight_final
++ *
++ * Exposes brightness/max_brightness files that standard userspace tools
++ * (GuppyScreen, etc.) can read/write without knowing about the debugfs
++ * command interface.  Thin wrapper around the existing nblc_cmd_*
++ * functions (which handle their own locking and state validation).
++ *
++ * max_brightness = 4, discrete levels:
++ *   0 → sleep            (GPC0 LOW, indefinite)
++ *   1 → 25% PWM committed (enter-safe-on → pwm-active-25 → commit-pwm)
++ *   2 → 50% PWM committed
++ *   3 → 75% PWM committed
++ *   4 → safe-on           (GPIO HIGH, 100%)
++ *
++ * Default brightness at registration is 4 (safe-on), matching the
++ * driver's initial boot-preserve → enter-safe-on convergence that
++ * the boot script already performs.
++ * ==================================================================== */
++#define NBLC_BL_MAX_BRIGHTNESS	4
++
++/* Map level 1/2/3 to the duty percentages the driver accepts. */
++static const unsigned int nblc_bl_duty_map[] = {
++	[1] = 25,
++	[2] = 50,
++	[3] = 75,
++};
++
++static int nblc_bl_update_status(struct backlight_device *bd)
++{
++	struct nblc *n = bl_get_data(bd);
++	int level = backlight_get_brightness(bd);
++	unsigned int duty;
++	int ret;
++
++	if (level == 0) {
++		/* Off / sleep.  sleep requires safe-on or pwm-committed;
++		 * enter-safe-on is the universal convergence command that
++		 * works from ANY state (including boot-preserve). */
++		ret = nblc_cmd_enter_safe_on(n);
++		if (ret)
++			return ret;
++		return nblc_cmd_sleep(n);
++	}
++
++	if (level >= NBLC_BL_MAX_BRIGHTNESS) {
++		/* Full brightness = safe-on (GPIO HIGH). */
++		return nblc_cmd_enter_safe_on(n);
++	}
++
++	/* Levels 1-3: PWM at 25/50/75%, committed (no timeout).
++	 * Sequence mirrors what the boot script does:
++	 *   1. enter-safe-on  (universal convergence, always valid)
++	 *   2. pwm-active-N   (bounded, arms 2s watchdog)
++	 *   3. commit-pwm     (promotes to indefinite, disarms timer)
++	 *
++	 * Each nblc_cmd_* handles its own locking; the window between
++	 * calls is microseconds and the watchdog is 2000ms, so the
++	 * commit always arrives in time. */
++	duty = nblc_bl_duty_map[level];
++
++	ret = nblc_cmd_enter_safe_on(n);
++	if (ret)
++		return ret;
++
++	ret = nblc_cmd_pwm_active(n, duty);
++	if (ret)
++		return ret;
++
++	return nblc_cmd_commit_pwm(n);
++}
++
++static int nblc_bl_get_brightness(struct backlight_device *bd)
++{
++	struct nblc *n = bl_get_data(bd);
++	enum nblc_state st;
++	unsigned int duty;
++
++	mutex_lock(&n->lock);
++	st = n->state;
++	duty = n->pwm_duty_pct;
++	mutex_unlock(&n->lock);
++
++	switch (st) {
++	case NBLC_STATE_ASLEEP:
++		return 0;
++	case NBLC_STATE_PWM_ACTIVE:
++	case NBLC_STATE_PWM_COMMITTED:
++		/* Reverse-map the duty percentage to our 1-3 levels. */
++		if (duty <= 25) return 1;
++		if (duty <= 50) return 2;
++		return 3;
++	case NBLC_STATE_SAFE_ON:
++	case NBLC_STATE_BOOT_PRESERVE:
++	default:
++		return NBLC_BL_MAX_BRIGHTNESS;
++	}
++}
++
++static const struct backlight_ops nblc_bl_ops = {
++	.update_status	= nblc_bl_update_status,
++	.get_brightness	= nblc_bl_get_brightness,
++};
++
 +/*
 + * probe() - see file header item (a). Registers the platform driver, sets
 + * up debugfs, initializes internal state. Deliberately, structurally NEVER
@@ -1800,6 +1916,33 @@ index 000000000..6a97fcadc
 +		debugfs_create_file("status", 0444, n->debugfs_dir, n, &nblc_status_fops);
 +	}
 +
++	/* Register a standard backlight class device so userspace tools
++	 * that look for /sys/class/backlight/ (GuppyScreen, etc.) can
++	 * discover and control the backlight without using the debugfs
++	 * command interface directly.  Non-fatal: if this fails (unlikely)
++	 * the driver still works via debugfs. */
++	{
++		struct backlight_properties props;
++
++		memset(&props, 0, sizeof(props));
++		props.type = BACKLIGHT_PLATFORM;
++		props.max_brightness = NBLC_BL_MAX_BRIGHTNESS;
++		/* Default to full brightness - the boot script's
++		 * enter-safe-on always runs before GuppyScreen starts,
++		 * so the initial sysfs value should match reality. */
++		props.brightness = NBLC_BL_MAX_BRIGHTNESS;
++
++		n->bl_dev = backlight_device_register(
++				NBLC_NAME, dev, n, &nblc_bl_ops, &props);
++		if (IS_ERR(n->bl_dev)) {
++			dev_warn(dev, "backlight class device registration "
++				 "failed: %ld - brightness control via "
++				 "/sys/class/backlight will be unavailable\n",
++				 PTR_ERR(n->bl_dev));
++			n->bl_dev = NULL;
++		}
++	}
++
 +	dev_info(dev, "backlight final controller ready - boot-preserve (zero hardware "
 +		 "claimed, bootloader's own GPC0 configuration untouched); write "
 +		 "\"enter-safe-on\" to .../command to begin\n");
@@ -1810,7 +1953,12 @@ index 000000000..6a97fcadc
 +{
 +	struct nblc *n = platform_get_drvdata(pdev);
 +
-+	/* Remove debugfs first so no new command can race with teardown. */
++	/* Remove the backlight class device first, then debugfs, so no
++	 * new brightness write or command can race with teardown. */
++	if (n->bl_dev) {
++		backlight_device_unregister(n->bl_dev);
++		n->bl_dev = NULL;
++	}
 +	debugfs_remove_recursive(n->debugfs_dir);
 +	n->debugfs_dir = NULL;
 +
