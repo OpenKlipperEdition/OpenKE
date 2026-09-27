@@ -112,6 +112,7 @@ sed -i "s#/src/board/halley5-openke-overlay#$BUILDROOT_DIR/board/halley5-openke-
 cat > "$BUILDROOT_DIR/local.mk" <<EOF
 LINUX_OVERRIDE_SRCDIR = $KERNEL_SRCDIR
 EOF
+rm -rf "$BUILDROOT_DIR/board/halley5-openke-wheels"
 rm -rf "$BUILDROOT_DIR/board/halley5-openke-overlay"
 mkdir -p "$BUILDROOT_DIR/board/halley5-openke-overlay"
 cp -r "$REPO_ROOT/scripts/build/overlay/." "$BUILDROOT_DIR/board/halley5-openke-overlay/"
