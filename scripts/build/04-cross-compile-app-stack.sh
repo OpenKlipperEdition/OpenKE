@@ -488,7 +488,7 @@ fi
 # its own log file at all.
 echo "== downloading Moonraker's pure-Python deps with no Buildroot package =="
 mkdir -p "$PYWHEELS_DIR"
-PYTHON_WHEEL_REQUIREMENTS="inotify-simple==2.0.1 libnacl==2.1.0 apprise==1.9.3 ldap3==2.9.1 importlib_metadata==8.4.0 preprocess-cancellation==0.2.1 pyasn1==$MOONRAKER_PYASN1_VERSION zipp==3.20.2 wheel==0.42.0"
+PYTHON_WHEEL_REQUIREMENTS="inotify-simple==2.0.1 libnacl==2.1.0 apprise==1.13.0 ldap3==2.9.1 importlib_metadata==9.0.0 preprocess-cancellation==0.2.1 pyasn1==$MOONRAKER_PYASN1_VERSION zipp==4.1.0 wheel==0.45.1"
 python_wheels_fingerprint() {
 	{
 		printf 'requirements=%s\n' "$PYTHON_WHEEL_REQUIREMENTS"
