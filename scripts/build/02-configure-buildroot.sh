@@ -178,11 +178,6 @@ for obsolete_rel in \
 	rm -rf "$BUILDROOT_DIR/output/target/$obsolete_rel" \
 	      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/$obsolete_rel" 2>/dev/null || true
 done
-rm -rf "$BUILDROOT_DIR/board/halley5-openke-wheels"
-mkdir -p "$BUILDROOT_DIR/board/halley5-openke-wheels"
-if grep -q "PYTHON_MATPLOTLIB_VERSION = 3.4.3" "$BUILDROOT_DIR/package/python-matplotlib/python-matplotlib.mk" 2>/dev/null; then
-	cp "$REPO_ROOT/scripts/build/vendor-patches/python-matplotlib/python-matplotlib.mk" "$BUILDROOT_DIR/package/python-matplotlib/python-matplotlib.mk"
-fi
 
 echo "== normalizing .config (resolves any derived Kconfig selects) =="
 # The checkout may be mounted on a filesystem (for example a Windows/WSL
