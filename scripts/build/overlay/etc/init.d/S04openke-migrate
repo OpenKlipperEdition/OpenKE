@@ -45,7 +45,9 @@ APPS="${APPS:-$OPENKE_ROOT/apps}"
 SYSTEM="${SYSTEM:-$OPENKE_ROOT/system}"
 LOCKDIR="${LOCKDIR:-$OPENKE_ROOT/updates/locks}"
 GENERATION_FILE="$SYSTEM/app-generation.json"
+CONFIG_GENERATION_FILE="$SYSTEM/config-generation.json"
 BACKUP_ROOT="$SYSTEM/migration-backups"
+CONFIG_MIGRATE_LIB="${CONFIG_MIGRATE_LIB:-/etc/openke-config-migrate.sh}"
 # Overridable for tests (points fixtures at the same real, tracked shared
 # gate this script actually ships - see that file's own header).
 GATE_LIB="${GATE_LIB:-/etc/openke-maintenance-gate.sh}"
@@ -192,6 +194,53 @@ start() {
 	else
 		log "migration INCOMPLETE - at least one component failed and was left at its previous version (see errors above). Generation NOT advanced, so this will retry next boot. Nothing was destroyed: any component that failed still has its pre-migration tree in place at $APPS, and $BACKUP_DIR holds whatever was successfully backed up before the failure."
 	fi
+
+	migrate_config_if_needed
+}
+
+migrate_config_if_needed() {
+	expected_cfg_ver=$(json_get "$SEEDS/seed-manifest.json" config_version)
+	[ -n "$expected_cfg_ver" ] || return 0
+	installed_cfg_ver=""
+	[ -f "$CONFIG_GENERATION_FILE" ] && installed_cfg_ver=$(json_get "$CONFIG_GENERATION_FILE" config_version)
+
+	if [ "$installed_cfg_ver" = "$expected_cfg_ver" ]; then
+		log "installed config generation ($installed_cfg_ver) already matches this image - nothing to do"
+		return 0
+	fi
+
+	if [ ! -f "$OPENKE_ROOT/printer_data/config/printer.cfg" ]; then
+		record_config_generation "$expected_cfg_ver"
+		return 0
+	fi
+
+	log "config generation mismatch: installed='$installed_cfg_ver' expected='$expected_cfg_ver' - config migration needed"
+	if [ -f "$CONFIG_MIGRATE_LIB" ]; then
+		# shellcheck disable=SC1090
+		. "$CONFIG_MIGRATE_LIB"
+		cfg_backup="$OPENKE_ROOT/backups/printer_config/pre-migration-$(date -u +%Y%m%dT%H%M%SZ)"
+		if openke_migrate_config_tree "$OPENKE_ROOT" "$SEEDS" "$cfg_backup"; then
+			record_config_generation "$expected_cfg_ver"
+			log "printer configuration migrated successfully (backup at $cfg_backup)"
+		else
+			log "ERROR: printer configuration migration failed"
+		fi
+	else
+		log "WARNING: config migration library missing at $CONFIG_MIGRATE_LIB - skipping config migration"
+	fi
+}
+
+record_config_generation() {
+	cfg_ver="$1"
+	mkdir -p "$SYSTEM"
+	now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+	cat > "$CONFIG_GENERATION_FILE" <<EOF
+{
+  "config_version": "$cfg_ver",
+  "recorded_at": "$now"
+}
+EOF
+	log "recorded config generation $cfg_ver to $CONFIG_GENERATION_FILE"
 }
 
 record_generation() {

@@ -987,6 +987,7 @@ build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # needed. Not a security hash - just a stable, cheap "does the installed
 # generation match what THIS image expects" fingerprint.
 migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${GUPPYSCREEN_COMMIT:-unknown}" | sha256sum | cut -c1-16)
+config_version=$(find "$PRINTER_DATA_CONFIG_SRC" -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -c1-16)
 firmware_head=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
 
 cat > "$OVERLAY/opt/openke-seeds/seed-manifest.json" <<EOF
@@ -994,6 +995,7 @@ cat > "$OVERLAY/opt/openke-seeds/seed-manifest.json" <<EOF
   "schema_version": 2,
   "build_date": "$build_date",
   "migration_version": "$migration_version",
+  "config_version": "$config_version",
   "firmware_head": "$firmware_head",
   "guppyscreen_commit": "${GUPPYSCREEN_COMMIT:-unknown}",
   "seeds": {
