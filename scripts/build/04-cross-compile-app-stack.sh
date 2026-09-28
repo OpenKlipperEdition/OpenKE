@@ -1313,7 +1313,7 @@ cp -a "$PRINTER_PROFILES_SRC" "$OVERLAY/opt/openke-seeds/printer_profiles"
 # the tracked overlay. Buildroot's output/target sync is additive, so refresh
 # the exact generated paths here; otherwise a previous klipper.tar.gz (and
 # its previous Git commit) can remain in the image indefinitely.
-for generated_path in klipper klipper-extensions openke-seeds; do
+for generated_path in klipper klipper-extensions openke-seeds printer_data; do
 	rm -rf "$BUILDROOT_DIR/output/target/opt/$generated_path"
 	mkdir -p "$(dirname "$BUILDROOT_DIR/output/target/opt/$generated_path")"
 	cp -a "$OVERLAY/opt/$generated_path" \

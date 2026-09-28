@@ -169,13 +169,23 @@ for obsolete_rel in \
 	"etc/sysctl.d/99-nebulaos-resilience.conf" \
 	"usr/libexec/nebulaos-display-qualified-write" \
 	"usr/libexec/nebulaos-seed-camera" \
-	"usr/libexec/nebulaos-wifi-power-save" \
+	"opt/printer_data/config/Macros" \
+	"opt/printer_data/config/Nebula.cfg" \
+	"opt/printer_data/config/OpenKE_Settings.cfg" \
+	"opt/printer_data/config/V3_Settings.cfg" \
+	"opt/printer_data/config/camera-quality.cfg" \
+	"opt/printer_data/config/frontend-controls.cfg" \
+	"opt/printer_data/config/print_controls.cfg" \
 	"opt/nebulaos" \
 	"opt/nebulaos-seeds" \
 	"opt/nebulaos-version.json"; do
 	rm -rf "$BUILDROOT_DIR/output/target/$obsolete_rel" \
 	      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/$obsolete_rel" 2>/dev/null || true
 done
+rm -rf "$BUILDROOT_DIR/output/target/opt/printer_data" \
+      "$BUILDROOT_DIR/output/build/buildroot-fs/ext2/target/opt/printer_data" 2>/dev/null || true
+mkdir -p "$BUILDROOT_DIR/output/target/opt/printer_data"
+cp -a "$REPO_ROOT/scripts/build/overlay/opt/printer_data/." "$BUILDROOT_DIR/output/target/opt/printer_data/"
 
 echo "== normalizing .config (resolves any derived Kconfig selects) =="
 # The checkout may be mounted on a filesystem (for example a Windows/WSL

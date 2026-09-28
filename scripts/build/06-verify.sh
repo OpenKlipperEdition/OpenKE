@@ -1079,6 +1079,13 @@ check_absent /etc/init.d/S03nebulaos-factory-seed
 check_absent /etc/init.d/S04nebulaos-activate
 check_absent /opt/nebulaos
 check_absent /opt/nebulaos-seeds
+check_absent /opt/printer_data/config/Macros
+check_absent /opt/printer_data/config/Nebula.cfg
+check_absent /opt/printer_data/config/OpenKE_Settings.cfg
+check_absent /opt/printer_data/config/V3_Settings.cfg
+check_absent /opt/printer_data/config/camera-quality.cfg
+check_absent /opt/printer_data/config/frontend-controls.cfg
+check_absent /opt/printer_data/config/print_controls.cfg
 
 echo "=== SSH/console/recovery (FIRMWARE.md sec 18/21/22/24) ==="
 check /usr/sbin/dropbear
