@@ -894,10 +894,10 @@ if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_dat
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
 fi
-if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/macros/print_controls.cfg$"; then
-	echo "OK   /opt/openke-seeds/printer_data-config/macros/print_controls.cfg is present"
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/macros/mainsail.cfg$"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/macros/mainsail.cfg is present"
 else
-	echo "MISS /opt/openke-seeds/printer_data-config/macros/print_controls.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/macros/mainsail.cfg is missing from the packaged seed"
 fi
 if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg is present"
@@ -905,7 +905,7 @@ else
 	echo "MISS /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg is missing from the packaged seed"
 fi
 # Camera quality presets mission (2026-08-04): same class of check as
-# print_controls.cfg above - confirms the two new files a fresh factory
+# mainsail.cfg above - confirms the two new files a fresh factory
 # seed depends on (the macro/shell-command config, and the script the shell
 # command actually invokes) really landed in the packaged image, not just
 # the tracked overlay source.
@@ -926,7 +926,7 @@ mkdir -p /tmp/printerdata-check/hardware /tmp/printerdata-check/macros /tmp/prin
 	sq_dump /opt/openke-seeds/printer_data-config/macros/print_settings.cfg /tmp/printerdata-check/macros/print_settings.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/hardware/v3_features.cfg /tmp/printerdata-check/hardware/v3_features.cfg
-	sq_dump /opt/openke-seeds/printer_data-config/macros/print_controls.cfg /tmp/printerdata-check/macros/print_controls.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/mainsail.cfg /tmp/printerdata-check/macros/mainsail.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/adaptive_meshing.cfg /tmp/printerdata-check/macros/adaptive_meshing.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/line_purge.cfg /tmp/printerdata-check/macros/line_purge.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/smart_park.cfg /tmp/printerdata-check/macros/smart_park.cfg
@@ -967,16 +967,16 @@ AWKPROG
 		awk -f /tmp/blank-required-option.awk "$1"
 	}
 	blank_found=0
-	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/macros/print_controls.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg; do
+	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/macros/mainsail.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg; do
 		[ -s "$f" ] || continue
 		if ! blank_required_option "$f" >/dev/null; then
 			blank_found=1
 		fi
 	done
 	if [ "$blank_found" = "1" ]; then
-		echo "MISS packaged printer.cfg/moonraker.conf/print_controls.cfg seed has an option present but syntactically blank"
+		echo "MISS packaged printer.cfg/moonraker.conf/mainsail.cfg seed has an option present but syntactically blank"
 	else
-		echo "OK   packaged printer.cfg/moonraker.conf/print_controls.cfg seed has no syntactically blank options"
+		echo "OK   packaged printer.cfg/moonraker.conf/mainsail.cfg seed has no syntactically blank options"
 	fi
 
 	# Print-control config closure validation against the actual packaged
@@ -993,16 +993,16 @@ AWKPROG
 	if [ -s /tmp/printerdata-check/printer.cfg ]; then
 		# printer.cfg must include the NebulaOS-owned frontend controls, which provide
 		# the single virtual_sdcard/pause_resume/display_status/macro closure.
-		if grep -q "^\[include macros/print_controls\.cfg\]" /tmp/printerdata-check/printer.cfg; then
-			echo "OK   packaged printer.cfg includes macros/print_controls.cfg"
+		if grep -q "^\[include macros/mainsail\.cfg\]" /tmp/printerdata-check/printer.cfg; then
+			echo "OK   packaged printer.cfg includes macros/mainsail.cfg"
 		else
-			echo "MISS packaged printer.cfg does not include macros/print_controls.cfg"
+			echo "MISS packaged printer.cfg does not include macros/mainsail.cfg"
 		fi
 		cat /tmp/printerdata-check/printer.cfg \
 		    /tmp/printerdata-check/macros/print_settings.cfg \
 		    /tmp/printerdata-check/hardware/nebula_pad.cfg \
 		    /tmp/printerdata-check/hardware/v3_features.cfg \
-		    /tmp/printerdata-check/macros/print_controls.cfg \
+		    /tmp/printerdata-check/macros/mainsail.cfg \
 		    /tmp/printerdata-check/macros/adaptive_meshing.cfg \
 		    /tmp/printerdata-check/macros/line_purge.cfg \
 		    /tmp/printerdata-check/macros/smart_park.cfg \

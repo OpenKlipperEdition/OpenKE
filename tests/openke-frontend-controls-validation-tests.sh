@@ -271,14 +271,14 @@ fi
 # --- a regression guard against one being added silently later) --------
 
 REAL_SRC="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config"
-if [ -f "$REAL_SRC/macros/print_controls.cfg" ]; then
-	if grep -v '^[[:space:]]*#' "$REAL_SRC/macros/print_controls.cfg" | grep -q -i -E "openke|prtouch_v2|z_compensate"; then
-		fail "real print_controls.cfg unexpectedly references a Creality/OpenKE-specific module"
+if [ -f "$REAL_SRC/macros/mainsail.cfg" ]; then
+	if grep -v '^[[:space:]]*#' "$REAL_SRC/macros/mainsail.cfg" | grep -q -i -E "openke|prtouch_v2|z_compensate"; then
+		fail "real mainsail.cfg unexpectedly references a Creality/OpenKE-specific module"
 	else
-		pass "real print_controls.cfg references no Creality/OpenKE-specific module (Level 4 correctly not used)"
+		pass "real mainsail.cfg references no Creality/OpenKE-specific module (Level 4 correctly not used)"
 	fi
 else
-	fail "real print_controls.cfg is missing from the tracked overlay source"
+	fail "real mainsail.cfg is missing from the tracked overlay source"
 fi
 
 # --- Scenario 12: the real, tracked overlay config passes end-to-end ---

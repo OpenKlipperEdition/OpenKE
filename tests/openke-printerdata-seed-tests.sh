@@ -46,7 +46,7 @@ EOF
 host: 0.0.0.0
 port: 7125
 EOF
-	cat > "$dir/macros/print_controls.cfg" <<'EOF'
+	cat > "$dir/macros/mainsail.cfg" <<'EOF'
 [virtual_sdcard]
 path: /opt/printer_data/gcodes
 on_error_gcode: CANCEL_PRINT
@@ -90,10 +90,10 @@ if [ -f "$ns/printer_data/config/songs.conf" ] && [ -f "$ns/printer_data/config/
 else
 	fail "fresh namespace: songs.conf/GuppyScreen defaults not seeded"
 fi
-if [ -f "$ns/printer_data/config/macros/print_controls.cfg" ]; then
-	pass "fresh namespace: macros/print_controls.cfg also seeded"
+if [ -f "$ns/printer_data/config/macros/mainsail.cfg" ]; then
+	pass "fresh namespace: macros/mainsail.cfg also seeded"
 else
-	fail "fresh namespace: macros/print_controls.cfg not seeded"
+	fail "fresh namespace: macros/mainsail.cfg not seeded"
 fi
 if [ -f "$ns/system/printer-data-config-seeded.json" ]; then
 	pass "fresh namespace: seed marker written"
