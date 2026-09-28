@@ -46,6 +46,7 @@ openke_migrate_printer_cfg() {
 		in_save_config = 0
 		save_config_text = ""
 		cur_override_section = ""
+		in_template_save_config = 0
 	}
 	# Pass 1: Read the old config and extract SAVE_CONFIG block + map overrides
 	FILENAME == ARGV[1] {
@@ -62,7 +63,6 @@ openke_migrate_printer_cfg() {
 				sub(/^\[[[:space:]]*/, "", sec)
 				sub(/[[:space:]]*\].*$/, "", sec)
 				cur_override_section = tolower(sec)
-				override_sections[cur_override_section] = 1
 			} else if (cur_override_section != "" && line ~ /^[a-zA-Z0-9_]+[[:space:]]*[:=]/) {
 				key = line
 				sub(/[[:space:]]*[:=].*$/, "", key)
@@ -74,30 +74,20 @@ openke_migrate_printer_cfg() {
 	}
 	# Pass 2: Read template and comment out options overridden in SAVE_CONFIG
 	FILENAME == ARGV[2] {
+		if ($0 ~ /^#\*# <---------------------- SAVE_CONFIG ---------------------->/) {
+			in_template_save_config = 1
+		}
+		if (in_template_save_config) {
+			next
+		}
+
 		line = $0
 		if (line ~ /^\[[[:space:]]*[^]]+[[:space:]]*\]/) {
 			sec = line
 			sub(/^\[[[:space:]]*/, "", sec)
 			sub(/[[:space:]]*\].*$/, "", sec)
 			current_template_section = tolower(sec)
-			# If entire section (e.g. bed_mesh default) is in SAVE_CONFIG, comment out section header
-			if (current_template_section in override_sections && !(current_template_section ~ /^(probe|extruder|heater_bed|stepper_|printer|input_shaper)/)) {
-				print "#*# " line
-				in_commented_section = 1
-				next
-			} else {
-				in_commented_section = 0
-			}
 			print line
-			next
-		}
-
-		if (in_commented_section) {
-			if (line ~ /^[[:space:]]*$/) {
-				print line
-			} else {
-				print "#*# " line
-			}
 			next
 		}
 
@@ -109,9 +99,8 @@ openke_migrate_printer_cfg() {
 			key_lower = tolower(key)
 			lookup = current_template_section "::" key_lower
 			if (lookup in overrides) {
-				# Comment out with #*# to match Klipper native SAVE_CONFIG convention
-				sub(/^[[:space:]]*/, "", line)
-				print "#*# " line
+				# Comment out with "# " (NEVER "#*#" in the regular body, which Klipper treats as corruption)
+				print "# " line
 				next
 			}
 		}

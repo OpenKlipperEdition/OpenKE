@@ -108,11 +108,19 @@ EOF
 
 openke_migrate_printer_cfg "$t1_old" "$t1_template" "$t1_out"
 
-# Verify that z_offset in [probe] body is commented out
-if grep -q "^#\*#[[:space:]]*z_offset:[[:space:]]*0\.0" "$t1_out"; then
-	pass "probe z_offset in template body was correctly commented out with #*#"
+# Verify that z_offset in [probe] body is commented out with "# " (never "#*#")
+if grep -q "^#[[:space:]]*z_offset:[[:space:]]*0\.0" "$t1_out"; then
+	pass "probe z_offset in template body was correctly commented out with #"
 else
 	fail "probe z_offset was not commented out in template body"
+fi
+
+# Verify NO "#*#" appears anywhere in the body before SAVE_CONFIG header
+body_before_save=$(sed '/^#\*# <---------------------- SAVE_CONFIG ---------------------->/,$d' "$t1_out")
+if printf '%s' "$body_before_save" | grep -q "^#\*#"; then
+	fail "#*# comment prefix found in regular body before SAVE_CONFIG (causes Klipper to reject autosave as corrupted!)"
+else
+	pass "no #*# prefix in regular body before SAVE_CONFIG"
 fi
 
 if grep -A2 "^\[probe\]" "$t1_out" | grep -q "^z_offset:[[:space:]]*0\.0"; then
@@ -122,15 +130,15 @@ else
 fi
 
 # Verify extruder PID parameters are commented out in body
-if grep -q "^#\*#[[:space:]]*pid_Kp:[[:space:]]*22\.200" "$t1_out" && \
-   grep -q "^#\*#[[:space:]]*control:[[:space:]]*pid" "$t1_out"; then
+if grep -q "^#[[:space:]]*pid_Kp:[[:space:]]*22\.200" "$t1_out" && \
+   grep -q "^#[[:space:]]*control:[[:space:]]*pid" "$t1_out"; then
 	pass "extruder control and PID parameters in template body were commented out"
 else
 	fail "extruder PID parameters in template body were not commented out"
 fi
 
 # Verify heater_bed PID parameters are commented out in body
-if grep -q "^#\*#[[:space:]]*pid_Kp:[[:space:]]*65\.000" "$t1_out"; then
+if grep -q "^#[[:space:]]*pid_Kp:[[:space:]]*65\.000" "$t1_out"; then
 	pass "heater_bed PID parameters in template body were commented out"
 else
 	fail "heater_bed PID parameters in template body were not commented out"
@@ -269,7 +277,7 @@ else
 fi
 
 # Verify printer.cfg has calibrated SAVE_CONFIG value and commented-out baseline
-if grep -q "^#\*#[[:space:]]*z_offset:[[:space:]]*0\.0" "$ns_root/printer_data/config/printer.cfg" && \
+if grep -q "^#[[:space:]]*z_offset:[[:space:]]*0\.0" "$ns_root/printer_data/config/printer.cfg" && \
    grep -q "^#\*#[[:space:]]*z_offset = 1\.337" "$ns_root/printer_data/config/printer.cfg"; then
 	pass "migrated printer.cfg preserved calibration and commented out baseline"
 else
@@ -294,6 +302,139 @@ if frontend_controls_resolve_closure "$REAL_OVERLAY" printer.cfg "$closure" >"$W
 	fi
 else
 	fail "closure resolution failed: $(cat "$WORK/vlog.txt")"
+fi
+
+# =========================================================================
+# Test 5: BLTouch & Heater Bed Hardware Sections Complete Preservation
+# =========================================================================
+echo "=== Test 5: BLTouch & Heater Bed Hardware Sections Complete Preservation ==="
+
+t5_old="$WORK/t5_old.cfg"
+t5_template="$WORK/t5_template.cfg"
+t5_out="$WORK/t5_out.cfg"
+
+cat > "$t5_template" <<'EOF'
+[printer]
+kinematics: cartesian
+
+[bltouch]
+sensor_pin: ^PC14
+control_pin: PC13
+x_offset: -24
+y_offset: -13
+z_offset: 0.0
+speed: 5.0
+samples: 2
+
+[heater_bed]
+heater_pin: PB2
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: PC4
+control: pid
+pid_Kp: 70.652
+pid_Ki: 1.798
+pid_Kd: 694.157
+min_temp: 0
+max_temp: 120
+EOF
+
+cat > "$t5_old" <<'EOF'
+[printer]
+kinematics: cartesian
+
+#*# <---------------------- SAVE_CONFIG ---------------------->
+#*# DO NOT EDIT THIS BLOCK OR BELOW. The contents are auto-generated.
+#*#
+#*# [bltouch]
+#*# z_offset = 2.150
+#*#
+#*# [heater_bed]
+#*# control = pid
+#*# pid_kp = 66.861
+#*# pid_ki = 1.305
+#*# pid_kd = 856.657
+#*#
+#*# [bed_mesh default]
+#*# version = 1
+#*# points =
+#*# 	0.010, 0.020
+#*# 	-0.010, 0.000
+#*# x_count = 2
+#*# y_count = 2
+EOF
+
+openke_migrate_printer_cfg "$t5_old" "$t5_template" "$t5_out"
+
+# 1. Verify [bltouch] section header is active (NOT commented out)
+if grep -q "^\[bltouch\]" "$t5_out"; then
+	pass "[bltouch] section header is active and not commented out"
+else
+	fail "[bltouch] section header was commented out!"
+fi
+
+# 2. Verify all bltouch hardware pins remain active
+if grep -q "^sensor_pin:[[:space:]]*\^PC14" "$t5_out" && \
+   grep -q "^control_pin:[[:space:]]*PC13" "$t5_out" && \
+   grep -q "^x_offset:[[:space:]]*-24" "$t5_out"; then
+	pass "all [bltouch] hardware pin definitions remain intact and active"
+else
+	fail "[bltouch] hardware pins were corrupted or commented out"
+fi
+
+# 3. Verify [heater_bed] section header and pins remain active
+if grep -q "^\[heater_bed\]" "$t5_out" && \
+   grep -q "^heater_pin:[[:space:]]*PB2" "$t5_out" && \
+   grep -q "^sensor_type:[[:space:]]*EPCOS 100K B57560G104F" "$t5_out"; then
+	pass "[heater_bed] section header and hardware pins remain intact and active"
+else
+	fail "[heater_bed] section header or pins were corrupted or commented out"
+fi
+
+# 4. Verify baseline options overridden by SAVE_CONFIG are commented out with "#"
+if grep -q "^#[[:space:]]*z_offset:[[:space:]]*0\.0" "$t5_out" && \
+   grep -q "^#[[:space:]]*control:[[:space:]]*pid" "$t5_out" && \
+   grep -q "^#[[:space:]]*pid_Kp:[[:space:]]*70\.652" "$t5_out"; then
+	pass "overridden baseline options (z_offset, control, pid_Kp) commented out with #"
+else
+	fail "overridden baseline options were not commented out with #"
+fi
+
+# =========================================================================
+# Test 6: Direct Klipper Python config parser integration test
+# =========================================================================
+echo "=== Test 6: Direct Klipper Python config parser integration test ==="
+
+python3 -c "
+import sys
+sys.path.insert(0, '$REPO_ROOT/vendor/klipper/klippy')
+import configfile
+
+cfgrdr = configfile.ConfigFileReader()
+autosave_helper = configfile.ConfigAutoSave.__new__(configfile.ConfigAutoSave)
+
+data = cfgrdr.read_config_file('$t5_out')
+regular_data, autosave_data = autosave_helper._find_autosave_data(data)
+assert len(autosave_data) > 0, 'Klipper rejected autosave_data as corrupted!'
+
+reg_fc = cfgrdr.build_fileconfig_with_includes(regular_data, '$t5_out')
+autosave_data = autosave_helper._strip_duplicates(autosave_data, reg_fc)
+auto_fc = cfgrdr.build_fileconfig(autosave_data, '$t5_out')
+cfgrdr.append_fileconfig(reg_fc, autosave_data, '*AUTOSAVE*')
+
+assert reg_fc.has_section('bltouch'), '[bltouch] missing from Klipper config'
+assert reg_fc.get('bltouch', 'sensor_pin') == '^PC14', 'bltouch sensor_pin mismatch'
+assert reg_fc.get('bltouch', 'z_offset') == '2.150', 'bltouch z_offset was not loaded from autosave'
+assert reg_fc.has_section('heater_bed'), '[heater_bed] missing from Klipper config'
+assert reg_fc.get('heater_bed', 'control') == 'pid', 'heater_bed control missing or invalid'
+assert reg_fc.get('heater_bed', 'pid_kp') == '66.861', 'heater_bed pid_kp was not loaded from autosave'
+assert reg_fc.has_section('bed_mesh default'), '[bed_mesh default] missing from Klipper config'
+print('KLIPPER_PARSER_SUCCESS')
+" > "$WORK/pyout.txt" 2>&1
+
+if grep -q "KLIPPER_PARSER_SUCCESS" "$WORK/pyout.txt"; then
+	pass "migrated config passed native Klipper parser validation with all calibrations active"
+else
+	fail "native Klipper parser failed: $(cat "$WORK/pyout.txt")"
 fi
 
 echo ""
