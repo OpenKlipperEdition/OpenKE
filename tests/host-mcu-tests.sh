@@ -19,8 +19,8 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 BUILD_SCRIPT="$REPO_ROOT/scripts/build/04-cross-compile-app-stack.sh"
 HOST_MCU_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S54openke-host-mcu"
 KLIPPER_SERVICE="$REPO_ROOT/scripts/build/overlay/etc/init.d/S55klipper"
-OPENKE_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/OpenKE_Settings.cfg"
-NEBULA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/Nebula.cfg"
+PRINTER_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/printer.cfg"
+NEBULA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/hardware/nebula_pad.cfg"
 EXT_BL24C16F="$REPO_ROOT/vendor/klipper-extensions/extras/bl24c16f.py"
 EXT_PLR_JOURNAL="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_plr_journal.py"
 EXT_PLR="$REPO_ROOT/vendor/klipper-extensions/extras/nebulaos_power_loss_recovery.py"
@@ -42,22 +42,22 @@ else
     fail "S54 host-mcu missing or not executable at $HOST_MCU_SERVICE"
 fi
 
-if [ -f "$OPENKE_CFG" ]; then
-    pass "OpenKE_Settings.cfg exists"
+if [ -f "$PRINTER_CFG" ]; then
+    pass "printer.cfg exists"
 else
-    fail "OpenKE_Settings.cfg does not exist at $OPENKE_CFG"
+    fail "printer.cfg does not exist at $PRINTER_CFG"
 fi
 
 if [ -f "$NEBULA_CFG" ]; then
-    pass "Nebula.cfg exists"
+    pass "nebula_pad.cfg exists"
 else
-    fail "Nebula.cfg does not exist at $NEBULA_CFG"
+    fail "nebula_pad.cfg does not exist at $NEBULA_CFG"
 fi
 
-if [ -f "$OPENKE_CFG" ] && grep -q "^\[include Nebula\.cfg\]" "$OPENKE_CFG"; then
-    pass "OpenKE_Settings.cfg includes Nebula.cfg"
+if [ -f "$PRINTER_CFG" ] && grep -q "^\[include hardware/nebula_pad\.cfg\]" "$PRINTER_CFG"; then
+    pass "printer.cfg includes hardware/nebula_pad.cfg"
 else
-    fail "OpenKE_Settings.cfg missing [include Nebula.cfg]"
+    fail "printer.cfg missing [include hardware/nebula_pad.cfg]"
 fi
 
 # =========================================================================
@@ -150,27 +150,27 @@ fi
 
 # =========================================================================
 # 4. Config sections - [nebulaos_compat], [mcu rpi], [adxl345],
-#    [resonance_tester], [nebulaos_power_loss_recovery] in Nebula.cfg
+#    [resonance_tester], [nebulaos_power_loss_recovery] in nebula_pad.cfg
 #    (Phase 1.9B - NOT [bl24c16f], retired as the production EEPROM owner
 #    in favor of the at24/nvmem kernel driver - see
 #    accelerometer-eeprom-bus-enable-variant.sh)
 # =========================================================================
 
-echo "--- Nebula.cfg config sections ---"
+echo "--- nebula_pad.cfg config sections ---"
 
 if [ -f "$NEBULA_CFG" ]; then
     for section in "\[nebulaos_compat\]" "\[mcu rpi\]" "\[adxl345\]" "\[resonance_tester\]" "\[nebulaos_power_loss_recovery\]"; do
         if grep -q "^${section}$" "$NEBULA_CFG"; then
-            pass "Nebula.cfg declares $section"
+            pass "nebula_pad.cfg declares $section"
         else
-            fail "Nebula.cfg is missing $section"
+            fail "nebula_pad.cfg is missing $section"
         fi
     done
 
     if grep -q "^\[bl24c16f\]$" "$NEBULA_CFG"; then
-        fail "Nebula.cfg still declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner"
+        fail "nebula_pad.cfg still declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner"
     else
-        pass "Nebula.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+        pass "nebula_pad.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
     fi
 
     if grep -A3 "^\[mcu rpi\]$" "$NEBULA_CFG" | grep -q "serial: /tmp/klipper_host_mcu"; then
@@ -185,7 +185,7 @@ if [ -f "$NEBULA_CFG" ]; then
         fail "[nebulaos_power_loss_recovery] eeprom_path does not match the expected at24 sysfs path"
     fi
 else
-    fail "cannot check config sections - Nebula.cfg missing"
+    fail "cannot check config sections - nebula_pad.cfg missing"
 fi
 
 # =========================================================================
@@ -209,9 +209,9 @@ if [ -f "$HOST_MCU_SERVICE" ]; then
     SOCKET_IN_SERVICE=$(grep -oE '^SOCKET=.*' "$HOST_MCU_SERVICE" | cut -d= -f2)
     if [ -n "$SOCKET_IN_SERVICE" ] && [ -f "$NEBULA_CFG" ] \
         && grep -A1 "^\[mcu rpi\]$" "$NEBULA_CFG" | grep -qF "serial: $SOCKET_IN_SERVICE"; then
-        pass "S54 host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
+        pass "S54 host-mcu's \$SOCKET ($SOCKET_IN_SERVICE) exactly matches [mcu rpi]'s serial: in nebula_pad.cfg"
     else
-        fail "S54 host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
+        fail "S54 host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in nebula_pad.cfg"
     fi
 
     if grep -q "FORCE_SHUTDOWN" "$HOST_MCU_SERVICE"; then

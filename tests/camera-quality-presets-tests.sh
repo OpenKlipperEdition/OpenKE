@@ -14,7 +14,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 S50WEBCAM="$REPO_ROOT/scripts/build/overlay/etc/init.d/S50webcam"
 SET_QUALITY_PY="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/GuppyScreen/scripts/set_camera_quality.py"
-CAMERA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/camera-quality.cfg"
+CAMERA_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/macros/camera.cfg"
 PRINTER_CFG="$REPO_ROOT/scripts/build/overlay/opt/printer_data/config/printer.cfg"
 
 PASS=0
@@ -136,14 +136,12 @@ else
 	fail "camera-quality.cfg's gcode_shell_command does not point at the runtime script path"
 fi
 
-# --- Test 8: printer.cfg actually includes camera-quality.cfg (directly or via OpenKE_Settings.cfg) - a macro
+# --- Test 8: printer.cfg actually includes macros/camera.cfg - a macro
 # file nobody [include]s is invisible to both Mainsail and GuppyScreen. ---
-if grep -q '^\[include camera-quality.cfg\]$' "$PRINTER_CFG" \
-	|| (grep -q '^\[include OpenKE_Settings.cfg\]$' "$PRINTER_CFG" \
-	    && grep -q '^\[include camera-quality.cfg\]$' "$(dirname "$PRINTER_CFG")/OpenKE_Settings.cfg"); then
+if grep -q '^\[include macros/camera.cfg\]$' "$PRINTER_CFG"; then
 	pass
 else
-	fail "printer.cfg does not include camera-quality.cfg (directly or via OpenKE_Settings.cfg)"
+	fail "printer.cfg does not include macros/camera.cfg"
 fi
 
 echo ""

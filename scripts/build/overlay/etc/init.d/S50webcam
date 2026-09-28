@@ -75,7 +75,7 @@ DESIRED_FPS=30
 
 # Camera quality presets (2026-08-04): end-user-selectable via the
 # SET_CAMERA_QUALITY_LOW/MED/HIGH macros (see
-# opt/printer_data/config/camera-quality.cfg), which show up as one-click
+# opt/printer_data/config/macros/camera.cfg), which show up as one-click
 # buttons in both Mainsail's macro panel and GuppyScreen's macros screen
 # with no separate per-UI wiring. Supersedes the earlier fps-only C1
 # marker from Pre-qualification mission Phase A7 - HIGH is that same,

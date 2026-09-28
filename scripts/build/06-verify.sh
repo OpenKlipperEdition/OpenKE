@@ -602,32 +602,32 @@ check /opt/klipper/klippy/extras/bl24c16f.py
 check /opt/klipper/klippy/extras/nebulaos_plr_journal.py
 check /opt/klipper/klippy/extras/nebulaos_power_loss_recovery.py
 
-NEBULA_CFG_CONTENT=$(sq_cat /opt/openke-seeds/printer_data-config/Nebula.cfg)
+NEBULA_CFG_CONTENT=$(sq_cat /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg)
 S54_CONTENT=$(sq_cat /etc/init.d/S54openke-host-mcu)
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[mcu rpi\]$"; then
-	echo "OK   Nebula.cfg declares [mcu rpi]"
+	echo "OK   nebula_pad.cfg declares [mcu rpi]"
 else
-	echo "MISS Nebula.cfg does not declare [mcu rpi]"
+	echo "MISS nebula_pad.cfg does not declare [mcu rpi]"
 fi
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[adxl345\]$"; then
-	echo "OK   Nebula.cfg declares [adxl345]"
+	echo "OK   nebula_pad.cfg declares [adxl345]"
 else
-	echo "MISS Nebula.cfg does not declare [adxl345]"
+	echo "MISS nebula_pad.cfg does not declare [adxl345]"
 fi
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[resonance_tester\]$"; then
-	echo "OK   Nebula.cfg declares [resonance_tester]"
+	echo "OK   nebula_pad.cfg declares [resonance_tester]"
 else
-	echo "MISS Nebula.cfg does not declare [resonance_tester]"
+	echo "MISS nebula_pad.cfg does not declare [resonance_tester]"
 fi
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[bl24c16f\]$"; then
-	echo "MISS Nebula.cfg declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner (should be [nebulaos_power_loss_recovery] over at24 instead)"
+	echo "MISS nebula_pad.cfg declares [bl24c16f] - Phase 1.9B retired this as the production EEPROM owner (should be [nebulaos_power_loss_recovery] over at24 instead)"
 else
-	echo "OK   Nebula.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
+	echo "OK   nebula_pad.cfg does not declare [bl24c16f] (retired, Phase 1.9B)"
 fi
 if echo "$NEBULA_CFG_CONTENT" | grep -qE "^\[nebulaos_power_loss_recovery\]$"; then
-	echo "OK   Nebula.cfg declares [nebulaos_power_loss_recovery]"
+	echo "OK   nebula_pad.cfg declares [nebulaos_power_loss_recovery]"
 else
-	echo "MISS Nebula.cfg does not declare [nebulaos_power_loss_recovery]"
+	echo "MISS nebula_pad.cfg does not declare [nebulaos_power_loss_recovery]"
 fi
 if echo "$NEBULA_CFG_CONTENT" | grep -A2 "^\[nebulaos_power_loss_recovery\]$" | grep -qF "eeprom_path: /sys/bus/i2c/devices/2-0050/eeprom"; then
 	echo "OK   [nebulaos_power_loss_recovery]'s eeprom_path matches the at24 eeprom@50 DT node's sysfs path"
@@ -641,9 +641,9 @@ else
 fi
 S54_SOCKET=$(echo "$S54_CONTENT" | grep -oE "^SOCKET=.*" | cut -d= -f2)
 if [ -n "$S54_SOCKET" ] && echo "$NEBULA_CFG_CONTENT" | grep -A1 "^\[mcu rpi\]$" | grep -qF "serial: $S54_SOCKET"; then
-	echo "OK   S54openke-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in Nebula.cfg"
+	echo "OK   S54openke-host-mcu's \$SOCKET ($S54_SOCKET) exactly matches [mcu rpi]'s serial: in nebula_pad.cfg"
 else
-	echo "MISS S54openke-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in Nebula.cfg"
+	echo "MISS S54openke-host-mcu's \$SOCKET does not match [mcu rpi]'s serial: in nebula_pad.cfg"
 fi
 
 echo "=== process launch arguments and config-path consistency (mainline print-controls mission addendum, 2026-07-29) ==="
@@ -894,25 +894,25 @@ if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_dat
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/moonraker.conf is missing from the packaged seed"
 fi
-if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/frontend-controls.cfg$"; then
-	echo "OK   /opt/openke-seeds/printer_data-config/frontend-controls.cfg is present"
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/macros/print_controls.cfg$"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/macros/print_controls.cfg is present"
 else
-	echo "MISS /opt/openke-seeds/printer_data-config/frontend-controls.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/macros/print_controls.cfg is missing from the packaged seed"
 fi
-if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/Nebula.cfg$"; then
-	echo "OK   /opt/openke-seeds/printer_data-config/Nebula.cfg is present"
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg$"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg is present"
 else
-	echo "MISS /opt/openke-seeds/printer_data-config/Nebula.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg is missing from the packaged seed"
 fi
 # Camera quality presets mission (2026-08-04): same class of check as
-# frontend-controls.cfg above - confirms the two new files a fresh factory
+# print_controls.cfg above - confirms the two new files a fresh factory
 # seed depends on (the macro/shell-command config, and the script the shell
 # command actually invokes) really landed in the packaged image, not just
 # the tracked overlay source.
-if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/camera-quality.cfg$"; then
-	echo "OK   /opt/openke-seeds/printer_data-config/camera-quality.cfg is present"
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/macros/camera.cfg$"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/macros/camera.cfg is present"
 else
-	echo "MISS /opt/openke-seeds/printer_data-config/camera-quality.cfg is missing from the packaged seed"
+	echo "MISS /opt/openke-seeds/printer_data-config/macros/camera.cfg is missing from the packaged seed"
 fi
 if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
@@ -920,12 +920,18 @@ else
 	echo "MISS /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is missing from the packaged seed"
 fi
 rm -rf /tmp/printerdata-check
-mkdir -p /tmp/printerdata-check/GuppyScreen
+mkdir -p /tmp/printerdata-check/hardware /tmp/printerdata-check/macros /tmp/printerdata-check/GuppyScreen
 	sq_dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf
-	sq_dump /opt/openke-seeds/printer_data-config/OpenKE_Settings.cfg /tmp/printerdata-check/OpenKE_Settings.cfg
-	sq_dump /opt/openke-seeds/printer_data-config/Nebula.cfg /tmp/printerdata-check/Nebula.cfg
-	sq_dump /opt/openke-seeds/printer_data-config/frontend-controls.cfg /tmp/printerdata-check/frontend-controls.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/print_settings.cfg /tmp/printerdata-check/macros/print_settings.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/hardware/v3_features.cfg /tmp/printerdata-check/hardware/v3_features.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/print_controls.cfg /tmp/printerdata-check/macros/print_controls.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/adaptive_meshing.cfg /tmp/printerdata-check/macros/adaptive_meshing.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/line_purge.cfg /tmp/printerdata-check/macros/line_purge.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/smart_park.cfg /tmp/printerdata-check/macros/smart_park.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/camera.cfg /tmp/printerdata-check/macros/camera.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/profiles.cfg /tmp/printerdata-check/macros/profiles.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg
 	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
@@ -961,16 +967,16 @@ AWKPROG
 		awk -f /tmp/blank-required-option.awk "$1"
 	}
 	blank_found=0
-	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/Nebula.cfg; do
+	for f in /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/moonraker.conf /tmp/printerdata-check/macros/print_controls.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg; do
 		[ -s "$f" ] || continue
 		if ! blank_required_option "$f" >/dev/null; then
 			blank_found=1
 		fi
 	done
 	if [ "$blank_found" = "1" ]; then
-		echo "MISS packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has an option present but syntactically blank"
+		echo "MISS packaged printer.cfg/moonraker.conf/print_controls.cfg seed has an option present but syntactically blank"
 	else
-		echo "OK   packaged printer.cfg/moonraker.conf/frontend-controls.cfg seed has no syntactically blank options"
+		echo "OK   packaged printer.cfg/moonraker.conf/print_controls.cfg seed has no syntactically blank options"
 	fi
 
 	# Print-control config closure validation against the actual packaged
@@ -987,12 +993,22 @@ AWKPROG
 	if [ -s /tmp/printerdata-check/printer.cfg ]; then
 		# printer.cfg must include the NebulaOS-owned frontend controls, which provide
 		# the single virtual_sdcard/pause_resume/display_status/macro closure.
-		if grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/printer.cfg || grep -q "^\[include frontend-controls\.cfg\]" /tmp/printerdata-check/OpenKE_Settings.cfg 2>/dev/null; then
-			echo "OK   packaged printer.cfg includes frontend-controls.cfg"
+		if grep -q "^\[include macros/print_controls\.cfg\]" /tmp/printerdata-check/printer.cfg; then
+			echo "OK   packaged printer.cfg includes macros/print_controls.cfg"
 		else
-			echo "MISS packaged printer.cfg does not include frontend-controls.cfg"
+			echo "MISS packaged printer.cfg does not include macros/print_controls.cfg"
 		fi
-		cat /tmp/printerdata-check/printer.cfg /tmp/printerdata-check/OpenKE_Settings.cfg /tmp/printerdata-check/Nebula.cfg /tmp/printerdata-check/frontend-controls.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
+		cat /tmp/printerdata-check/printer.cfg \
+		    /tmp/printerdata-check/macros/print_settings.cfg \
+		    /tmp/printerdata-check/hardware/nebula_pad.cfg \
+		    /tmp/printerdata-check/hardware/v3_features.cfg \
+		    /tmp/printerdata-check/macros/print_controls.cfg \
+		    /tmp/printerdata-check/macros/adaptive_meshing.cfg \
+		    /tmp/printerdata-check/macros/line_purge.cfg \
+		    /tmp/printerdata-check/macros/smart_park.cfg \
+		    /tmp/printerdata-check/macros/camera.cfg \
+		    /tmp/printerdata-check/macros/profiles.cfg \
+		    /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	ds_count=$(grep -c -i -E "^\[[[:space:]]*display_status[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
