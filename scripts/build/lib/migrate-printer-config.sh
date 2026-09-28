@@ -34,8 +34,8 @@ openke_migrate_printer_cfg() {
 
 	# Check if existing file has a SAVE_CONFIG block
 	if ! grep -q "^#\*# <---------------------- SAVE_CONFIG ---------------------->" "$old_file" 2>/dev/null; then
-		# No SAVE_CONFIG block - template with legacy include rewrites is sufficient
-		openke_rewrite_legacy_includes "$old_file" "$out_file"
+		# No SAVE_CONFIG block - template is applied directly
+		cp -a "$template_file" "$out_file"
 		return 0
 	fi
 
@@ -127,25 +127,6 @@ openke_migrate_printer_cfg() {
 	' "$old_file" "$template_file" > "$out_file"
 
 	return 0
-}
-
-# Updates legacy include paths in a config file
-openke_rewrite_legacy_includes() {
-	in_f="$1"
-	out_f="$2"
-	sed -E \
-		-e 's|^\[include[[:space:]]*frontend-controls\.cfg\]|[include macros/mainsail.cfg]|g' \
-		-e 's|^\[include[[:space:]]*macros/print_controls\.cfg\]|[include macros/mainsail.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Nebula\.cfg\]|[include hardware/nebula_pad.cfg]|g' \
-		-e 's|^\[include[[:space:]]*V3_Settings\.cfg\]|[include hardware/v3_features.cfg]|g' \
-		-e 's|^\[include[[:space:]]*OpenKE_Settings\.cfg\]|[include macros/print_settings.cfg]|g' \
-		-e 's|^\[include[[:space:]]*camera-quality\.cfg\]|[include macros/camera.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Macros/Adaptive_Meshing\.cfg\]|[include macros/adaptive_meshing.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Macros/Line_Purge\.cfg\]|[include macros/line_purge.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Macros/Smart_Park\.cfg\]|[include macros/smart_park.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Macros/Printer_Profile\.cfg\]|[include macros/profiles.cfg]|g' \
-		-e 's|^\[include[[:space:]]*Macros/([^]]*)\]|[include macros/\1]|g' \
-		"$in_f" > "$out_f"
 }
 
 # Full tree migration: Migrates the active config tree from immutable seeds

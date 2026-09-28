@@ -167,23 +167,23 @@ cat > "$t2_template" <<'EOF'
 kinematics: cartesian
 max_velocity: 500
 
+[include hardware/nebula_pad.cfg]
 [include macros/mainsail.cfg]
 EOF
 
 cat > "$t2_old" <<'EOF'
 [printer]
 kinematics: cartesian
-[include frontend-controls.cfg]
-[include Nebula.cfg]
+max_velocity: 300
 EOF
 
 openke_migrate_printer_cfg "$t2_old" "$t2_template" "$t2_out"
 
 if grep -q "\[include macros/mainsail\.cfg\]" "$t2_out" && \
-   grep -q "\[include hardware/nebula_pad\.cfg\]" "$t2_out"; then
-	pass "config without SAVE_CONFIG migrated with legacy includes rewired"
+   grep -q "max_velocity: 500" "$t2_out"; then
+	pass "config without SAVE_CONFIG adopts new template cleanly"
 else
-	fail "legacy includes were not rewired correctly"
+	fail "config without SAVE_CONFIG failed to adopt template"
 fi
 
 # =========================================================================
@@ -205,8 +205,8 @@ kinematics: cartesian
 pin: !PA0
 z_offset: 0.0
 
-[include frontend-controls.cfg]
-[include Nebula.cfg]
+[include hardware/nebula_pad.cfg]
+[include macros/mainsail.cfg]
 [include macros/my_custom_macro.cfg]
 
 #*# <---------------------- SAVE_CONFIG ---------------------->
@@ -240,7 +240,7 @@ openke_migrate_config_tree "$ns_root" "$seeds_dir" "$ns_root/backups/printer_con
 
 # Verify backup was created with pre-migration content
 if [ -f "$ns_root/backups/printer_config/test_backup/printer.cfg" ] && \
-   grep -q "frontend-controls.cfg" "$ns_root/backups/printer_config/test_backup/printer.cfg"; then
+   grep -q "my_custom_macro.cfg" "$ns_root/backups/printer_config/test_backup/printer.cfg"; then
 	pass "pre-migration backup created with original configuration"
 else
 	fail "pre-migration backup missing or invalid"
