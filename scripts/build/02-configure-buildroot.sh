@@ -177,6 +177,9 @@ for obsolete_rel in \
 	"opt/printer_data/config/camera-quality.cfg" \
 	"opt/printer_data/config/frontend-controls.cfg" \
 	"opt/printer_data/config/print_controls.cfg" \
+	"usr/lib/swupdate/conf.d/10-mongoose-args" \
+	"etc/swupdate/conf.d/10-mongoose-args" \
+	"var/www/swupdate" \
 	"opt/nebulaos" \
 	"opt/nebulaos-seeds" \
 	"opt/nebulaos-version.json"; do
