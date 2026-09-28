@@ -91,6 +91,7 @@ KERNEL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-kernel-fingerprint"
 OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-libopenssl-fingerprint"
 BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-busybox-fingerprint"
 WPA_SUPPLICANT_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-wpa-supplicant-fingerprint"
+SWUPDATE_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-swupdate-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/.config" ]; then
 	echo "buildroot not configured - run 02-configure-buildroot.sh first" >&2
@@ -129,10 +130,19 @@ wpa_supplicant_input_fingerprint() {
 		sha256sum "$BUILDROOT_DIR/.config"
 	} | sha256sum | awk '{print $1}'
 }
+swupdate_input_fingerprint() {
+	{
+		printf 'package=swupdate\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/package/swupdate/swupdate.config"
+	} | sha256sum | awk '{print $1}'
+}
 
 OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
 BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
 WPA_SUPPLICANT_INPUT_FINGERPRINT=$(wpa_supplicant_input_fingerprint)
+SWUPDATE_INPUT_FINGERPRINT=$(swupdate_input_fingerprint)
 WPA_SUPPLICANT_REBUILD_REQUIRED=1
 if [ -f "$WPA_SUPPLICANT_FINGERPRINT_FILE" ] && \
 	[ "$(cat "$WPA_SUPPLICANT_FINGERPRINT_FILE")" = "$WPA_SUPPLICANT_INPUT_FINGERPRINT" ]; then
@@ -225,5 +235,6 @@ printf '%s\n' "$KERNEL_INPUT_FINGERPRINT" > "$KERNEL_FINGERPRINT_FILE"
 printf '%s\n' "$OPENSSL_INPUT_FINGERPRINT" > "$OPENSSL_FINGERPRINT_FILE"
 printf '%s\n' "$BUSYBOX_INPUT_FINGERPRINT" > "$BUSYBOX_FINGERPRINT_FILE"
 printf '%s\n' "$WPA_SUPPLICANT_INPUT_FINGERPRINT" > "$WPA_SUPPLICANT_FINGERPRINT_FILE"
+printf '%s\n' "$SWUPDATE_INPUT_FINGERPRINT" > "$SWUPDATE_FINGERPRINT_FILE"
 
 echo "== kernel + base rootfs built: $BUILDROOT_DIR/output/images/{xImage,rootfs.squashfs} =="

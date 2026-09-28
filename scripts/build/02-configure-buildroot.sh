@@ -78,6 +78,7 @@ ARTIFACTS="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 KERNEL_SRCDIR="$REPO_ROOT/vendor/system/kernel/kernel-6.6"
 OPENSSL_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-libopenssl-fingerprint"
 BUSYBOX_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-busybox-fingerprint"
+SWUPDATE_FINGERPRINT_FILE="$BUILDROOT_DIR/output/.openke-swupdate-fingerprint"
 
 if [ ! -f "$BUILDROOT_DIR/Makefile" ]; then
 	echo "vendor/system/buildroot not found - run 00-fetch-vendor-sources.sh first" >&2
@@ -221,10 +222,21 @@ busybox_input_fingerprint() {
 	} | sha256sum | awk '{print $1}'
 }
 
+swupdate_input_fingerprint() {
+	{
+		printf 'package=swupdate\n'
+		printf 'system_pin=%s\n' "$SYSTEM_PIN"
+		sha256sum \
+			"$BUILDROOT_DIR/package/swupdate/swupdate.config"
+	} | sha256sum | awk '{print $1}'
+}
+
 OPENSSL_INPUT_FINGERPRINT=$(openssl_input_fingerprint)
 BUSYBOX_INPUT_FINGERPRINT=$(busybox_input_fingerprint)
+SWUPDATE_INPUT_FINGERPRINT=$(swupdate_input_fingerprint)
 OPENSSL_REBUILD_REQUIRED=1
 BUSYBOX_REBUILD_REQUIRED=1
+SWUPDATE_REBUILD_REQUIRED=1
 if [ -f "$OPENSSL_FINGERPRINT_FILE" ] && \
 	[ "$(cat "$OPENSSL_FINGERPRINT_FILE")" = "$OPENSSL_INPUT_FINGERPRINT" ]; then
 	OPENSSL_REBUILD_REQUIRED=0
@@ -232,6 +244,10 @@ fi
 if [ -f "$BUSYBOX_FINGERPRINT_FILE" ] && \
 	[ "$(cat "$BUSYBOX_FINGERPRINT_FILE")" = "$BUSYBOX_INPUT_FINGERPRINT" ]; then
 	BUSYBOX_REBUILD_REQUIRED=0
+fi
+if [ -f "$SWUPDATE_FINGERPRINT_FILE" ] && \
+	[ "$(cat "$SWUPDATE_FINGERPRINT_FILE")" = "$SWUPDATE_INPUT_FINGERPRINT" ]; then
+	SWUPDATE_REBUILD_REQUIRED=0
 fi
 if [ "$OPENSSL_REBUILD_REQUIRED" -eq 0 ]; then
 	echo "== OpenSSL inputs unchanged ($OPENSSL_INPUT_FINGERPRINT); reusing package build =="
@@ -243,6 +259,11 @@ if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 0 ]; then
 else
 	echo "== BusyBox inputs changed or no successful fingerprint; refreshing package =="
 fi
+if [ "$SWUPDATE_REBUILD_REQUIRED" -eq 0 ]; then
+	echo "== SWUpdate inputs unchanged ($SWUPDATE_INPUT_FINGERPRINT); reusing package build =="
+else
+	echo "== SWUpdate inputs changed or no successful fingerprint; refreshing package =="
+fi
 
 (
 	cd "$BUILDROOT_DIR"
@@ -251,6 +272,9 @@ fi
 	fi
 	if [ "$BUSYBOX_REBUILD_REQUIRED" -eq 1 ]; then
 		make busybox-dirclean 2>/dev/null || true
+	fi
+	if [ "$SWUPDATE_REBUILD_REQUIRED" -eq 1 ]; then
+		make swupdate-dirclean 2>/dev/null || true
 	fi
 )
 
