@@ -173,7 +173,12 @@ openke_migrate_config_tree() {
 		cp -a "$seed_config_dir/GuppyScreen/." "$config_dir/GuppyScreen/"
 	fi
 
-	# 4. Determine base template for active printer profile
+	# 4. Seed user.cfg ONLY if it does not exist (never overwrite existing user.cfg)
+	if [ ! -f "$config_dir/user.cfg" ] && [ -f "$seed_config_dir/user.cfg" ]; then
+		cp -a "$seed_config_dir/user.cfg" "$config_dir/user.cfg"
+	fi
+
+	# 5. Determine base template for active printer profile
 	active_profile="creality-ender3-v3-ke"
 	if [ -f "$openke_root/system/active-profile.json" ]; then
 		cand=$(grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' "$openke_root/system/active-profile.json" | head -1 | cut -d'"' -f4)

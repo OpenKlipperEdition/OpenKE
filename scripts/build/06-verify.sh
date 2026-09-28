@@ -932,6 +932,7 @@ mkdir -p /tmp/printerdata-check/hardware /tmp/printerdata-check/macros /tmp/prin
 	sq_dump /opt/openke-seeds/printer_data-config/macros/smart_park.cfg /tmp/printerdata-check/macros/smart_park.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/camera.cfg /tmp/printerdata-check/macros/camera.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/profiles.cfg /tmp/printerdata-check/macros/profiles.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/user.cfg /tmp/printerdata-check/user.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/GuppyScreen/guppy_cmd.cfg /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg
 	if [ -s /tmp/printerdata-check/printer.cfg ] && grep -q "^#\*# <---------------------- SAVE_CONFIG" /tmp/printerdata-check/printer.cfg 2>/dev/null; then
 		echo "MISS packaged printer.cfg seed contains a real SAVE_CONFIG calibration block"
@@ -1008,6 +1009,7 @@ AWKPROG
 		    /tmp/printerdata-check/macros/smart_park.cfg \
 		    /tmp/printerdata-check/macros/camera.cfg \
 		    /tmp/printerdata-check/macros/profiles.cfg \
+		    /tmp/printerdata-check/user.cfg \
 		    /tmp/printerdata-check/GuppyScreen/guppy_cmd.cfg > /tmp/printerdata-check/closure.txt 2>/dev/null
 	vsd_count=$(grep -c -i -E "^\[[[:space:]]*virtual_sdcard[[:space:]]*\]" /tmp/printerdata-check/closure.txt)
 	pr_count=$(grep -c -i -E "^\[[[:space:]]*pause_resume[[:space:]]*\]" /tmp/printerdata-check/closure.txt)

@@ -56,6 +56,7 @@ on_error_gcode: CANCEL_PRINT
 [display_status]
 EOF
 	echo "# songs" > "$dir/songs.conf"
+	echo "# user" > "$dir/user.cfg"
 	echo "# guppy" > "$dir/GuppyScreen/guppy_cmd.cfg"
 }
 
@@ -85,10 +86,10 @@ if [ -f "$ns/printer_data/config/printer.cfg" ] && [ -f "$ns/printer_data/config
 else
 	fail "fresh namespace: printer.cfg/moonraker.conf not seeded ($(cat "$WORK/t1.log"))"
 fi
-if [ -f "$ns/printer_data/config/songs.conf" ] && [ -f "$ns/printer_data/config/GuppyScreen/guppy_cmd.cfg" ]; then
-	pass "fresh namespace: songs.conf and GuppyScreen defaults also seeded"
+if [ -f "$ns/printer_data/config/songs.conf" ] && [ -f "$ns/printer_data/config/GuppyScreen/guppy_cmd.cfg" ] && [ -f "$ns/printer_data/config/user.cfg" ]; then
+	pass "fresh namespace: songs.conf, user.cfg, and GuppyScreen defaults also seeded"
 else
-	fail "fresh namespace: songs.conf/GuppyScreen defaults not seeded"
+	fail "fresh namespace: songs.conf/user.cfg/GuppyScreen defaults not seeded"
 fi
 if [ -f "$ns/printer_data/config/macros/mainsail.cfg" ]; then
 	pass "fresh namespace: macros/mainsail.cfg also seeded"
