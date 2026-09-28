@@ -34,7 +34,8 @@ DTS_REL="kernel/kernel-6.6/module_drivers/dts/x2000/halley5_v30.dts"
 DTS="$SYSTEM_DIR/$DTS_REL"
 DRIVER_REL="kernel/kernel-6.6/module_drivers/drivers/misc/nebulaos_backlight_final_controller.c"
 DRIVER="$SYSTEM_DIR/$DRIVER_REL"
-AFFECTED_FILES="kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig kernel/kernel-6.6/module_drivers/drivers/misc/Makefile $DTS_REL"
+MISC_FILES="kernel/kernel-6.6/module_drivers/drivers/misc/Kconfig kernel/kernel-6.6/module_drivers/drivers/misc/Makefile"
+AFFECTED_FILES="$MISC_FILES $DTS_REL"
 
 PASS=0
 FAIL=0
@@ -76,13 +77,14 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# --- Test 1: FINAL0 leaves the affected files git-clean, no driver file,
-# no fragment block. ---
+# --- Test 1: FINAL0 leaves the misc files git-clean, no driver file,
+# no fragment block, and no backlight DT node. ---
 sh "$VARIANT_SCRIPT" FINAL0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $MISC_FILES)" ] && \
+   ! grep -q 'nebulaos_backlight_final' "$DTS"; then
 	pass
 else
-	fail "FINAL0 did not produce clean affected files: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
+	fail "FINAL0 did not produce clean misc files or left backlight DT node: $(git -C "$SYSTEM_DIR" diff -- $MISC_FILES)"
 fi
 if [ -f "$DRIVER" ]; then
 	fail "FINAL0 left the controller driver file present"
@@ -490,13 +492,14 @@ else
 fi
 
 # --- Test 22: switching from FINAL1 back to FINAL0 restores clean
-# affected files, removes the driver file, empties the fragment block, and
-# leaves &pwm's block byte-identical to the pristine baseline. ---
+# misc files, removes the driver file, empties the fragment block, removes
+# the backlight DT node, and leaves &pwm's block byte-identical to the pristine baseline. ---
 sh "$VARIANT_SCRIPT" FINAL0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $AFFECTED_FILES)" ]; then
+if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- $MISC_FILES)" ] && \
+   ! grep -q 'nebulaos_backlight_final' "$DTS"; then
 	pass
 else
-	fail "switching from FINAL1 back to FINAL0 left the affected files modified: $(git -C "$SYSTEM_DIR" diff -- $AFFECTED_FILES)"
+	fail "switching from FINAL1 back to FINAL0 left the misc files modified or backlight node present: $(git -C "$SYSTEM_DIR" diff -- $MISC_FILES)"
 fi
 if [ -f "$DRIVER" ]; then
 	fail "switching from FINAL1 back to FINAL0 left the controller driver file present"

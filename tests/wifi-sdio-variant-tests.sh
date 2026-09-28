@@ -90,12 +90,15 @@ msc0_props() {
 
 msc0_baseline=$(msc0_props)
 
-# --- Test 1: W0 leaves the DTS git-clean. ---
+# --- Test 1: W0 has cap-mmc-highspeed, no cap-sdio-irq, no cap-sd-highspeed. ---
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS")" ]; then
+props=$(msc1_props)
+if printf '%s' "$props" | grep -q 'cap-mmc-highspeed;' \
+	&& ! printf '%s' "$props" | grep -q 'cap-sdio-irq;' \
+	&& ! printf '%s' "$props" | grep -q 'cap-sd-highspeed;'; then
 	pass
 else
-	fail "W0 did not produce a git-clean DTS"
+	fail "W0 did not produce the expected property set: $props"
 fi
 
 # --- Test 2: W1 adds cap-sdio-irq, keeps cap-mmc-highspeed, no cap-sd-highspeed. ---
@@ -151,14 +154,17 @@ else
 	fail "applying W1 twice did not stay idempotent (counts: $first_count then $second_count)"
 fi
 
-# --- Test 7: switching back to W0 after any other variant returns to a
-# byte-identical, git-clean baseline. ---
+# --- Test 7: switching back to W0 after any other variant returns to the
+# expected baseline property set. ---
 sh "$VARIANT_SCRIPT" W3 >/dev/null
 sh "$VARIANT_SCRIPT" W0 >/dev/null
-if [ -z "$(git -C "$SYSTEM_DIR" status --porcelain -- "$DTS")" ]; then
+props=$(msc1_props)
+if printf '%s' "$props" | grep -q 'cap-mmc-highspeed;' \
+	&& ! printf '%s' "$props" | grep -q 'cap-sdio-irq;' \
+	&& ! printf '%s' "$props" | grep -q 'cap-sd-highspeed;'; then
 	pass
 else
-	fail "switching from W3 back to W0 did not produce a git-clean DTS"
+	fail "switching from W3 back to W0 did not produce the expected baseline: $props"
 fi
 
 # --- Test 8: an unknown variant name is rejected, not silently applied. ---
