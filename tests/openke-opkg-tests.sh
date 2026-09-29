@@ -74,6 +74,12 @@ else
 	fail "opkg.conf missing Entware repository feed"
 fi
 
+if grep -q "option overlay_root /usr/data" "$OPKG_CONF" && grep -q "option force_space 1" "$OPKG_CONF"; then
+	pass "opkg.conf configures overlay_root and force_space for SquashFS read-only root"
+else
+	fail "opkg.conf missing overlay_root or force_space options"
+fi
+
 if [ -L "$OVERLAY/etc/opkg/opkg.conf" ]; then
 	pass "/etc/opkg/opkg.conf symlink correctly points to /etc/opkg.conf"
 else
