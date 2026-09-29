@@ -1127,7 +1127,16 @@ check /opt/openke-seeds/printer_profiles/creality-ender3-v2-neo/profile.json
 check /usr/sbin/ntpd
 check /etc/init.d/S40openke-ntpsync
 check /etc/openke-update-supervisor.sh
-check /etc/init.d/S59openke-update-supervisor
+echo "=== OpenKE Package Manager (opkg / Entware) ==="
+check /usr/bin/opkg
+check /etc/opkg.conf
+check /etc/profile.d/10-openke-opkg.sh
+check /opt/bin
+check /opt/sbin
+check /opt/lib
+check /opt/etc
+check /opt/share
+check /opt/var
 
 # Phase 7 live qualification: Moonraker machine.py needs real iproute2
 # JSON output (`ip -json -det address`), which BusyBox ip cannot produce

@@ -115,6 +115,18 @@ start() {
 	# leftover from us, this leaves it alone rather than guessing.
 	[ -e /usr/data/printer_data ] || ln -s /opt/printer_data /usr/data/printer_data
 	[ -e /usr/data/guppyscreen ] || ln -s /opt/guppyscreen /usr/data/guppyscreen
+
+	# Initialize persistent package manager directory structure (/usr/data/opt)
+	# for opkg / Entware packages, and establish the default runtime layout.
+	mkdir -p /usr/data/opt/bin \
+		/usr/data/opt/sbin \
+		/usr/data/opt/lib \
+		/usr/data/opt/etc \
+		/usr/data/opt/share \
+		/usr/data/opt/var/lib/opkg/lists \
+		/usr/data/opt/var/lib/opkg/info \
+		/usr/data/opt/tmp
+	[ -e /usr/data/opt/lib/ld-linux.so.2 ] || ln -sf /lib/ld.so.1 /usr/data/opt/lib/ld-linux.so.2
 }
 
 case "$1" in
