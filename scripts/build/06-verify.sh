@@ -176,7 +176,7 @@ check_artifact_sha256() {
 	fi
 }
 check_artifact_sha256 vendor/mainsail-dist/mainsail.zip \
-	df2ba7c301f7bfc8ac9f122741a6ba08356d679ecfa1f62f898d0337802d5de5
+	"$MAINSAIL_SHA256"
 
 # GuppyScreen's source is pinned, but its binary is still validated against
 # the build manifest rather than a fixed hash because the toolchain embeds a
@@ -395,8 +395,8 @@ if [ -f "$DTB" ] && [ -x "$DTC" ]; then
 	EEPROM_BODY=$(awk '/eeprom@50 \{/,/^\t+\};/' "$DECOMPILED")
 	if echo "$EEPROM_BODY" | grep -q 'pagesize = <0x10>' \
 		&& echo "$EEPROM_BODY" | grep -q 'size = <0x800>' \
-		&& echo "$EEPROM_BODY" | grep -q 'address-width = <0x8>' \
-		&& echo "$EEPROM_BODY" | grep -q 'num-addresses = <0x8>'; then
+		&& echo "$EEPROM_BODY" | grep -qE 'address-width = <0x0?8>' \
+		&& echo "$EEPROM_BODY" | grep -qE 'num-addresses = <0x0?8>'; then
 		echo "OK   eeprom@50 geometry matches BL24C16F exactly (pagesize=16, size=2048, address-width=8, num-addresses=8)"
 	else
 		echo "MISS eeprom@50 geometry does not match the expected BL24C16F values - dtc prints decimal DT integers in hex, compared here as such"
@@ -675,10 +675,10 @@ if echo "$S56_CONTENT" | grep -qE "^CONFIG=/opt/printer_data/config/moonraker.co
 else
 	echo "MISS S56moonraker does not launch Moonraker against the canonical moonraker.conf path"
 fi
-if echo "$S55_CONTENT" | grep -qi "/usr/data/openke\|/opt/openke" || echo "$S56_CONTENT" | grep -qi "/usr/data/openke\|/opt/openke"; then
-	echo "MISS S55klipper or S56moonraker still references an obsolete openke path"
+if echo "$S55_CONTENT" | grep -qi "/usr/data/creality\|/opt/creality" || echo "$S56_CONTENT" | grep -qi "/usr/data/creality\|/opt/creality"; then
+	echo "MISS S55klipper or S56moonraker still references an obsolete creality path"
 else
-	echo "OK   S55klipper and S56moonraker contain no obsolete openke path reference (comment mentions of the historical OpenKE project name are fine)"
+	echo "OK   S55klipper and S56moonraker contain no obsolete creality path reference"
 fi
 if echo "$S01_CONTENT" | grep -qE "mount --bind ..PDATA. /opt/printer_data"; then
 	echo "OK   S01persistent-datastore bind-mounts the persistent printer_data tree onto /opt/printer_data"
@@ -914,6 +914,11 @@ if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_dat
 else
 	echo "MISS /opt/openke-seeds/printer_data-config/macros/camera.cfg is missing from the packaged seed"
 fi
+if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/macros/print_start.cfg$"; then
+	echo "OK   /opt/openke-seeds/printer_data-config/macros/print_start.cfg is present"
+else
+	echo "MISS /opt/openke-seeds/printer_data-config/macros/print_start.cfg is missing from the packaged seed"
+fi
 if echo "$SQUASHFS_FILES" | grep -q "^squashfs-root/opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py$"; then
 	echo "OK   /opt/openke-seeds/printer_data-config/GuppyScreen/scripts/set_camera_quality.py is present"
 else
@@ -924,6 +929,7 @@ mkdir -p /tmp/printerdata-check/hardware /tmp/printerdata-check/macros /tmp/prin
 	sq_dump /opt/openke-seeds/printer_data-config/printer.cfg /tmp/printerdata-check/printer.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/moonraker.conf /tmp/printerdata-check/moonraker.conf
 	sq_dump /opt/openke-seeds/printer_data-config/macros/print_settings.cfg /tmp/printerdata-check/macros/print_settings.cfg
+	sq_dump /opt/openke-seeds/printer_data-config/macros/print_start.cfg /tmp/printerdata-check/macros/print_start.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/hardware/nebula_pad.cfg /tmp/printerdata-check/hardware/nebula_pad.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/hardware/v3_features.cfg /tmp/printerdata-check/hardware/v3_features.cfg
 	sq_dump /opt/openke-seeds/printer_data-config/macros/mainsail.cfg /tmp/printerdata-check/macros/mainsail.cfg
