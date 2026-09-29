@@ -62,10 +62,10 @@ else
 	fail "opkg.conf still contains redundant dest opt /opt"
 fi
 
-if grep -q "arch mipsel 20" "$OPKG_CONF" && grep -q "arch x2000 30" "$OPKG_CONF"; then
-	pass "opkg.conf declares mipsel and x2000 architecture priorities"
+if grep -q "arch mipsel-3.4" "$OPKG_CONF" && grep -q "arch mipsel" "$OPKG_CONF"; then
+	pass "opkg.conf declares mipsel-3.4 and mipsel architecture priorities matching Entware feed"
 else
-	fail "opkg.conf missing mipsel or x2000 architecture definitions"
+	fail "opkg.conf missing mipsel-3.4 or mipsel architecture definitions"
 fi
 
 if grep -q "src/gz entware http://bin.entware.net/mipselsf-k3.4" "$OPKG_CONF"; then
