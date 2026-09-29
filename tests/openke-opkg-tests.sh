@@ -50,10 +50,16 @@ echo "=== Test 2: opkg.conf Configuration and Architecture ==="
 OPKG_CONF="$OVERLAY/etc/opkg.conf"
 [ -f "$OPKG_CONF" ] || { fail "$OPKG_CONF missing"; exit 1; }
 
-if grep -q "dest root /" "$OPKG_CONF" && grep -q "dest opt /opt" "$OPKG_CONF"; then
-	pass "opkg.conf defines both root and opt destinations"
+if grep -q "dest root /" "$OPKG_CONF"; then
+	pass "opkg.conf defines root destination"
 else
-	fail "opkg.conf missing dest root or dest opt declarations"
+	fail "opkg.conf missing dest root declaration"
+fi
+
+if ! grep -q "dest opt /opt" "$OPKG_CONF"; then
+	pass "opkg.conf omits redundant dest opt (avoids /opt//opt path duplication on read-only SquashFS)"
+else
+	fail "opkg.conf still contains redundant dest opt /opt"
 fi
 
 if grep -q "arch mipsel 20" "$OPKG_CONF" && grep -q "arch x2000 30" "$OPKG_CONF"; then
