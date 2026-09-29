@@ -1001,6 +1001,7 @@ AWKPROG
 		fi
 		cat /tmp/printerdata-check/printer.cfg \
 		    /tmp/printerdata-check/macros/print_settings.cfg \
+		    /tmp/printerdata-check/macros/print_start.cfg \
 		    /tmp/printerdata-check/hardware/nebula_pad.cfg \
 		    /tmp/printerdata-check/hardware/v3_features.cfg \
 		    /tmp/printerdata-check/macros/mainsail.cfg \
