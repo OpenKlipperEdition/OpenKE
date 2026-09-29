@@ -986,8 +986,10 @@ build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # compares with plain string equality on-device with no history lookup
 # needed. Not a security hash - just a stable, cheap "does the installed
 # generation match what THIS image expects" fingerprint.
+PRINTER_DATA_CONFIG_SRC="$SCRIPT_DIR/overlay/opt/printer_data/config"
+PRINTER_PROFILES_SRC="$SCRIPT_DIR/overlay/opt/openke-seeds/printer_profiles"
 migration_version=$(printf '%s' "${klipper_seed_commit}:${moonraker_seed_commit}:${GUPPYSCREEN_COMMIT:-unknown}" | sha256sum | cut -c1-16)
-config_version=$(find "$PRINTER_DATA_CONFIG_SRC" -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -c1-16)
+config_version=$(find "$PRINTER_DATA_CONFIG_SRC" "$PRINTER_PROFILES_SRC" -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -c1-16)
 firmware_head=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
 
 cat > "$OVERLAY/opt/openke-seeds/seed-manifest.json" <<EOF
