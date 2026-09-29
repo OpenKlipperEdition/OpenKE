@@ -437,8 +437,70 @@ else
 	fail "native Klipper parser failed: $(cat "$WORK/pyout.txt")"
 fi
 
+# =========================================================================
+# Test 7: S04openke-migrate standalone config migration (app gen unchanged)
+# =========================================================================
+echo "=== Test 7: S04openke-migrate standalone config migration (app gen unchanged) ==="
+
+t7_seeds="$WORK/t7_seeds"
+t7_root="$WORK/t7_root"
+mkdir -p "$t7_seeds/printer_data-config/macros" "$t7_seeds/printer_data-config/hardware" "$t7_seeds/printer_data-config/GuppyScreen"
+mkdir -p "$t7_root/printer_data/config/macros" "$t7_root/system" "$t7_root/apps/klipper"
+
+cat > "$t7_seeds/seed-manifest.json" <<EOF
+{
+  "migration_version": "gen-v1",
+  "config_version": "cfg-v2"
+}
+EOF
+
+cat > "$t7_seeds/printer_data-config/printer.cfg" <<'EOF'
+[printer]
+kinematics: cartesian
+[include macros/print_start.cfg]
+EOF
+echo "# print start macro" > "$t7_seeds/printer_data-config/macros/print_start.cfg"
+
+cat > "$t7_root/system/app-generation.json" <<EOF
+{
+  "migration_version": "gen-v1"
+}
+EOF
+
+cat > "$t7_root/system/config-generation.json" <<EOF
+{
+  "config_version": "cfg-v1"
+}
+EOF
+
+cat > "$t7_root/printer_data/config/printer.cfg" <<'EOF'
+[printer]
+kinematics: cartesian
+EOF
+
+MIGRATE_INIT="$REPO_ROOT/scripts/build/overlay/etc/init.d/S04openke-migrate"
+CONFIG_LIB="$REPO_ROOT/scripts/build/overlay/etc/openke-config-migrate.sh"
+GATE_LIB="$REPO_ROOT/scripts/build/overlay/etc/openke-maintenance-gate.sh"
+
+env S04OPENKE_MIGRATE_NO_AUTORUN=1 \
+    SEEDS="$t7_seeds" \
+    OPENKE_ROOT="$t7_root" \
+    SYSTEM="$t7_root/system" \
+    CONFIG_MIGRATE_LIB="$CONFIG_LIB" \
+    GATE_LIB="$GATE_LIB" \
+    sh -c ". '$MIGRATE_INIT'; start" > "$WORK/t7.log" 2>&1
+
+if [ -f "$t7_root/printer_data/config/macros/print_start.cfg" ] && \
+   grep -q "print_start.cfg" "$t7_root/printer_data/config/printer.cfg" && \
+   grep -q "cfg-v2" "$t7_root/system/config-generation.json"; then
+	pass "S04openke-migrate successfully migrated config when app generation was unchanged"
+else
+	fail "S04openke-migrate failed to migrate config: $(cat "$WORK/t7.log")"
+fi
+
 echo ""
 echo "=========================================="
 echo "Config Migration Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+

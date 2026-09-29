@@ -146,9 +146,7 @@ reseed_git_app() {
 	return 0
 }
 
-start() {
-	[ -f "$SEEDS/seed-manifest.json" ] || { log "no seed manifest ($SEEDS/seed-manifest.json missing) - nothing to compare against, skipping"; return 0; }
-
+migrate_apps_if_needed() {
 	expected_version=$(json_get "$SEEDS/seed-manifest.json" migration_version)
 	[ -n "$expected_version" ] || { log "ERROR: seed-manifest.json has no migration_version field - skipping (image predates this feature, or manifest is malformed)"; return 0; }
 
@@ -194,7 +192,12 @@ start() {
 	else
 		log "migration INCOMPLETE - at least one component failed and was left at its previous version (see errors above). Generation NOT advanced, so this will retry next boot. Nothing was destroyed: any component that failed still has its pre-migration tree in place at $APPS, and $BACKUP_DIR holds whatever was successfully backed up before the failure."
 	fi
+}
 
+start() {
+	[ -f "$SEEDS/seed-manifest.json" ] || { log "no seed manifest ($SEEDS/seed-manifest.json missing) - nothing to compare against, skipping"; return 0; }
+
+	migrate_apps_if_needed
 	migrate_config_if_needed
 }
 
