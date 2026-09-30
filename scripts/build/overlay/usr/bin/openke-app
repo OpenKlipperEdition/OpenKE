@@ -30,6 +30,8 @@ DEFAULT_CATALOG_PATHS = [
 ]
 
 DEFAULT_CATALOG_URLS = [
+    "http://192.168.1.88:8000/apps.json",
+    "http://192.168.1.88:8000/dist/apps.json",
     "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/dist/apps.json",
     "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/apps.json",
     "https://openklipperedition.github.io/AppStore/apps.json",
