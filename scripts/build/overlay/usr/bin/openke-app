@@ -209,9 +209,11 @@ def cmd_install(args):
     print(f"== Installing {app.get('name', app_id)} v{app.get('version', '')} ==")
     os.makedirs(APPS_DIR, exist_ok=True)
 
-    tmp_dir = tempfile.mkdtemp(prefix="openke-app-")
+    staging_base = os.path.join(STATE_DIR, "tmp")
+    os.makedirs(staging_base, exist_ok=True)
+    tmp_dir = tempfile.mkdtemp(prefix="openke-app-", dir=staging_base)
     try:
-        archive_name = download_url.split("/")[-1].split("?")[0] or "package.zip"
+        archive_name = download_url.split("/")[-1].split("?")[0] or "package.tar.gz"
         archive_file = os.path.join(tmp_dir, archive_name)
 
         print(f"Downloading from {download_url}...")
@@ -237,6 +239,7 @@ def cmd_install(args):
         stage_dir = os.path.join(tmp_dir, "extracted")
         os.makedirs(stage_dir, exist_ok=True)
 
+        print(f"Extracting package into flash storage...")
         if archive_file.endswith(".zip"):
             subprocess.run(["unzip", "-q", archive_file, "-d", stage_dir], check=True)
         elif archive_file.endswith(".tar.gz") or archive_file.endswith(".tgz"):
@@ -249,6 +252,13 @@ def cmd_install(args):
                 subprocess.run(["unzip", "-q", archive_file, "-d", stage_dir], check=True)
             except Exception:
                 shutil.copy(archive_file, os.path.join(stage_dir, app.get("executable", app_id)))
+
+        # Free downloaded archive space immediately before moving to install_path
+        if os.path.isfile(archive_file):
+            try:
+                os.remove(archive_file)
+            except Exception:
+                pass
 
         # Clean old install if present
         if os.path.exists(install_path):

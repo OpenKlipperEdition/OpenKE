@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-09-30T19:46:23Z",
+  "updated_at": "2026-09-30T20:58:34Z",
   "categories": [
     {
       "id": "web_ui",
@@ -38,8 +38,8 @@
       "version": "0.7.0",
       "type": "plugin",
       "is_builtin": false,
-      "download_url": "https://github.com/Clon1998/mobileraker_companion/archive/refs/tags/v0.7.0.tar.gz",
-      "sha256": "",
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/mobileraker_companion-master.tar.gz",
+      "sha256": "4c4534c4d4a04c83c55a07d39dc3d232aee41ce6d905ef9763be2d65b8ad315a",
       "install_path": "/usr/data/openke/apps/mobileraker_companion",
       "probe_path": "/usr/data/openke/apps/mobileraker_companion/mobileraker.py",
       "source_url": "https://github.com/Clon1998/mobileraker_companion"
@@ -53,8 +53,8 @@
       "version": "0.18.0",
       "type": "plugin",
       "is_builtin": false,
-      "download_url": "https://github.com/Donkie/Spoolman/releases/download/v0.18.0/spoolman.zip",
-      "sha256": "",
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/spoolman-v0.18.0.zip",
+      "sha256": "464e8e3bf8f6167ba3ff92859ac3131ed3fc24ce5280faa4a73a1be8b5304df6",
       "install_path": "/usr/data/openke/apps/spoolman",
       "probe_path": "/usr/data/openke/apps/spoolman/spoolman.py",
       "source_url": "https://github.com/Donkie/Spoolman"
@@ -68,8 +68,8 @@
       "version": "0.4.0",
       "type": "plugin",
       "is_builtin": false,
-      "download_url": "https://github.com/mainsail-crew/moonraker-timelapse/archive/refs/tags/v0.4.0.tar.gz",
-      "sha256": "",
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/moonraker-timelapse-main.tar.gz",
+      "sha256": "78b3ac4cf1cab7e0b2239afce37f001d74a6fc458e0024726e1f03dd76681cc7",
       "install_path": "/usr/data/openke/apps/moonraker-timelapse",
       "probe_path": "/usr/data/openke/apps/moonraker-timelapse/component/timelapse.py",
       "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
@@ -96,8 +96,8 @@
       "version": "1.0.2",
       "type": "touch_ui",
       "is_builtin": false,
-      "download_url": "https://github.com/prestonbrown/helixscreen/releases/download/v1.0.2/helixscreen-k1.zip",
-      "sha256": "a56e9c05756635ce0026280fcfc00dbc42ef47f5b4c743f520f496cef011f14a",
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/helixscreen-k1-v1.0.2.tar.gz",
+      "sha256": "d1b068f5218982ae6a7f6af839b54919683d9fe7f667c12a52bf34dd5c3e0564",
       "install_path": "/usr/data/openke/apps/helixscreen",
       "executable": "bin/helix-screen",
       "probe_path": "/usr/data/openke/apps/helixscreen/bin/helix-screen",
@@ -113,8 +113,8 @@
       "version": "1.30.0",
       "type": "web_ui",
       "is_builtin": false,
-      "download_url": "https://github.com/fluidd-core/fluidd/releases/download/v1.30.0/fluidd.zip",
-      "sha256": "4e73bdf2d0bfb8d601b38cf41f6e0214a1e944747ebc9735d4ffca0fe51897c8",
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/fluidd-v1.30.0.zip",
+      "sha256": "fa73d59cab99b58185b6a0b8f173484928dacb7943018477979d24ab4dba1f74",
       "install_path": "/usr/data/openke/apps/fluidd",
       "probe_path": "/usr/data/openke/apps/fluidd/index.html",
       "website": "https://fluidd.xyz",
