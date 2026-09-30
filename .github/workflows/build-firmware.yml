@@ -50,6 +50,7 @@ jobs:
           key: openke-dependencies-v2-${{ runner.os }}-${{ hashFiles('manifests/dependencies.conf') }}-${{ github.run_id }}
           restore-keys: |
             openke-dependencies-v2-${{ runner.os }}-${{ hashFiles('manifests/dependencies.conf') }}-
+            openke-dependencies-v2-${{ runner.os }}-
 
       - name: Materialize dependency cache
         shell: bash
@@ -108,6 +109,7 @@ jobs:
           key: openke-build-v2-${{ runner.os }}-${{ hashFiles('build.sh', 'scripts/build/*.sh', 'scripts/build/configs/**', 'scripts/build/patches/**', 'scripts/build/overlay/etc/init.d/**', 'scripts/build/overlay/etc/*.sh', 'scripts/build/overlay/etc/*.conf', 'scripts/build/overlay/etc/profile.d/**', 'scripts/build/overlay/etc/sysctl.d/**', 'scripts/build/overlay/etc/network/**', 'scripts/build/overlay/etc/nginx/**', 'scripts/build/overlay/etc/udev/**', 'scripts/build/overlay/etc/hwrevision', 'scripts/build/overlay/etc/openke-version', 'scripts/build/overlay/etc/sw-versions', 'scripts/build/overlay/etc/swupdate.cfg', 'scripts/build/overlay/etc/os-release', 'scripts/build/overlay/usr/bin/**', 'scripts/build/overlay/usr/libexec/**', 'scripts/build/overlay/opt/openke/**', 'scripts/build/overlay/opt/openke-seeds/**', 'scripts/build/overlay/opt/guppyscreen/guppyconfig.json', 'scripts/build/overlay/opt/guppyscreen/themes/**', 'scripts/build/overlay/opt/printer_data/config/*.cfg', 'scripts/build/overlay/opt/printer_data/config/*.conf', 'scripts/build/overlay/opt/printer_data/config/hardware/**', 'scripts/build/overlay/opt/printer_data/config/macros/**', 'scripts/build/overlay/opt/printer_data/config/GuppyScreen/**', 'artifacts/buildroot-halley5-v30-image/*.config', 'artifacts/buildroot-halley5-v30-image/*.dts', 'manifests/dependencies.conf') }}-${{ github.run_id }}
           restore-keys: |
             openke-build-v2-${{ runner.os }}-${{ hashFiles('build.sh', 'scripts/build/*.sh', 'scripts/build/configs/**', 'scripts/build/patches/**', 'scripts/build/overlay/etc/init.d/**', 'scripts/build/overlay/etc/*.sh', 'scripts/build/overlay/etc/*.conf', 'scripts/build/overlay/etc/profile.d/**', 'scripts/build/overlay/etc/sysctl.d/**', 'scripts/build/overlay/etc/network/**', 'scripts/build/overlay/etc/nginx/**', 'scripts/build/overlay/etc/udev/**', 'scripts/build/overlay/etc/hwrevision', 'scripts/build/overlay/etc/openke-version', 'scripts/build/overlay/etc/sw-versions', 'scripts/build/overlay/etc/swupdate.cfg', 'scripts/build/overlay/etc/os-release', 'scripts/build/overlay/usr/bin/**', 'scripts/build/overlay/usr/libexec/**', 'scripts/build/overlay/opt/openke/**', 'scripts/build/overlay/opt/openke-seeds/**', 'scripts/build/overlay/opt/guppyscreen/guppyconfig.json', 'scripts/build/overlay/opt/guppyscreen/themes/**', 'scripts/build/overlay/opt/printer_data/config/*.cfg', 'scripts/build/overlay/opt/printer_data/config/*.conf', 'scripts/build/overlay/opt/printer_data/config/hardware/**', 'scripts/build/overlay/opt/printer_data/config/macros/**', 'scripts/build/overlay/opt/printer_data/config/GuppyScreen/**', 'artifacts/buildroot-halley5-v30-image/*.config', 'artifacts/buildroot-halley5-v30-image/*.dts', 'manifests/dependencies.conf') }}-
+            openke-build-v2-${{ runner.os }}-
 
       - name: Build and verify firmware
         id: build
@@ -161,7 +163,7 @@ jobs:
           key: openke-dependencies-v2-${{ runner.os }}-${{ hashFiles('manifests/dependencies.conf') }}-${{ github.run_id }}
 
       - name: Save Buildroot output cache
-        if: ${{ always() && steps.prepare-build-cache.outputs.available == 'true' }}
+        if: ${{ always() && hashFiles('vendor/system/buildroot/Makefile') != '' }}
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
