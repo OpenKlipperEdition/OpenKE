@@ -37,12 +37,36 @@ export OPENKE_APPS_DIR="$TEST_SANDBOX/state/apps"
 export OPENKE_WEB_ROOT_LINK="$TEST_SANDBOX/web-root"
 export OPENKE_CATALOG_FILE="$MANIFEST"
 export OPENKE_PRINTER_DATA_CONFIG="$TEST_SANDBOX/printer_data_config"
-
 mkdir -p "$OPENKE_STATE_DIR" "$OPENKE_APPS_DIR" "$OPENKE_PRINTER_DATA_CONFIG/macros"
 cat << 'EOF' > "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"
 [include macros/mainsail.cfg]
 [printer]
 kinematics: cartesian
+EOF
+
+cat << 'EOF' > "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"
+[server]
+host: 0.0.0.0
+port: 7125
+
+[update_manager]
+enable_auto_refresh: True
+
+[update_manager klipper]
+channel: dev
+
+[update_manager moonraker]
+channel: dev
+
+[update_manager mainsail]
+type: web
+channel: beta
+repo: mainsail-crew/mainsail
+path: /usr/data/openke/apps/mainsail
+
+[authorization]
+trusted_clients:
+ 127.0.0.1
 EOF
 
 echo "=== Test 1: App Store Manifest Catalog Integrity ==="
@@ -138,10 +162,56 @@ else
 	pass "set-active-web fluidd correctly rejected when not installed"
 fi
 
-# Mock install fluidd
-mkdir -p "$OPENKE_APPS_DIR/fluidd"
-echo "<h1>Fluidd</h1>" > "$OPENKE_APPS_DIR/fluidd/index.html"
+# Create mock fluidd package archive and mock catalog for install testing
+mock_fluidd_zip="$TEST_SANDBOX/fluidd-pkg.zip"
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$mock_fluidd_zip', 'w') as zf:
+    zf.writestr('index.html', '<h1>Fluidd Test Package</h1>')
+"
+mock_fluidd_sha=$(sha256sum "$mock_fluidd_zip" | awk '{print $1}')
 
+mock_fluidd_cfg="$TEST_SANDBOX/mock-fluidd.cfg"
+echo "[gcode_macro MOCK_FLUIDD_CFG]" > "$mock_fluidd_cfg"
+
+mock_catalog="$TEST_SANDBOX/mock_catalog.json"
+python3 -c "
+import json
+with open('$MANIFEST') as f:
+    d = json.load(f)
+for app in d['apps']:
+    if app['id'] == 'fluidd':
+        app['download_url'] = 'file://$mock_fluidd_zip'
+        app['sha256'] = '$mock_fluidd_sha'
+        app['config_url'] = 'file://$mock_fluidd_cfg'
+        app['config_target'] = 'macros/fluidd.cfg'
+with open('$mock_catalog', 'w') as f:
+    json.dump(d, f)
+"
+export OPENKE_CATALOG_FILE="$mock_catalog"
+
+# Install fluidd (without --activate)
+python3 "$OPENKE_APP" install fluidd
+
+if [ -f "$OPENKE_PRINTER_DATA_CONFIG/macros/fluidd.cfg" ]; then
+	pass "openke-app install fluidd installed macros/fluidd.cfg"
+else
+	fail "openke-app install fluidd failed to install macros/fluidd.cfg"
+fi
+
+if grep -q "\[update_manager fluidd\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app install fluidd added [update_manager fluidd] to moonraker.conf"
+else
+	fail "openke-app install fluidd failed to add [update_manager fluidd] to moonraker.conf"
+fi
+
+if grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "printer.cfg retains macros/mainsail.cfg include until fluidd is activated"
+else
+	fail "printer.cfg improperly switched include before activation"
+fi
+
+# Activate fluidd Web UI
 python3 "$OPENKE_APP" set-active-web fluidd
 if [ -L "$OPENKE_WEB_ROOT_LINK" ] && [ "$(readlink "$OPENKE_WEB_ROOT_LINK")" = "$OPENKE_APPS_DIR/fluidd" ]; then
 	pass "set-active-web fluidd points symlink to $OPENKE_APPS_DIR/fluidd"
@@ -156,7 +226,7 @@ else
 fi
 
 if grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
-	pass "printer.cfg macro include dynamically switched to macros/fluidd.cfg"
+	pass "printer.cfg macro include dynamically switched to macros/fluidd.cfg upon activation"
 else
 	fail "printer.cfg macro include not switched to macros/fluidd.cfg"
 fi
@@ -170,7 +240,7 @@ else
 fi
 
 if grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
-	pass "printer.cfg macro include dynamically restored to macros/mainsail.cfg"
+	pass "printer.cfg macro include dynamically restored to macros/mainsail.cfg upon deactivation"
 else
 	fail "printer.cfg macro include not restored to macros/mainsail.cfg"
 fi
@@ -204,7 +274,7 @@ else
 fi
 
 echo "=== Test 5: Removal & Safe Automatic Fallback ==="
-# Active web UI fallback
+# Active web UI fallback and fluidd removal
 python3 "$OPENKE_APP" set-active-web fluidd
 python3 "$OPENKE_APP" remove fluidd
 if [ ! -d "$OPENKE_APPS_DIR/fluidd" ]; then
@@ -217,6 +287,24 @@ if [ "$(cat "$OPENKE_STATE_DIR/active_web_ui")" = "mainsail" ] && [ "$(readlink 
 	pass "removing active Web UI automatically fallback to Mainsail"
 else
 	fail "removing active Web UI failed to fallback to Mainsail"
+fi
+
+if [ ! -f "$OPENKE_PRINTER_DATA_CONFIG/macros/fluidd.cfg" ]; then
+	pass "openke-app remove fluidd removed macros/fluidd.cfg"
+else
+	fail "openke-app remove fluidd failed to remove macros/fluidd.cfg"
+fi
+
+if ! grep -q "\[update_manager fluidd\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "\[update_manager mainsail\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app remove fluidd removed [update_manager fluidd] from moonraker.conf while preserving other sections"
+else
+	fail "openke-app remove fluidd failed to clean moonraker.conf"
+fi
+
+if grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "printer.cfg restored to macros/mainsail.cfg after fluidd removal"
+else
+	fail "printer.cfg not restored to macros/mainsail.cfg after fluidd removal"
 fi
 
 # Active touch UI fallback

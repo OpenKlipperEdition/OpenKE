@@ -346,6 +346,10 @@ def cmd_install(args):
 
         print(f"OK: Successfully installed {app_id} into {install_path}")
 
+        # Post-install component hooks
+        if app_id == "fluidd":
+            install_fluidd_components(install_path, app)
+
         # If set to auto-activate
         if getattr(args, "activate", False):
             cat = app.get("category")
@@ -356,6 +360,183 @@ def cmd_install(args):
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def download_file(url: str, dest_path: str) -> bool:
+    try:
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        if url.startswith("file://"):
+            local_path = url[7:]
+            if os.path.isfile(local_path):
+                shutil.copy2(local_path, dest_path)
+                return True
+        req = urllib.request.Request(url, headers={"User-Agent": "OpenKE-App/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()
+            if data:
+                with open(dest_path, "wb") as f:
+                    f.write(data)
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def get_config_dirs() -> list:
+    paths = [
+        "/usr/data/printer_data/config",
+        "/opt/printer_data/config",
+        os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    ]
+    return [p for p in paths if p and os.path.isdir(p)]
+
+
+def get_seed_fluidd_cfg() -> str:
+    candidates = [
+        "/opt/openke-seeds/printer_data-config/macros/fluidd.cfg",
+        "/usr/data/openke-seeds/printer_data-config/macros/fluidd.cfg",
+        "/usr/data/printer_data/config/macros/fluidd.cfg",
+        "/opt/printer_data/config/macros/fluidd.cfg",
+        os.environ.get("OPENKE_SEED_FLUIDD_CFG", ""),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../opt/printer_data/config/macros/fluidd.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../opt/printer_data/config/macros/fluidd.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts/build/overlay/opt/printer_data/config/macros/fluidd.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../scripts/build/overlay/opt/printer_data/config/macros/fluidd.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../opt/printer_data/config/macros/fluidd.cfg")),
+    ]
+    env_cfg = os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    if env_cfg:
+        candidates.append(os.path.join(env_cfg, "macros", "fluidd.cfg"))
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def notify_moonraker_restart():
+    try:
+        moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
+        req = urllib.request.Request(
+            f"{moonraker_url}/server/restart",
+            method="POST",
+            data=b""
+        )
+        urllib.request.urlopen(req, timeout=1.0)
+    except Exception:
+        pass
+
+
+def install_fluidd_components(install_path: str, app: dict = None):
+    """
+    Downloads fluidd.cfg from AppStore repo (or offline seed) into macros/ and registers fluidd in Moonraker's update_manager.
+    Note: does NOT switch printer.cfg include until activated.
+    """
+    cfg_dirs = get_config_dirs()
+    seed_fluidd = get_seed_fluidd_cfg()
+    config_url = app.get("config_url") if app else ""
+    target_rel = app.get("config_target", "macros/fluidd.cfg") if app else "macros/fluidd.cfg"
+
+    for cfg_dir in cfg_dirs:
+        # 1. Download/Install macros/fluidd.cfg
+        fluidd_dest = os.path.join(cfg_dir, target_rel)
+        if not os.path.isfile(fluidd_dest):
+            installed = False
+            if config_url:
+                print(f"Downloading {target_rel} from {config_url}...")
+                if download_file(config_url, fluidd_dest):
+                    installed = True
+                    print(f"OK: Downloaded and installed {fluidd_dest}")
+
+            if not installed and seed_fluidd and os.path.abspath(seed_fluidd) != os.path.abspath(fluidd_dest):
+                os.makedirs(os.path.dirname(fluidd_dest), exist_ok=True)
+                try:
+                    shutil.copy(seed_fluidd, fluidd_dest)
+                    print(f"OK: Installed {fluidd_dest} from local seed")
+                except Exception as e:
+                    print(f"WARNING: Failed to install {fluidd_dest}: {e}", file=sys.stderr)
+
+        # 2. Add [update_manager fluidd] to moonraker.conf
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if os.path.isfile(moonraker_conf):
+            try:
+                with open(moonraker_conf, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                if "[update_manager fluidd]" not in content:
+                    fluidd_section = (
+                        "[update_manager fluidd]\n"
+                        "type: web\n"
+                        "channel: stable\n"
+                        "repo: fluidd-core/fluidd\n"
+                        f"path: {install_path}\n\n"
+                    )
+                    if "[authorization]" in content:
+                        new_content = content.replace("[authorization]", fluidd_section + "[authorization]")
+                    else:
+                        new_content = content.rstrip() + "\n\n" + fluidd_section
+
+                    with open(moonraker_conf, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    print(f"OK: Added [update_manager fluidd] to {moonraker_conf}")
+                    notify_moonraker_restart()
+            except Exception as e:
+                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
+
+
+def remove_fluidd_components(app: dict = None):
+    """
+    Removes macros/fluidd.cfg and unregisters fluidd from Moonraker's update_manager.
+    """
+    cfg_dirs = get_config_dirs()
+    target_rel = app.get("config_target", "macros/fluidd.cfg") if app else "macros/fluidd.cfg"
+
+    for cfg_dir in cfg_dirs:
+        # 1. Remove macros/fluidd.cfg
+        fluidd_macro = os.path.join(cfg_dir, target_rel)
+        if os.path.isfile(fluidd_macro):
+            try:
+                os.remove(fluidd_macro)
+                print(f"OK: Removed {fluidd_macro}")
+            except Exception as e:
+                print(f"WARNING: Failed to remove {fluidd_macro}: {e}", file=sys.stderr)
+
+        # 2. Remove [update_manager fluidd] from moonraker.conf
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if os.path.isfile(moonraker_conf):
+            try:
+                with open(moonraker_conf, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                new_lines = []
+                in_fluidd_section = False
+                changed = False
+
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped == "[update_manager fluidd]":
+                        in_fluidd_section = True
+                        changed = True
+                        continue
+                    elif in_fluidd_section:
+                        if stripped.startswith("[") and stripped.endswith("]"):
+                            in_fluidd_section = False
+                            new_lines.append(line)
+                        else:
+                            # skip lines in [update_manager fluidd]
+                            continue
+                    else:
+                        new_lines.append(line)
+
+                if changed:
+                    cleaned = "".join(new_lines)
+                    while "\n\n\n" in cleaned:
+                        cleaned = cleaned.replace("\n\n\n", "\n\n")
+                    with open(moonraker_conf, "w", encoding="utf-8") as f:
+                        f.write(cleaned)
+                    print(f"OK: Removed [update_manager fluidd] from {moonraker_conf}")
+                    notify_moonraker_restart()
+            except Exception as e:
+                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
 
 
 def cmd_remove(args):
@@ -388,6 +569,10 @@ def cmd_remove(args):
     else:
         print(f"App '{app_id}' was not installed.")
 
+    # Post-remove component hooks
+    if app_id == "fluidd":
+        remove_fluidd_components(app)
+
 
 def sync_web_ui_klipper_macros(target_web_ui: str):
     """
@@ -395,16 +580,10 @@ def sync_web_ui_klipper_macros(target_web_ui: str):
     - When target is 'fluidd': switch '[include macros/mainsail.cfg]' to '[include macros/fluidd.cfg]'
     - When target is 'mainsail': switch '[include macros/fluidd.cfg]' to '[include macros/mainsail.cfg]'
     """
-    config_paths = [
-        "/usr/data/printer_data/config",
-        "/opt/printer_data/config",
-        os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
-    ]
+    cfg_dirs = get_config_dirs()
+    seed_fluidd = get_seed_fluidd_cfg()
 
-    for cfg_dir in config_paths:
-        if not cfg_dir or not os.path.isdir(cfg_dir):
-            continue
-
+    for cfg_dir in cfg_dirs:
         printer_cfg = os.path.join(cfg_dir, "printer.cfg")
         macros_dir = os.path.join(cfg_dir, "macros")
         if not os.path.isfile(printer_cfg):
@@ -413,14 +592,12 @@ def sync_web_ui_klipper_macros(target_web_ui: str):
         # If switching to fluidd, ensure macros/fluidd.cfg exists
         if target_web_ui == "fluidd":
             fluidd_dest = os.path.join(macros_dir, "fluidd.cfg")
-            if not os.path.isfile(fluidd_dest):
-                seeds_fluidd = "/opt/openke-seeds/printer_data-config/macros/fluidd.cfg"
-                if os.path.isfile(seeds_fluidd):
-                    os.makedirs(macros_dir, exist_ok=True)
-                    try:
-                        shutil.copy(seeds_fluidd, fluidd_dest)
-                    except Exception:
-                        pass
+            if not os.path.isfile(fluidd_dest) and seed_fluidd and os.path.abspath(seed_fluidd) != os.path.abspath(fluidd_dest):
+                os.makedirs(macros_dir, exist_ok=True)
+                try:
+                    shutil.copy(seed_fluidd, fluidd_dest)
+                except Exception:
+                    pass
 
         try:
             with open(printer_cfg, "r", encoding="utf-8") as f:

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-09-30T21:36:36Z",
+  "updated_at": "2026-09-30T22:46:42Z",
   "categories": [
     {
       "id": "web_ui",
@@ -122,6 +122,8 @@
       "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/fluidd-v1.30.0.zip",
       "sha256": "fa73d59cab99b58185b6a0b8f173484928dacb7943018477979d24ab4dba1f74",
       "install_path": "/usr/data/openke/apps/fluidd",
+      "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/fluidd.cfg",
+      "config_target": "macros/fluidd.cfg",
       "probe_path": "/usr/data/openke/apps/fluidd/index.html",
       "website": "https://fluidd.xyz",
       "source_url": "https://github.com/fluidd-core/fluidd"
