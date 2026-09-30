@@ -1,0 +1,506 @@
+#!/usr/bin/env python3
+"""
+OpenKE App Store Engine (openke-app)
+Manages installation, updates, removal, and active selection of Web Interfaces,
+Touchscreen UIs, and Moonraker Plugins for OpenKE.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+
+DEFAULT_CATALOG_PATHS = [
+    "/usr/data/openke/apps.json",
+    "/usr/data/openke-seeds/apps.json",
+    "/opt/openke-seeds/apps.json",
+    "/opt/openke/apps.json",
+    "/etc/openke/apps.json",
+    "/etc/openke-apps.json",
+    # Development repository fallbacks
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../manifests/apps.json")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../manifests/apps.json")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../manifests/apps.json")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../manifests/apps.json")),
+]
+
+DEFAULT_CATALOG_URLS = [
+    "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/dist/apps.json",
+    "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/apps.json",
+    "https://openklipperedition.github.io/AppStore/apps.json",
+]
+
+STATE_DIR = os.environ.get("OPENKE_STATE_DIR", "/usr/data/openke")
+APPS_DIR = os.environ.get("OPENKE_APPS_DIR", os.path.join(STATE_DIR, "apps"))
+WEB_ROOT_SYMLINK = os.environ.get("OPENKE_WEB_ROOT_LINK", "/var/run/openke-web-root")
+ACTIVE_WEB_FILE = os.path.join(STATE_DIR, "active_web_ui")
+ACTIVE_TOUCH_FILE = os.path.join(STATE_DIR, "active_touch_ui")
+
+
+def get_catalog_file() -> str:
+    override = os.environ.get("OPENKE_CATALOG_FILE")
+    if override and os.path.isfile(override):
+        return override
+    for p in DEFAULT_CATALOG_PATHS:
+        if os.path.isfile(p):
+            return p
+    return ""
+
+
+def load_catalog() -> dict:
+    cat_path = get_catalog_file()
+    if not cat_path:
+        return {"version": "1.0", "apps": []}
+    try:
+        with open(cat_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"ERROR: Failed to load catalog from {cat_path}: {e}", file=sys.stderr)
+        return {"version": "1.0", "apps": []}
+
+
+def get_active_web_ui() -> str:
+    if os.path.isfile(ACTIVE_WEB_FILE):
+        try:
+            with open(ACTIVE_WEB_FILE, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+                if val:
+                    return val
+        except Exception:
+            pass
+    return "mainsail"
+
+
+def get_active_touch_ui() -> str:
+    if os.path.isfile(ACTIVE_TOUCH_FILE):
+        try:
+            with open(ACTIVE_TOUCH_FILE, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+                if val:
+                    return val
+        except Exception:
+            pass
+    return "guppyscreen"
+
+
+def get_install_path(app: dict) -> str:
+    path = app.get("install_path")
+    if not path:
+        return os.path.join(APPS_DIR, app.get("id", ""))
+    if path.startswith("/usr/data/openke/apps/"):
+        rel = os.path.relpath(path, "/usr/data/openke/apps")
+        return os.path.join(APPS_DIR, rel)
+    return path
+
+
+def get_probe_path(app: dict) -> str:
+    probe = app.get("probe_path")
+    if not probe:
+        return ""
+    if probe.startswith("/usr/data/openke/apps/"):
+        rel = os.path.relpath(probe, "/usr/data/openke/apps")
+        return os.path.join(APPS_DIR, rel)
+    return probe
+
+
+def is_app_installed(app: dict) -> bool:
+    if app.get("is_builtin", False):
+        builtin_path = app.get("builtin_path", "")
+        return bool(builtin_path and os.path.exists(builtin_path))
+    probe = get_probe_path(app)
+    if probe and os.path.exists(probe):
+        return True
+    install_path = get_install_path(app)
+    if install_path and os.path.isdir(install_path):
+        return True
+    return False
+
+
+def is_print_in_progress() -> bool:
+    try:
+        req = urllib.request.urlopen("http://127.0.0.1:7125/printer/objects/query?print_stats", timeout=1.5)
+        data = json.loads(req.read().decode("utf-8"))
+        state = data.get("result", {}).get("status", {}).get("print_stats", {}).get("state", "").lower()
+        return state in ("printing", "paused")
+    except Exception:
+        return False
+
+
+def cmd_list(args):
+    catalog = load_catalog()
+    apps = catalog.get("apps", [])
+    active_web = get_active_web_ui()
+    active_touch = get_active_touch_ui()
+
+    results = []
+    for app in apps:
+        cat = app.get("category", "")
+        if args.category and cat != args.category:
+            continue
+
+        installed = is_app_installed(app)
+        app_id = app.get("id", "")
+
+        is_active = False
+        if cat == "web_ui" and app_id == active_web:
+            is_active = True
+        elif cat == "touch_ui" and app_id == active_touch:
+            is_active = True
+
+        status = "available"
+        if is_active:
+            status = "active"
+        elif installed:
+            status = "installed"
+
+        item = {
+            "id": app_id,
+            "name": app.get("name", app_id),
+            "category": cat,
+            "version": app.get("version", ""),
+            "author": app.get("author", ""),
+            "description": app.get("description", ""),
+            "is_builtin": app.get("is_builtin", False),
+            "is_installed": installed,
+            "is_active": is_active,
+            "status": status
+        }
+        results.append(item)
+
+    if args.json:
+        print(json.dumps(results, indent=2))
+        return
+
+    # Formatted table output
+    print(f"{'ID':<15} {'NAME':<26} {'CATEGORY':<14} {'VERSION':<10} {'STATUS'}")
+    print("-" * 75)
+    for item in results:
+        badge = item["status"].upper()
+        print(f"{item['id']:<15} {item['name'][:25]:<26} {item['category']:<14} {item['version']:<10} {badge}")
+
+
+def cmd_install(args):
+    app_id = args.app_id.lower()
+    catalog = load_catalog()
+    app = next((a for a in catalog.get("apps", []) if a.get("id") == app_id), None)
+
+    if not app:
+        print(f"FATAL: App '{app_id}' not found in catalog.", file=sys.stderr)
+        sys.exit(1)
+
+    if app.get("is_builtin", False):
+        print(f"App '{app_id}' is a built-in component and is already part of the base firmware.")
+        return
+
+    install_path = get_install_path(app)
+
+    download_url = app.get("download_url")
+    if not download_url:
+        print(f"FATAL: App '{app_id}' has no download_url defined.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"== Installing {app.get('name', app_id)} v{app.get('version', '')} ==")
+    os.makedirs(APPS_DIR, exist_ok=True)
+
+    tmp_dir = tempfile.mkdtemp(prefix="openke-app-")
+    try:
+        archive_name = download_url.split("/")[-1].split("?")[0] or "package.zip"
+        archive_file = os.path.join(tmp_dir, archive_name)
+
+        print(f"Downloading from {download_url}...")
+        curl_cmd = ["curl", "-fSL", "-k", "--connect-timeout", "15", "-m", "300", download_url, "-o", archive_file]
+        res = subprocess.run(curl_cmd)
+        if res.returncode != 0 or not os.path.isfile(archive_file) or os.path.getsize(archive_file) == 0:
+            print(f"FATAL: Failed to download '{download_url}'.", file=sys.stderr)
+            sys.exit(1)
+
+        expected_sha = app.get("sha256", "").strip()
+        if expected_sha:
+            h = hashlib.sha256()
+            with open(archive_file, "rb") as f:
+                while chunk := f.read(65536):
+                    h.update(chunk)
+            actual_sha = h.hexdigest()
+            if actual_sha.lower() != expected_sha.lower():
+                print(f"FATAL: Checksum mismatch for {app_id} (expected {expected_sha}, got {actual_sha}).", file=sys.stderr)
+                sys.exit(1)
+            print("OK: SHA256 checksum verified.")
+
+        # Staged extraction
+        stage_dir = os.path.join(tmp_dir, "extracted")
+        os.makedirs(stage_dir, exist_ok=True)
+
+        if archive_file.endswith(".zip"):
+            subprocess.run(["unzip", "-q", archive_file, "-d", stage_dir], check=True)
+        elif archive_file.endswith(".tar.gz") or archive_file.endswith(".tgz"):
+            subprocess.run(["tar", "-xzf", archive_file, "-C", stage_dir], check=True)
+        elif archive_file.endswith(".tar"):
+            subprocess.run(["tar", "-xf", archive_file, "-C", stage_dir], check=True)
+        else:
+            # Assume raw executable or zip
+            try:
+                subprocess.run(["unzip", "-q", archive_file, "-d", stage_dir], check=True)
+            except Exception:
+                shutil.copy(archive_file, os.path.join(stage_dir, app.get("executable", app_id)))
+
+        # Clean old install if present
+        if os.path.exists(install_path):
+            if os.path.isdir(install_path):
+                shutil.rmtree(install_path)
+            else:
+                os.remove(install_path)
+
+        os.makedirs(os.path.dirname(install_path), exist_ok=True)
+        shutil.move(stage_dir, install_path)
+
+        # Set executable permissions
+        for root, dirs, files in os.walk(install_path):
+            for f in files:
+                fp = os.path.join(root, f)
+                if f.endswith(".sh") or f.endswith(".py") or f in (app.get("executable", ""), "helixscreen", "guppyscreen"):
+                    try:
+                        os.chmod(fp, 0o755)
+                    except Exception:
+                        pass
+
+        print(f"OK: Successfully installed {app_id} into {install_path}")
+
+        # If set to auto-activate
+        if getattr(args, "activate", False):
+            cat = app.get("category")
+            if cat == "web_ui":
+                set_active_web(app_id)
+            elif cat == "touch_ui":
+                set_active_touch(app_id, force=getattr(args, "force", False))
+
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def cmd_remove(args):
+    app_id = args.app_id.lower()
+    catalog = load_catalog()
+    app = next((a for a in catalog.get("apps", []) if a.get("id") == app_id), None)
+
+    if app and app.get("is_builtin", False):
+        print(f"FATAL: App '{app_id}' is a built-in firmware component and cannot be removed.", file=sys.stderr)
+        sys.exit(1)
+
+    install_path = get_install_path(app) if app else os.path.join(APPS_DIR, app_id)
+
+    # Active fallback safety
+    if get_active_web_ui() == app_id:
+        print(f"App '{app_id}' is currently active as Web UI. Reverting active Web UI to Mainsail...")
+        set_active_web("mainsail")
+
+    if get_active_touch_ui() == app_id:
+        print(f"App '{app_id}' is currently active as Touch UI. Reverting active Touch UI to GuppyScreen...")
+        set_active_touch("guppyscreen", force=True)
+
+    if os.path.exists(install_path):
+        if os.path.isdir(install_path):
+            shutil.rmtree(install_path)
+        else:
+            os.remove(install_path)
+        print(f"OK: Removed {app_id} from {install_path}")
+    else:
+        print(f"App '{app_id}' was not installed.")
+
+
+def set_active_web(target: str):
+    target = target.lower()
+    catalog = load_catalog()
+    app = next((a for a in catalog.get("apps", []) if a.get("id") == target and a.get("category") == "web_ui"), None)
+
+    target_dir = ""
+    if target == "mainsail":
+        target_dir = os.environ.get("OPENKE_MAINSAIL_DIR", "/usr/share/mainsail")
+    elif app:
+        target_dir = get_install_path(app)
+    else:
+        target_dir = os.path.join(APPS_DIR, target)
+
+    if not os.path.exists(target_dir) and target != "mainsail":
+        print(f"FATAL: Web UI '{target}' is not installed at {target_dir}.", file=sys.stderr)
+        sys.exit(1)
+
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(ACTIVE_WEB_FILE, "w", encoding="utf-8") as f:
+        f.write(target + "\n")
+
+    # Update dynamic symlink
+    if os.path.islink(WEB_ROOT_SYMLINK) or os.path.exists(WEB_ROOT_SYMLINK):
+        try:
+            os.remove(WEB_ROOT_SYMLINK)
+        except Exception:
+            pass
+    try:
+        os.symlink(target_dir, WEB_ROOT_SYMLINK)
+    except Exception as e:
+        print(f"WARNING: Could not symlink {WEB_ROOT_SYMLINK} -> {target_dir}: {e}", file=sys.stderr)
+
+    # Reload nginx if running
+    try:
+        subprocess.run(["nginx", "-s", "reload"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    try:
+        subprocess.run(["killall", "-HUP", "nginx"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    print(f"OK: Active Web UI switched to '{target}' ({target_dir}).")
+
+
+def set_active_touch(target: str, force: bool = False):
+    target = target.lower()
+    if not force and is_print_in_progress():
+        print("FATAL: An active 3D print is in progress! Refusing to switch touchscreen UI during a print.", file=sys.stderr)
+        print("Use --force to override this safety check if strictly necessary.", file=sys.stderr)
+        sys.exit(1)
+
+    catalog = load_catalog()
+    app = next((a for a in catalog.get("apps", []) if a.get("id") == target and a.get("category") == "touch_ui"), None)
+
+    if target != "guppyscreen":
+        probe = get_probe_path(app) if app else os.path.join(APPS_DIR, target, target)
+        if not probe or not os.path.exists(probe):
+            print(f"FATAL: Touch UI '{target}' is not installed (expected executable at {probe}).", file=sys.stderr)
+            sys.exit(1)
+
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(ACTIVE_TOUCH_FILE, "w", encoding="utf-8") as f:
+        f.write(target + "\n")
+
+    # Trigger restart of display service
+    init_script = "/etc/init.d/S58guppyscreen"
+    if os.path.isfile(init_script) and os.access(init_script, os.X_OK):
+        try:
+            subprocess.run([init_script, "restart"], check=False)
+        except Exception as e:
+            print(f"WARNING: Restarting touch display service failed: {e}", file=sys.stderr)
+
+    print(f"OK: Active Touch UI set to '{target}'.")
+
+
+def cmd_update(args):
+    urls = []
+    if getattr(args, "url", None):
+        urls.append(args.url)
+    else:
+        env_url = os.environ.get("OPENKE_CATALOG_URL")
+        if env_url:
+            urls.append(env_url)
+        urls.extend(DEFAULT_CATALOG_URLS)
+
+    target = os.path.join(STATE_DIR, "apps.json")
+    success = False
+
+    for url in urls:
+        print(f"Checking for catalog updates from {url}...")
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "OpenKE-App/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = getattr(resp, "status", 200)
+                if status in (200, None):
+                    raw = resp.read().decode("utf-8")
+                    data = json.loads(raw)
+                    if "apps" in data and isinstance(data["apps"], list):
+                        os.makedirs(STATE_DIR, exist_ok=True)
+                        tmp_target = target + ".tmp"
+                        with open(tmp_target, "w", encoding="utf-8") as f:
+                            json.dump(data, f, indent=2)
+                        os.replace(tmp_target, target)
+                        print(f"OK: Updated catalog ({len(data['apps'])} apps) from {url}")
+                        success = True
+                        break
+        except Exception as e:
+            print(f"NOTE: Could not fetch from {url} ({e})")
+
+    if not success:
+        print("INFO: Keeping existing local catalog.", file=sys.stderr)
+
+
+def cmd_set_active_web(args):
+    set_active_web(args.app_id)
+
+
+def cmd_set_active_touch(args):
+    set_active_touch(args.app_id, force=args.force)
+
+
+def cmd_status(args):
+    active_web = get_active_web_ui()
+    active_touch = get_active_touch_ui()
+    catalog = load_catalog()
+    apps = catalog.get("apps", [])
+
+    installed_count = sum(1 for a in apps if is_app_installed(a))
+
+    print("OpenKE App Store Status:")
+    print(f"  Active Web UI:       {active_web}")
+    print(f"  Active Touch UI:     {active_touch}")
+    print(f"  Installed Apps:      {installed_count} / {len(apps)}")
+    print(f"  Apps Directory:      {APPS_DIR}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="OpenKE App Store Package & Service Manager")
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # list
+    p_list = subparsers.add_parser("list", help="List available and installed apps")
+    p_list.add_argument("--json", action="store_true", help="Output JSON format")
+    p_list.add_argument("--category", help="Filter by category (web_ui, touch_ui, plugin, tool)")
+    p_list.set_defaults(func=cmd_list)
+
+    # update
+    p_upd = subparsers.add_parser("update", help="Update catalog from remote AppStore repository")
+    p_upd.add_argument("--url", help="Override catalog URL")
+    p_upd.set_defaults(func=cmd_update)
+
+    # install
+    p_inst = subparsers.add_parser("install", help="Download and install an app")
+    p_inst.add_argument("app_id", help="App ID to install")
+    p_inst.add_argument("--activate", action="store_true", help="Automatically activate the app after install")
+    p_inst.add_argument("--force", action="store_true", help="Bypass print safety check if activating")
+    p_inst.set_defaults(func=cmd_install)
+
+    # remove
+    p_rm = subparsers.add_parser("remove", help="Uninstall and remove an app")
+    p_rm.add_argument("app_id", help="App ID to remove")
+    p_rm.set_defaults(func=cmd_remove)
+
+    # set-active-web
+    p_saw = subparsers.add_parser("set-active-web", help="Switch default Web Interface (mainsail/fluidd)")
+    p_saw.add_argument("app_id", help="Target Web UI (e.g. mainsail, fluidd)")
+    p_saw.set_defaults(func=cmd_set_active_web)
+
+    # set-active-touch
+    p_sat = subparsers.add_parser("set-active-touch", help="Switch default Touchscreen UI (guppyscreen/helixscreen)")
+    p_sat.add_argument("app_id", help="Target Touch UI (e.g. guppyscreen, helixscreen)")
+    p_sat.add_argument("--force", action="store_true", help="Bypass active print check")
+    p_sat.set_defaults(func=cmd_set_active_touch)
+
+    # status
+    p_stat = subparsers.add_parser("status", help="Show system app status")
+    p_stat.set_defaults(func=cmd_status)
+
+    args = parser.parse_args()
+    if not hasattr(args, "func"):
+        parser.print_help()
+        sys.exit(1)
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

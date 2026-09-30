@@ -13,12 +13,44 @@
 
 GUPPY_DIR=/opt/guppyscreen
 PIDFILE=/var/run/guppyscreen.pid
+DATA_ROOT=/usr/data/openke
+ACTIVE_TOUCH_FILE=$DATA_ROOT/active_touch_ui
+APPS_DIR=$DATA_ROOT/apps
+
+get_touch_binary() {
+	active_touch="guppyscreen"
+	[ -f "$ACTIVE_TOUCH_FILE" ] && active_touch=$(cat "$ACTIVE_TOUCH_FILE" 2>/dev/null | tr -d ' \r\n')
+
+	if [ "$active_touch" != "guppyscreen" ]; then
+		# Check app folder for matching binary or known touchscreen entrypoints
+		if [ -x "$APPS_DIR/$active_touch/bin/helix-screen" ]; then
+			echo "$APPS_DIR/$active_touch/bin/helix-screen"
+			return 0
+		elif [ -x "$APPS_DIR/$active_touch/bin/helix-launcher.sh" ]; then
+			echo "$APPS_DIR/$active_touch/bin/helix-launcher.sh"
+			return 0
+		elif [ -x "$APPS_DIR/$active_touch/$active_touch" ]; then
+			echo "$APPS_DIR/$active_touch/$active_touch"
+			return 0
+		elif [ -x "$APPS_DIR/$active_touch/helixscreen" ]; then
+			echo "$APPS_DIR/$active_touch/helixscreen"
+			return 0
+		elif [ -x "$APPS_DIR/$active_touch/guppyscreen" ]; then
+			echo "$APPS_DIR/$active_touch/guppyscreen"
+			return 0
+		fi
+		echo "WARNING: Custom touch UI '$active_touch' not found or not executable. Falling back to GuppyScreen." >&2
+	fi
+
+	echo "$GUPPY_DIR/guppyscreen"
+}
 
 start() {
-	echo "Starting guppyscreen"
+	TOUCH_BIN=$(get_touch_binary)
+	echo "Starting touchscreen UI: $TOUCH_BIN"
 	start-stop-daemon -S -b -m -p "$PIDFILE" \
-		-x "$GUPPY_DIR/guppyscreen"
-	# NebulaOS Memory Resilience Gate: normal/expendable tier - explicit
+		-x "$TOUCH_BIN"
+	# NebulaOS/OpenKE Memory Resilience Gate: normal/expendable tier - explicit
 	# 0 (kernel default) rather than left implicit, so the full priority
 	# table is auditable in one place (docs/NEBULAOS_MEMORY_RESILIENCE.md
 	# sec 7) rather than "whatever the kernel happened to default to."
@@ -26,8 +58,10 @@ start() {
 }
 
 stop() {
-	echo "Stopping guppyscreen"
-	start-stop-daemon -K -p "$PIDFILE"
+	echo "Stopping touchscreen UI"
+	start-stop-daemon -K -p "$PIDFILE" -q || true
+	# Clean up any residual PID file
+	rm -f "$PIDFILE"
 }
 
 case "$1" in

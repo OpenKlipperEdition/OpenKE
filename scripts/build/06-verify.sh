@@ -1131,6 +1131,8 @@ check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/profile.json
 check /opt/openke-seeds/printer_profiles/creality-ender3-v3-ke/printer.cfg
 check /opt/openke-seeds/printer_profiles/creality-ender3-v3-se/profile.json
 check /opt/openke-seeds/printer_profiles/creality-ender3-v2-neo/profile.json
+check /opt/openke-seeds/apps.json
+check /usr/bin/openke-app
 check /usr/sbin/ntpd
 check /etc/init.d/S40openke-ntpsync
 check /etc/openke-update-supervisor.sh

@@ -1,0 +1,138 @@
+{
+  "version": "1.0",
+  "name": "OpenKE App Store Catalog",
+  "updated_at": "2026-09-30T19:46:23Z",
+  "categories": [
+    {
+      "id": "web_ui",
+      "name": "Web Interfaces",
+      "icon": "web",
+      "description": "Browser-based printer management frontends"
+    },
+    {
+      "id": "touch_ui",
+      "name": "Touchscreen UIs",
+      "icon": "monitor",
+      "description": "On-screen touch interfaces for direct printer control"
+    },
+    {
+      "id": "plugin",
+      "name": "Plugins & Services",
+      "icon": "puzzle",
+      "description": "Moonraker extensions, companions, and helper services"
+    },
+    {
+      "id": "tool",
+      "name": "System Tools",
+      "icon": "wrench",
+      "description": "Command-line utilities and diagnostic software"
+    }
+  ],
+  "apps": [
+    {
+      "id": "mobileraker",
+      "name": "Mobileraker Companion",
+      "category": "plugin",
+      "description": "Push notification companion service for Mobileraker mobile app on iOS and Android.",
+      "author": "Clon1998",
+      "version": "0.7.0",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/Clon1998/mobileraker_companion/archive/refs/tags/v0.7.0.tar.gz",
+      "sha256": "",
+      "install_path": "/usr/data/openke/apps/mobileraker_companion",
+      "probe_path": "/usr/data/openke/apps/mobileraker_companion/mobileraker.py",
+      "source_url": "https://github.com/Clon1998/mobileraker_companion"
+    },
+    {
+      "id": "spoolman",
+      "name": "Spoolman",
+      "category": "plugin",
+      "description": "Filament spool management service seamlessly integrated with Moonraker and Mainsail/Fluidd.",
+      "author": "Donkie",
+      "version": "0.18.0",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/Donkie/Spoolman/releases/download/v0.18.0/spoolman.zip",
+      "sha256": "",
+      "install_path": "/usr/data/openke/apps/spoolman",
+      "probe_path": "/usr/data/openke/apps/spoolman/spoolman.py",
+      "source_url": "https://github.com/Donkie/Spoolman"
+    },
+    {
+      "id": "timelapse",
+      "name": "Moonraker Timelapse",
+      "category": "plugin",
+      "description": "Automatic video timelapse recorder synchronized with G-code positioning and layer changes.",
+      "author": "mainsail-crew",
+      "version": "0.4.0",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/mainsail-crew/moonraker-timelapse/archive/refs/tags/v0.4.0.tar.gz",
+      "sha256": "",
+      "install_path": "/usr/data/openke/apps/moonraker-timelapse",
+      "probe_path": "/usr/data/openke/apps/moonraker-timelapse/component/timelapse.py",
+      "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
+    },
+    {
+      "id": "guppyscreen",
+      "name": "GuppyScreen Touch UI",
+      "category": "touch_ui",
+      "description": "Default ultra-fast native LVGL-based touchscreen interface optimized for Ingenic X2000 MIPS.",
+      "author": "OpenKE & GuppyScreen Team",
+      "version": "1.0.0",
+      "type": "touch_ui",
+      "is_builtin": true,
+      "builtin_path": "/opt/guppyscreen/guppyscreen",
+      "probe_path": "/opt/guppyscreen/guppyscreen",
+      "source_url": "https://github.com/OpenKlipperEdition/GuppyScreen"
+    },
+    {
+      "id": "helixscreen",
+      "name": "HelixScreen Touch UI",
+      "category": "touch_ui",
+      "description": "Modern, lightweight, and customizable touchscreen interface for Klipper built for high performance and touch gestures.",
+      "author": "Preston Brown",
+      "version": "1.0.2",
+      "type": "touch_ui",
+      "is_builtin": false,
+      "download_url": "https://github.com/prestonbrown/helixscreen/releases/download/v1.0.2/helixscreen-k1.zip",
+      "sha256": "a56e9c05756635ce0026280fcfc00dbc42ef47f5b4c743f520f496cef011f14a",
+      "install_path": "/usr/data/openke/apps/helixscreen",
+      "executable": "bin/helix-screen",
+      "probe_path": "/usr/data/openke/apps/helixscreen/bin/helix-screen",
+      "website": "https://helixscreen.org",
+      "source_url": "https://github.com/prestonbrown/helixscreen"
+    },
+    {
+      "id": "fluidd",
+      "name": "Fluidd Web Interface",
+      "category": "web_ui",
+      "description": "Clean, responsive and lightweight web interface for Klipper with real-time status and powerful toolpath visualization.",
+      "author": "Fluidd Core Team",
+      "version": "1.30.0",
+      "type": "web_ui",
+      "is_builtin": false,
+      "download_url": "https://github.com/fluidd-core/fluidd/releases/download/v1.30.0/fluidd.zip",
+      "sha256": "4e73bdf2d0bfb8d601b38cf41f6e0214a1e944747ebc9735d4ffca0fe51897c8",
+      "install_path": "/usr/data/openke/apps/fluidd",
+      "probe_path": "/usr/data/openke/apps/fluidd/index.html",
+      "website": "https://fluidd.xyz",
+      "source_url": "https://github.com/fluidd-core/fluidd"
+    },
+    {
+      "id": "mainsail",
+      "name": "Mainsail Web Interface",
+      "category": "web_ui",
+      "description": "Default rich web interface for Klipper and Moonraker with extensive customization and multi-camera support.",
+      "author": "Mainsail Crew",
+      "version": "2.12.0",
+      "type": "web_ui",
+      "is_builtin": true,
+      "builtin_path": "/usr/share/mainsail",
+      "probe_path": "/usr/share/mainsail/index.html",
+      "website": "https://mainsail.xyz",
+      "source_url": "https://github.com/mainsail-crew/mainsail"
+    }
+  ]
+}

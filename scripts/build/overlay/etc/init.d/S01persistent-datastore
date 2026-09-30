@@ -127,6 +127,17 @@ start() {
 		/usr/data/opt/var/lib/opkg/info \
 		/usr/data/opt/tmp
 	[ -e /usr/data/opt/lib/ld-linux.so.2 ] || ln -sf /lib/ld.so.1 /usr/data/opt/lib/ld-linux.so.2
+
+	# Initialize OpenKE custom apps storage and dynamic web root
+	mkdir -p "$DATA_ROOT/apps"
+	[ -e "$DATA_ROOT/apps.json" ] || [ ! -f /opt/openke-seeds/apps.json ] || cp -a /opt/openke-seeds/apps.json "$DATA_ROOT/apps.json"
+	active_web="mainsail"
+	[ -f "$DATA_ROOT/active_web_ui" ] && active_web=$(cat "$DATA_ROOT/active_web_ui" 2>/dev/null | tr -d ' \r\n')
+	if [ "$active_web" = "mainsail" ] || [ ! -d "$DATA_ROOT/apps/$active_web" ]; then
+		ln -sfn /usr/share/mainsail /var/run/openke-web-root
+	else
+		ln -sfn "$DATA_ROOT/apps/$active_web" /var/run/openke-web-root
+	fi
 }
 
 case "$1" in
