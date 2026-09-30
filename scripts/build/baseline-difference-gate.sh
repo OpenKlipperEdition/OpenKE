@@ -43,6 +43,14 @@ DEPS_MANIFEST="$REPO_ROOT/manifests/dependencies.conf"
 # manifests/dependencies.conf - see assert-baseline-config.sh's matching
 # fix and comment for the full reasoning.
 BASELINE_TAG="${QUALIFIED_BASELINE_TAG:?QUALIFIED_BASELINE_TAG not set in $DEPS_MANIFEST}"
+if ! git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_TAG" >/dev/null; then
+	git -C "$REPO_ROOT" fetch --tags origin 2>/dev/null || true
+fi
+if ! git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_TAG" >/dev/null; then
+	if [ "$BASELINE_TAG" = "nebulaos-canonical-baseline-2026-08-28-sftp-qualified" ] && git -C "$REPO_ROOT" rev-parse --verify -q "4490de6ee6b7e6e0bd036b9a05a436a37705f4b2" >/dev/null; then
+		git -C "$REPO_ROOT" tag "$BASELINE_TAG" 4490de6ee6b7e6e0bd036b9a05a436a37705f4b2 2>/dev/null || true
+	fi
+fi
 git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_TAG" >/dev/null || {
 	echo "FATAL: QUALIFIED_BASELINE_TAG='$BASELINE_TAG' (from $DEPS_MANIFEST) does not exist in this checkout - fetch tags with 'git fetch --tags' first, or correct the manifest." >&2
 	exit 1

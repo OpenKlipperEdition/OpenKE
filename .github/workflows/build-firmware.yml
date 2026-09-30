@@ -31,6 +31,7 @@ jobs:
           # A shallow checkout omits that tag and makes the otherwise-valid
           # baseline fail before the build starts.
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

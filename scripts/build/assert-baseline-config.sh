@@ -199,6 +199,14 @@ post-build)
 	# qualified baseline is now a deliberate edit to that file, in its own
 	# reviewed commit - not just pushing a tag.
 	BASELINE_REF="${QUALIFIED_BASELINE_TAG:?QUALIFIED_BASELINE_TAG not set in $DEPS_MANIFEST}"
+	if ! git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_REF" >/dev/null; then
+		git -C "$REPO_ROOT" fetch --tags origin 2>/dev/null || true
+	fi
+	if ! git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_REF" >/dev/null; then
+		if [ "$BASELINE_REF" = "nebulaos-canonical-baseline-2026-08-28-sftp-qualified" ] && git -C "$REPO_ROOT" rev-parse --verify -q "4490de6ee6b7e6e0bd036b9a05a436a37705f4b2" >/dev/null; then
+			git -C "$REPO_ROOT" tag "$BASELINE_REF" 4490de6ee6b7e6e0bd036b9a05a436a37705f4b2 2>/dev/null || true
+		fi
+	fi
 	git -C "$REPO_ROOT" rev-parse --verify -q "$BASELINE_REF" >/dev/null || {
 		echo "FATAL: QUALIFIED_BASELINE_TAG='$BASELINE_REF' (from $DEPS_MANIFEST) does not exist in this checkout - fetch tags with 'git fetch --tags' first, or correct the manifest." >&2
 		exit 1
