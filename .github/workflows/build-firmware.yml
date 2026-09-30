@@ -10,7 +10,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 concurrency:
@@ -206,6 +206,18 @@ jobs:
           bundle=ci-artifacts
           mkdir -p "$bundle/images" "$bundle/guppyscreen"
 
+          # 1. Generate changelog and build SWUpdate (.swu) package
+          git log -n 15 --pretty=format:"• %s" > "$bundle/changelog.txt"
+          sh scripts/build/package-swu.sh "$bundle" "nightly" "$bundle/changelog.txt"
+
+          # 2. Generate GuppyScreen-compatible release manifest
+          python3 scripts/build/lib/generate-release-manifest.py \
+            --swu "$bundle/openke-update-nightly.swu" \
+            --output "$bundle/releases.json" \
+            --changelog "$bundle/changelog.txt" \
+            --channel "nightly" \
+            --tag "nightly"
+
           cp "$image_dir/xImage" \
              "$image_dir/rootfs.ext2" \
              "$image_dir/rootfs.squashfs" \
@@ -214,6 +226,14 @@ jobs:
              "$image_dir/buildroot.config" \
              "$image_dir/halley5_v30.dts" \
              "$bundle/images/"
+
+          if [[ -f "$image_dir/Ender3V3SE_klipper.bin" ]]; then
+            cp "$image_dir/Ender3V3SE_klipper.bin" "$bundle/images/"
+          fi
+          if [[ -f "$image_dir/Ender3V2Neo_klipper.bin" ]]; then
+            cp "$image_dir/Ender3V2Neo_klipper.bin" "$bundle/images/"
+          fi
+
           cp artifacts/guppyscreen-mips/guppyscreen \
              artifacts/guppyscreen-mips/guppybeep \
              "$bundle/guppyscreen/"
@@ -234,3 +254,47 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Publish Nightly Release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bundle=ci-artifacts
+          TAG="nightly"
+          TITLE="Nightly"
+
+          release_files=(
+            "$bundle/openke-update-nightly.swu"
+            "$bundle/openke-update-nightly.swu.sha256"
+            "$bundle/releases.json"
+            "$bundle/changelog.txt"
+            "$bundle/SHA256SUMS"
+            "$bundle/images/xImage"
+            "$bundle/images/rootfs.squashfs"
+            "$bundle/images/build-manifest.txt"
+          )
+
+          if [[ -f "$bundle/images/Ender3V3SE_klipper.bin" ]]; then
+            release_files+=("$bundle/images/Ender3V3SE_klipper.bin")
+          fi
+          if [[ -f "$bundle/images/Ender3V2Neo_klipper.bin" ]]; then
+            release_files+=("$bundle/images/Ender3V2Neo_klipper.bin")
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "== Updating existing Nightly release =="
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$bundle/changelog.txt" --prerelease --target "${{ github.sha }}"
+            gh release upload "$TAG" "${release_files[@]}" --clobber
+          else
+            echo "== Creating new Nightly release =="
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes-file "$bundle/changelog.txt" \
+              --prerelease \
+              --target "${{ github.sha }}" \
+              "${release_files[@]}"
+          fi
