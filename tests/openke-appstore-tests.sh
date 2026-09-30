@@ -250,6 +250,106 @@ else
 	fail "S58guppyscreen missing dynamic touch UI selection"
 fi
 
+echo "=== Test 7: Printing & Thermal Safeguards Verification ==="
+PORT_FILE="$TEST_SANDBOX/mock_port.txt"
+
+# Start mock moonraker in background
+python3 -c '
+import http.server, socketserver, json, sys
+
+state = {"print_state": "standby", "ext_target": 0.0, "bed_target": 0.0}
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args): pass
+    def do_GET(self):
+        if self.path.startswith("/set_state"):
+            q = self.path.split("?", 1)[1]
+            for p in q.split("&"):
+                k, v = p.split("=")
+                if k in ("ext_target", "bed_target"): state[k] = float(v)
+                else: state[k] = v
+            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+            return
+        payload = {
+            "result": {
+                "status": {
+                    "print_stats": {"state": state["print_state"]},
+                    "extruder": {"target": state["ext_target"], "temperature": 200.0 if state["ext_target"] > 0 else 25.0},
+                    "heater_bed": {"target": state["bed_target"], "temperature": 60.0 if state["bed_target"] > 0 else 25.0}
+                }
+            }
+        }
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode())
+
+with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
+    port = httpd.server_address[1]
+    with open(sys.argv[1], "w") as f:
+        f.write(str(port))
+    httpd.serve_forever()
+' "$PORT_FILE" &
+MOCK_PID=$!
+trap 'kill $MOCK_PID 2>/dev/null || true; rm -rf "$TEST_SANDBOX"' EXIT
+
+while [ ! -s "$PORT_FILE" ]; do
+    sleep 0.05
+done
+MOCK_MOONRAKER_PORT=$(cat "$PORT_FILE")
+export OPENKE_MOONRAKER_URL="http://127.0.0.1:$MOCK_MOONRAKER_PORT"
+
+mkdir -p "$OPENKE_APPS_DIR/helixscreen/bin"
+touch "$OPENKE_APPS_DIR/helixscreen/bin/helix-screen"
+chmod +x "$OPENKE_APPS_DIR/helixscreen/bin/helix-screen"
+
+# Case 1: Print in progress -> switch blocked without --force, allowed with --force
+curl -s "$OPENKE_MOONRAKER_URL/set_state?print_state=printing&ext_target=0&bed_target=0" >/dev/null
+
+if python3 "$OPENKE_APP" set-active-touch helixscreen >/dev/null 2>&1; then
+	fail "set-active-touch should be blocked while printing"
+else
+	pass "set-active-touch blocked during active print"
+fi
+
+if python3 "$OPENKE_APP" set-active-web mainsail >/dev/null 2>&1; then
+	fail "set-active-web should be blocked while printing"
+else
+	pass "set-active-web blocked during active print"
+fi
+
+if python3 "$OPENKE_APP" set-active-touch helixscreen --force >/dev/null 2>&1; then
+	pass "set-active-touch --force successfully overrides print safeguard"
+else
+	fail "set-active-touch --force failed to override"
+fi
+
+# Case 2: Extruder heating -> touch switch blocked without --force, allowed with --force
+curl -s "$OPENKE_MOONRAKER_URL/set_state?print_state=standby&ext_target=220&bed_target=0" >/dev/null
+
+if python3 "$OPENKE_APP" set-active-touch guppyscreen >/dev/null 2>&1; then
+	fail "set-active-touch should be blocked while hotend is heating"
+else
+	pass "set-active-touch blocked while hotend target is active"
+fi
+
+if python3 "$OPENKE_APP" set-active-touch guppyscreen --force >/dev/null 2>&1; then
+	pass "set-active-touch --force overrides thermal safeguard"
+else
+	fail "set-active-touch --force failed to override thermal safeguard"
+fi
+
+# Case 3: Bed heating -> touch switch blocked without --force
+curl -s "$OPENKE_MOONRAKER_URL/set_state?print_state=standby&ext_target=0&bed_target=60" >/dev/null
+
+if python3 "$OPENKE_APP" set-active-touch helixscreen >/dev/null 2>&1; then
+	fail "set-active-touch should be blocked while bed is heating"
+else
+	pass "set-active-touch blocked while bed target is active"
+fi
+
+kill $MOCK_PID 2>/dev/null || true
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"

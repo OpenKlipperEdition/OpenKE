@@ -125,11 +125,59 @@ def is_app_installed(app: dict) -> bool:
     return False
 
 
-def is_print_in_progress() -> bool:
+def check_safety_safeguards(action_desc: str, force: bool = False, check_thermal: bool = True):
+    if force:
+        return
+
+    moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
     try:
-        req = urllib.request.urlopen("http://127.0.0.1:7125/printer/objects/query?print_stats", timeout=1.5)
+        url = f"{moonraker_url}/printer/objects/query?print_stats&extruder&heater_bed"
+        req = urllib.request.urlopen(url, timeout=1.5)
         data = json.loads(req.read().decode("utf-8"))
-        state = data.get("result", {}).get("status", {}).get("print_stats", {}).get("state", "").lower()
+        status = data.get("result", {}).get("status", {})
+
+        # 1. Active Print Check
+        print_stats = status.get("print_stats", {})
+        state = print_stats.get("state", "").lower()
+        if state in ("printing", "paused"):
+            print(f"FATAL: Refusing to {action_desc} while a 3D print is active or paused (state: '{state}').", file=sys.stderr)
+            print("Please finish or cancel the active print first, or pass --force to override.", file=sys.stderr)
+            sys.exit(1)
+
+        # 2. Thermal & Heater Safeguard
+        if check_thermal:
+            heaters = []
+            extruder = status.get("extruder", {})
+            if extruder:
+                target = float(extruder.get("target", 0.0))
+                temp = float(extruder.get("temperature", 0.0))
+                if target > 0.0:
+                    heaters.append(f"Hotend heating (target: {target:.0f}°C, temp: {temp:.1f}°C)")
+
+            heater_bed = status.get("heater_bed", {})
+            if heater_bed:
+                target = float(heater_bed.get("target", 0.0))
+                temp = float(heater_bed.get("temperature", 0.0))
+                if target > 0.0:
+                    heaters.append(f"Bed heating (target: {target:.0f}°C, temp: {temp:.1f}°C)")
+
+            if heaters:
+                print(f"FATAL: Refusing to {action_desc} while heaters are actively commanded on:", file=sys.stderr)
+                for h in heaters:
+                    print(f"  - {h}", file=sys.stderr)
+                print("Please turn off heaters (M104 S0 / M140 S0) before switching, or pass --force to override.", file=sys.stderr)
+                sys.exit(1)
+    except Exception:
+        # If Moonraker query fails (e.g. offline during flashing or isolated test sandbox), proceed safely
+        pass
+
+
+def is_print_in_progress() -> bool:
+    moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
+    try:
+        req = urllib.request.urlopen(f"{moonraker_url}/printer/objects/query?print_stats", timeout=1.5)
+        data = json.loads(req.read().decode("utf-8"))
+        state = data.get("result", {}).get("status", {}) .get("print_stats", {}).get("state", "").lower()
         return state in ("printing", "paused")
     except Exception:
         return False
@@ -320,15 +368,16 @@ def cmd_remove(args):
         sys.exit(1)
 
     install_path = get_install_path(app) if app else os.path.join(APPS_DIR, app_id)
+    force = getattr(args, "force", False)
 
     # Active fallback safety
     if get_active_web_ui() == app_id:
         print(f"App '{app_id}' is currently active as Web UI. Reverting active Web UI to Mainsail...")
-        set_active_web("mainsail")
+        set_active_web("mainsail", force=force)
 
     if get_active_touch_ui() == app_id:
         print(f"App '{app_id}' is currently active as Touch UI. Reverting active Touch UI to GuppyScreen...")
-        set_active_touch("guppyscreen", force=True)
+        set_active_touch("guppyscreen", force=force)
 
     if os.path.exists(install_path):
         if os.path.isdir(install_path):
@@ -340,8 +389,10 @@ def cmd_remove(args):
         print(f"App '{app_id}' was not installed.")
 
 
-def set_active_web(target: str):
+def set_active_web(target: str, force: bool = False):
     target = target.lower()
+    check_safety_safeguards(f"switch Web UI to '{target}'", force=force, check_thermal=False)
+
     catalog = load_catalog()
     app = next((a for a in catalog.get("apps", []) if a.get("id") == target and a.get("category") == "web_ui"), None)
 
@@ -387,10 +438,7 @@ def set_active_web(target: str):
 
 def set_active_touch(target: str, force: bool = False):
     target = target.lower()
-    if not force and is_print_in_progress():
-        print("FATAL: An active 3D print is in progress! Refusing to switch touchscreen UI during a print.", file=sys.stderr)
-        print("Use --force to override this safety check if strictly necessary.", file=sys.stderr)
-        sys.exit(1)
+    check_safety_safeguards(f"switch Touchscreen UI to '{target}'", force=force, check_thermal=True)
 
     catalog = load_catalog()
     app = next((a for a in catalog.get("apps", []) if a.get("id") == target and a.get("category") == "touch_ui"), None)
@@ -458,11 +506,11 @@ def cmd_update(args):
 
 
 def cmd_set_active_web(args):
-    set_active_web(args.app_id)
+    set_active_web(args.app_id, force=getattr(args, "force", False))
 
 
 def cmd_set_active_touch(args):
-    set_active_touch(args.app_id, force=args.force)
+    set_active_touch(args.app_id, force=getattr(args, "force", False))
 
 
 def cmd_status(args):
@@ -499,23 +547,25 @@ def main():
     p_inst = subparsers.add_parser("install", help="Download and install an app")
     p_inst.add_argument("app_id", help="App ID to install")
     p_inst.add_argument("--activate", action="store_true", help="Automatically activate the app after install")
-    p_inst.add_argument("--force", action="store_true", help="Bypass print safety check if activating")
+    p_inst.add_argument("--force", action="store_true", help="Bypass print and thermal safety checks if activating")
     p_inst.set_defaults(func=cmd_install)
 
     # remove
     p_rm = subparsers.add_parser("remove", help="Uninstall and remove an app")
     p_rm.add_argument("app_id", help="App ID to remove")
+    p_rm.add_argument("--force", action="store_true", help="Bypass print and thermal safety checks if reverting active UI")
     p_rm.set_defaults(func=cmd_remove)
 
     # set-active-web
     p_saw = subparsers.add_parser("set-active-web", help="Switch default Web Interface (mainsail/fluidd)")
     p_saw.add_argument("app_id", help="Target Web UI (e.g. mainsail, fluidd)")
+    p_saw.add_argument("--force", action="store_true", help="Bypass print safety check")
     p_saw.set_defaults(func=cmd_set_active_web)
 
     # set-active-touch
     p_sat = subparsers.add_parser("set-active-touch", help="Switch default Touchscreen UI (guppyscreen/helixscreen)")
     p_sat.add_argument("app_id", help="Target Touch UI (e.g. guppyscreen, helixscreen)")
-    p_sat.add_argument("--force", action="store_true", help="Bypass active print check")
+    p_sat.add_argument("--force", action="store_true", help="Bypass print and thermal safety checks")
     p_sat.set_defaults(func=cmd_set_active_touch)
 
     # status
