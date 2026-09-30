@@ -389,6 +389,74 @@ def cmd_remove(args):
         print(f"App '{app_id}' was not installed.")
 
 
+def sync_web_ui_klipper_macros(target_web_ui: str):
+    """
+    Synchronizes Klipper client macros in printer.cfg for the active Web UI:
+    - When target is 'fluidd': switch '[include macros/mainsail.cfg]' to '[include macros/fluidd.cfg]'
+    - When target is 'mainsail': switch '[include macros/fluidd.cfg]' to '[include macros/mainsail.cfg]'
+    """
+    config_paths = [
+        "/usr/data/printer_data/config",
+        "/opt/printer_data/config",
+        os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    ]
+
+    for cfg_dir in config_paths:
+        if not cfg_dir or not os.path.isdir(cfg_dir):
+            continue
+
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        macros_dir = os.path.join(cfg_dir, "macros")
+        if not os.path.isfile(printer_cfg):
+            continue
+
+        # If switching to fluidd, ensure macros/fluidd.cfg exists
+        if target_web_ui == "fluidd":
+            fluidd_dest = os.path.join(macros_dir, "fluidd.cfg")
+            if not os.path.isfile(fluidd_dest):
+                seeds_fluidd = "/opt/openke-seeds/printer_data-config/macros/fluidd.cfg"
+                if os.path.isfile(seeds_fluidd):
+                    os.makedirs(macros_dir, exist_ok=True)
+                    try:
+                        shutil.copy(seeds_fluidd, fluidd_dest)
+                    except Exception:
+                        pass
+
+        try:
+            with open(printer_cfg, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            changed = False
+            if target_web_ui == "fluidd":
+                if "[include macros/mainsail.cfg]" in content:
+                    content = content.replace("[include macros/mainsail.cfg]", "[include macros/fluidd.cfg]")
+                    changed = True
+            else:
+                if "[include macros/fluidd.cfg]" in content:
+                    content = content.replace("[include macros/fluidd.cfg]", "[include macros/mainsail.cfg]")
+                    changed = True
+
+            if changed:
+                with open(printer_cfg, "w", encoding="utf-8") as f:
+                    f.write(content)
+                target_macro = "macros/fluidd.cfg" if target_web_ui == "fluidd" else "macros/mainsail.cfg"
+                print(f"OK: Updated {printer_cfg} to include {target_macro}.")
+
+                # Notify Moonraker to reload Klipper configuration if running
+                try:
+                    moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
+                    req = urllib.request.Request(
+                        f"{moonraker_url}/printer/gcode/script?script=RESTART",
+                        method="POST",
+                        data=b""
+                    )
+                    urllib.request.urlopen(req, timeout=1.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"WARNING: Could not update macro include in {printer_cfg}: {e}", file=sys.stderr)
+
+
 def set_active_web(target: str, force: bool = False):
     target = target.lower()
     check_safety_safeguards(f"switch Web UI to '{target}'", force=force, check_thermal=False)
@@ -422,6 +490,9 @@ def set_active_web(target: str, force: bool = False):
         os.symlink(target_dir, WEB_ROOT_SYMLINK)
     except Exception as e:
         print(f"WARNING: Could not symlink {WEB_ROOT_SYMLINK} -> {target_dir}: {e}", file=sys.stderr)
+
+    # Sync Klipper client macros (mainsail.cfg <-> fluidd.cfg)
+    sync_web_ui_klipper_macros(target)
 
     # Reload nginx if running
     try:

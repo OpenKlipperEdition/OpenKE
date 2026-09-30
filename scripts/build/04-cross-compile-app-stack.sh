@@ -1243,7 +1243,7 @@ fi
 			END { if (pending != "") { print pending; exit 1 } }
 		' "$1"
 	}
-	for f in "$PRINTER_DATA_CONFIG_SRC/printer.cfg" "$PRINTER_DATA_CONFIG_SRC/moonraker.conf" "$PRINTER_DATA_CONFIG_SRC/macros/mainsail.cfg" "$PRINTER_DATA_CONFIG_SRC/hardware/nebula_pad.cfg"; do
+	for f in "$PRINTER_DATA_CONFIG_SRC/printer.cfg" "$PRINTER_DATA_CONFIG_SRC/moonraker.conf" "$PRINTER_DATA_CONFIG_SRC/macros/mainsail.cfg" "$PRINTER_DATA_CONFIG_SRC/macros/fluidd.cfg" "$PRINTER_DATA_CONFIG_SRC/hardware/nebula_pad.cfg"; do
 		[ -f "$f" ] || continue
 		if ! blank_required_option "$f" >/dev/null; then
 			echo "FATAL: $f has an option present but syntactically blank (not a multi-line list value) - refusing to ship a factory default that fails to parse" >&2

@@ -36,8 +36,14 @@ export OPENKE_STATE_DIR="$TEST_SANDBOX/state"
 export OPENKE_APPS_DIR="$TEST_SANDBOX/state/apps"
 export OPENKE_WEB_ROOT_LINK="$TEST_SANDBOX/web-root"
 export OPENKE_CATALOG_FILE="$MANIFEST"
+export OPENKE_PRINTER_DATA_CONFIG="$TEST_SANDBOX/printer_data_config"
 
-mkdir -p "$OPENKE_STATE_DIR" "$OPENKE_APPS_DIR"
+mkdir -p "$OPENKE_STATE_DIR" "$OPENKE_APPS_DIR" "$OPENKE_PRINTER_DATA_CONFIG/macros"
+cat << 'EOF' > "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"
+[include macros/mainsail.cfg]
+[printer]
+kinematics: cartesian
+EOF
 
 echo "=== Test 1: App Store Manifest Catalog Integrity ==="
 [ -f "$MANIFEST" ] || { fail "$MANIFEST missing"; exit 1; }
@@ -149,12 +155,24 @@ else
 	fail "active_web_ui not updated to fluidd"
 fi
 
+if grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "printer.cfg macro include dynamically switched to macros/fluidd.cfg"
+else
+	fail "printer.cfg macro include not switched to macros/fluidd.cfg"
+fi
+
 # Switch back to mainsail
 python3 "$OPENKE_APP" set-active-web mainsail
 if [ "$(readlink "$OPENKE_WEB_ROOT_LINK")" = "/usr/share/mainsail" ]; then
 	pass "set-active-web switches back to mainsail"
 else
 	fail "set-active-web mainsail switch back failed"
+fi
+
+if grep -q "\[include macros/mainsail.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg" && ! grep -q "\[include macros/fluidd.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "printer.cfg macro include dynamically restored to macros/mainsail.cfg"
+else
+	fail "printer.cfg macro include not restored to macros/mainsail.cfg"
 fi
 
 echo "=== Test 4: Touchscreen UI Switching & Safety Checks ==="
