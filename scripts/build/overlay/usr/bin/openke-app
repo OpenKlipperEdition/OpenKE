@@ -6,6 +6,7 @@ Touchscreen UIs, and Moonraker Plugins for OpenKE.
 """
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -41,6 +42,7 @@ DEFAULT_CATALOG_URLS = [
 
 STATE_DIR = os.environ.get("OPENKE_STATE_DIR", "/usr/data/openke")
 APPS_DIR = os.environ.get("OPENKE_APPS_DIR", os.path.join(STATE_DIR, "apps"))
+INSTALLED_DIR = os.path.join(STATE_DIR, "installed")
 WEB_ROOT_SYMLINK = os.environ.get("OPENKE_WEB_ROOT_LINK", "/var/run/openke-web-root")
 ACTIVE_WEB_FILE = os.path.join(STATE_DIR, "active_web_ui")
 ACTIVE_TOUCH_FILE = os.path.join(STATE_DIR, "active_touch_ui")
@@ -125,6 +127,52 @@ def is_app_installed(app: dict) -> bool:
     return False
 
 
+def get_installed_app_meta(app_id: str) -> dict:
+    meta_path = os.path.join(INSTALLED_DIR, f"{app_id}.json")
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_installed_app_meta(app: dict):
+    os.makedirs(INSTALLED_DIR, exist_ok=True)
+    meta_path = os.path.join(INSTALLED_DIR, f"{app['id']}.json")
+    try:
+        data = {
+            "id": app["id"],
+            "version": app.get("version", ""),
+            "installed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
+def remove_installed_app_meta(app_id: str):
+    meta_path = os.path.join(INSTALLED_DIR, f"{app_id}.json")
+    if os.path.isfile(meta_path):
+        try:
+            os.remove(meta_path)
+        except Exception:
+            pass
+
+
+def get_installed_version(app: dict) -> str:
+    if not is_app_installed(app):
+        return ""
+    if app.get("is_builtin", False):
+        return app.get("version", "")
+    meta = get_installed_app_meta(app["id"])
+    if meta.get("version"):
+        return meta.get("version")
+    return app.get("version", "")
+
+
 def check_safety_safeguards(action_desc: str, force: bool = False, check_thermal: bool = True):
     if force:
         return
@@ -197,6 +245,13 @@ def cmd_list(args):
 
         installed = is_app_installed(app)
         app_id = app.get("id", "")
+        installed_ver = get_installed_version(app) if installed else ""
+        catalog_ver = app.get("version", "")
+
+        has_update = False
+        if installed and not app.get("is_builtin", False) and installed_ver and catalog_ver:
+            if installed_ver != catalog_ver:
+                has_update = True
 
         is_active = False
         if cat == "web_ui" and app_id == active_web:
@@ -215,7 +270,9 @@ def cmd_list(args):
             "name": app.get("name", app_id),
             "category": cat,
             "icon": app.get("icon", ""),
-            "version": app.get("version", ""),
+            "version": catalog_ver,
+            "installed_version": installed_ver,
+            "has_update": has_update,
             "author": app.get("author", ""),
             "description": app.get("description", ""),
             "is_builtin": app.get("is_builtin", False),
@@ -230,11 +287,14 @@ def cmd_list(args):
         return
 
     # Formatted table output
-    print(f"{'ID':<15} {'NAME':<26} {'CATEGORY':<14} {'VERSION':<10} {'STATUS'}")
-    print("-" * 75)
+    print(f"{'ID':<15} {'NAME':<24} {'CATEGORY':<12} {'VERSION':<10} {'INSTALLED':<10} {'STATUS'}")
+    print("-" * 82)
     for item in results:
         badge = item["status"].upper()
-        print(f"{item['id']:<15} {item['name'][:25]:<26} {item['category']:<14} {item['version']:<10} {badge}")
+        if item.get("has_update"):
+            badge += " (UPDATE)"
+        inst_str = item.get("installed_version") or "-"
+        print(f"{item['id']:<15} {item['name'][:23]:<24} {item['category']:<12} {item['version']:<10} {inst_str:<10} {badge}")
 
 
 def cmd_install(args):
@@ -345,6 +405,7 @@ def cmd_install(args):
                         pass
 
         print(f"OK: Successfully installed {app_id} into {install_path}")
+        save_installed_app_meta(app)
 
         # Post-install component hooks
         if app_id == "fluidd":
@@ -569,6 +630,8 @@ def cmd_remove(args):
     else:
         print(f"App '{app_id}' was not installed.")
 
+    remove_installed_app_meta(app_id)
+
     # Post-remove component hooks
     if app_id == "fluidd":
         remove_fluidd_components(app)
@@ -753,6 +816,50 @@ def cmd_update(args):
         print("INFO: Keeping existing local catalog.", file=sys.stderr)
 
 
+def cmd_upgrade(args):
+    catalog = load_catalog()
+    apps = catalog.get("apps", [])
+
+    target_id = getattr(args, "app_id", None)
+    if getattr(args, "all", False) or target_id in (None, "all", ""):
+        upgraded_count = 0
+        for app in apps:
+            if is_app_installed(app) and not app.get("is_builtin", False):
+                inst_ver = get_installed_version(app)
+                cat_ver = app.get("version", "")
+                if inst_ver and cat_ver and inst_ver != cat_ver:
+                    print(f"\n== Upgrading {app.get('name', app['id'])} ({inst_ver} -> {cat_ver}) ==")
+                    args.app_id = app["id"]
+                    args.activate = False
+                    cmd_install(args)
+                    upgraded_count += 1
+        if upgraded_count == 0:
+            print("All installed apps are already up to date.")
+        else:
+            print(f"\nOK: Successfully upgraded {upgraded_count} app(s).")
+        return
+
+    app_id = target_id.lower()
+    app = next((a for a in apps if a.get("id") == app_id), None)
+    if not app:
+        print(f"FATAL: App '{app_id}' not found in catalog.", file=sys.stderr)
+        sys.exit(1)
+
+    if not is_app_installed(app):
+        print(f"App '{app_id}' is not currently installed. Installing latest version...")
+    else:
+        inst_ver = get_installed_version(app)
+        cat_ver = app.get("version", "")
+        if inst_ver == cat_ver:
+            print(f"App '{app_id}' is already at latest version ({cat_ver}). Reinstalling...")
+        else:
+            print(f"Upgrading '{app_id}' from v{inst_ver} to v{cat_ver}...")
+
+    args.app_id = app_id
+    args.activate = False
+    cmd_install(args)
+
+
 def cmd_set_active_web(args):
     set_active_web(args.app_id, force=getattr(args, "force", False))
 
@@ -768,11 +875,13 @@ def cmd_status(args):
     apps = catalog.get("apps", [])
 
     installed_count = sum(1 for a in apps if is_app_installed(a))
+    updates_count = sum(1 for a in apps if is_app_installed(a) and not a.get("is_builtin", False) and get_installed_version(a) and a.get("version") and get_installed_version(a) != a.get("version"))
 
     print("OpenKE App Store Status:")
     print(f"  Active Web UI:       {active_web}")
     print(f"  Active Touch UI:     {active_touch}")
     print(f"  Installed Apps:      {installed_count} / {len(apps)}")
+    print(f"  Updates Available:   {updates_count}")
     print(f"  Apps Directory:      {APPS_DIR}")
 
 
@@ -797,6 +906,13 @@ def main():
     p_inst.add_argument("--activate", action="store_true", help="Automatically activate the app after install")
     p_inst.add_argument("--force", action="store_true", help="Bypass print and thermal safety checks if activating")
     p_inst.set_defaults(func=cmd_install)
+
+    # upgrade
+    p_upg = subparsers.add_parser("upgrade", help="Upgrade installed app(s) to latest catalog version")
+    p_upg.add_argument("app_id", nargs="?", default="all", help="App ID to upgrade (or 'all')")
+    p_upg.add_argument("--all", action="store_true", help="Upgrade all installed apps")
+    p_upg.add_argument("--force", action="store_true", help="Bypass print and thermal safety checks")
+    p_upg.set_defaults(func=cmd_upgrade)
 
     # remove
     p_rm = subparsers.add_parser("remove", help="Uninstall and remove an app")

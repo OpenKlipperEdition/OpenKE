@@ -456,8 +456,81 @@ fi
 
 kill $MOCK_PID 2>/dev/null || true
 
+echo "=== Test 8: App Updates & Version Detection ==="
+# 1. Reinstall fluidd via mock catalog
+python3 "$OPENKE_APP" install fluidd
+
+# 2. Check installed version metadata
+if [ -f "$OPENKE_STATE_DIR/installed/fluidd.json" ] && grep -q '"version": "1.37.6"' "$OPENKE_STATE_DIR/installed/fluidd.json"; then
+	pass "openke-app install records installed version metadata"
+else
+	fail "installed version metadata missing or incorrect"
+fi
+
+# 3. Initially has_update should be false
+json_out=$(python3 "$OPENKE_APP" list --json)
+python3 -c "
+import json, sys
+data = json.loads('''$json_out''')
+fluidd = next(a for a in data if a['id'] == 'fluidd')
+assert fluidd['installed_version'] == '1.37.6', f'Unexpected installed_version: {fluidd}'
+assert fluidd['has_update'] is False, f'Expected has_update False, got: {fluidd}'
+" && pass "has_update is false when installed version matches catalog" || fail "has_update check failed"
+
+# 4. Simulate a newer catalog version available (1.38.0)
+mock_fluidd_zip_v2="$TEST_SANDBOX/fluidd-pkg-v2.zip"
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$mock_fluidd_zip_v2', 'w') as zf:
+    zf.writestr('index.html', '<h1>Fluidd v1.38.0 Package</h1>')
+"
+mock_fluidd_sha_v2=$(sha256sum "$mock_fluidd_zip_v2" | awk '{print $1}')
+
+python3 -c "
+import json
+with open('$mock_catalog') as f:
+    d = json.load(f)
+for app in d['apps']:
+    if app['id'] == 'fluidd':
+        app['version'] = '1.38.0'
+        app['download_url'] = 'file://$mock_fluidd_zip_v2'
+        app['sha256'] = '$mock_fluidd_sha_v2'
+with open('$mock_catalog', 'w') as f:
+    json.dump(d, f)
+"
+
+# 5. Check has_update becomes true
+json_out_v2=$(python3 "$OPENKE_APP" list --json)
+python3 -c "
+import json, sys
+data = json.loads('''$json_out_v2''')
+fluidd = next(a for a in data if a['id'] == 'fluidd')
+assert fluidd['installed_version'] == '1.37.6', f'Unexpected installed_version: {fluidd}'
+assert fluidd['version'] == '1.38.0', f'Unexpected catalog version: {fluidd}'
+assert fluidd['has_update'] is True, f'Expected has_update True, got: {fluidd}'
+" && pass "has_update is true when catalog version is newer than installed version" || fail "has_update detection failed"
+
+# 6. Run openke-app upgrade fluidd
+upgrade_out=$(python3 "$OPENKE_APP" upgrade fluidd)
+if echo "$upgrade_out" | grep -q "Upgrading 'fluidd' from v1.37.6 to v1.38.0" && grep -q '"version": "1.38.0"' "$OPENKE_STATE_DIR/installed/fluidd.json"; then
+	pass "openke-app upgrade successfully updated fluidd to v1.38.0"
+else
+	fail "openke-app upgrade failed: $upgrade_out"
+fi
+
+# 7. Check has_update is false again after upgrade
+json_out_v3=$(python3 "$OPENKE_APP" list --json)
+python3 -c "
+import json, sys
+data = json.loads('''$json_out_v3''')
+fluidd = next(a for a in data if a['id'] == 'fluidd')
+assert fluidd['installed_version'] == '1.38.0', f'Unexpected installed_version: {fluidd}'
+assert fluidd['has_update'] is False, f'Expected has_update False, got: {fluidd}'
+" && pass "has_update resets to false after successful upgrade" || fail "has_update reset check failed"
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
