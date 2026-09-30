@@ -166,6 +166,7 @@ def cmd_list(args):
             "id": app_id,
             "name": app.get("name", app_id),
             "category": cat,
+            "icon": app.get("icon", ""),
             "version": app.get("version", ""),
             "author": app.get("author", ""),
             "description": app.get("description", ""),
