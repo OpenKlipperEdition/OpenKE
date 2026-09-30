@@ -93,6 +93,30 @@ if [ -f "$MCU_CACHE_FINGERPRINT" ] && [ "$(cat "$MCU_CACHE_FINGERPRINT")" = "$MC
 	echo "== reusing printer MCU firmware from matching build cache =="
 fi
 
+build_mcu_target() {
+	_target_build_dir="$1"
+	_target_artifact_dir="$2"
+	_target_metadata_ver="$3"
+	_target_config_file="$4"
+
+	mkdir -p "$_target_artifact_dir"
+	cp "$_target_config_file" "$_target_build_dir/.config"
+	(
+		cd "$_target_build_dir"
+		python3 lib/kconfiglib/olddefconfig.py src/Kconfig >/dev/null
+		make clean >/dev/null
+		make >/dev/null
+		cp out/klipper.elf "$_target_artifact_dir/klipper.elf"
+		cp out/klipper.bin "$_target_artifact_dir/klipper.bin"
+		cp .config "$_target_artifact_dir/klipper.config"
+	)
+
+	if [ "$_target_metadata_ver" != "none" ] && [ "$_target_metadata_ver" != "raw" ] && [ -n "$_target_metadata_ver" ]; then
+		python3 "$MCU_REPO_DIR/tools/creality_packer.py" "$_target_artifact_dir/klipper.bin" "$_target_artifact_dir/klipper-creality.bin" \
+			--version "$_target_metadata_ver"
+	fi
+}
+
 if [ "$MCU_REBUILD" -eq 1 ]; then
 	rm -rf "$MCU_BUILD" "$GENERATED_ARTIFACTS"
 	mkdir -p "$GENERATED_ARTIFACTS/ke/pass1" "$GENERATED_ARTIFACTS/ke/pass2"
@@ -105,8 +129,8 @@ if [ "$MCU_REBUILD" -eq 1 ]; then
 	"$MCU_REPO_DIR/scripts/apply-patches.sh" "$MCU_BUILD"
 
 	echo "== building Ender-3 V3 KE printer MCU candidate twice =="
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass1" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/ke/pass2" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/ke/pass1" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/ke/pass2" "$MCU_METADATA_VERSION" "$MCU_REPO_DIR/configs/ender3-v3-ke.defconfig"
 	cmp -s "$GENERATED_ARTIFACTS/ke/pass1/klipper.bin" "$GENERATED_ARTIFACTS/ke/pass2/klipper.bin" || {
 		echo "FATAL: Ender-3 V3 KE printer MCU raw klipper.bin is not reproducible across two builds" >&2
 		exit 1
@@ -118,8 +142,8 @@ if [ "$MCU_REBUILD" -eq 1 ]; then
 	cp "$GENERATED_ARTIFACTS/ke/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper.config"
 
 	echo "== building Ender-3 V3 SE printer MCU candidate twice =="
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/se/pass1" "003" "$SE_CONFIG"
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/se/pass2" "003" "$SE_CONFIG"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/se/pass1" "003" "$SE_CONFIG"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/se/pass2" "003" "$SE_CONFIG"
 	cmp -s "$GENERATED_ARTIFACTS/se/pass1/klipper.bin" "$GENERATED_ARTIFACTS/se/pass2/klipper.bin" || {
 		echo "FATAL: Ender-3 V3 SE printer MCU raw klipper.bin is not reproducible across two builds" >&2
 		exit 1
@@ -131,8 +155,8 @@ if [ "$MCU_REBUILD" -eq 1 ]; then
 	cp "$GENERATED_ARTIFACTS/se/pass2/klipper.config" "$GENERATED_ARTIFACTS/klipper-v3-se.config"
 
 	echo "== building Ender-3 V2 Neo printer MCU candidate twice =="
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/neo/pass1" "none" "$NEO_CONFIG"
-	"$MCU_REPO_DIR/scripts/build.sh" "$MCU_BUILD" "$ARTIFACT_REL/neo/pass2" "none" "$NEO_CONFIG"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/neo/pass1" "none" "$NEO_CONFIG"
+	build_mcu_target "$MCU_BUILD" "$GENERATED_ARTIFACTS/neo/pass2" "none" "$NEO_CONFIG"
 	cmp -s "$GENERATED_ARTIFACTS/neo/pass1/klipper.bin" "$GENERATED_ARTIFACTS/neo/pass2/klipper.bin" || {
 		echo "FATAL: Ender-3 V2 Neo printer MCU raw klipper.bin is not reproducible across two builds" >&2
 		exit 1
