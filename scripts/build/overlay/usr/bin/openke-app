@@ -410,6 +410,8 @@ def cmd_install(args):
         # Post-install component hooks
         if app_id == "fluidd":
             install_fluidd_components(install_path, app)
+        elif app_id == "timelapse":
+            install_timelapse_components(install_path, app)
 
         # If set to auto-activate
         if getattr(args, "activate", False):
@@ -600,6 +602,249 @@ def remove_fluidd_components(app: dict = None):
                 print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
 
 
+def get_moonraker_components_dirs() -> list:
+    paths = [
+        "/usr/data/openke/apps/moonraker/moonraker/components",
+        "/opt/moonraker/moonraker/components",
+        os.environ.get("OPENKE_MOONRAKER_COMPONENTS_DIR", "")
+    ]
+    return [p for p in paths if p and os.path.isdir(p)]
+
+
+def get_seed_timelapse_cfg() -> str:
+    candidates = [
+        "/opt/openke-seeds/printer_data-config/macros/timelapse.cfg",
+        "/usr/data/openke-seeds/printer_data-config/macros/timelapse.cfg",
+        "/usr/data/printer_data/config/macros/timelapse.cfg",
+        "/opt/printer_data/config/macros/timelapse.cfg",
+        os.environ.get("OPENKE_SEED_TIMELAPSE_CFG", ""),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../opt/printer_data/config/macros/timelapse.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../opt/printer_data/config/macros/timelapse.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts/build/overlay/opt/printer_data/config/macros/timelapse.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../scripts/build/overlay/opt/printer_data/config/macros/timelapse.cfg")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../opt/printer_data/config/macros/timelapse.cfg")),
+    ]
+    env_cfg = os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    if env_cfg:
+        candidates.append(os.path.join(env_cfg, "macros", "timelapse.cfg"))
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def install_timelapse_components(install_path: str, app: dict = None):
+    """
+    Integrates moonraker-timelapse:
+    1. Symlinks/copies component/timelapse.py into Moonraker components directory.
+    2. Downloads/copies macros/timelapse.cfg into macros/.
+    3. Adds [timelapse] and [update_manager timelapse] into moonraker.conf.
+    4. Ensures [include macros/timelapse.cfg] is added to printer.cfg.
+    5. Ensures timelapse output directory exists.
+    """
+    # 1. Integrate component into Moonraker
+    src_comp = os.path.join(install_path, "component", "timelapse.py")
+    if not os.path.isfile(src_comp):
+        alt_comp = os.path.join(install_path, "timelapse.py")
+        if os.path.isfile(alt_comp):
+            src_comp = alt_comp
+
+    comp_dirs = get_moonraker_components_dirs()
+    for cdir in comp_dirs:
+        dest_comp = os.path.join(cdir, "timelapse.py")
+        try:
+            if os.path.exists(dest_comp) or os.path.islink(dest_comp):
+                os.remove(dest_comp)
+            if os.path.isfile(src_comp):
+                try:
+                    os.symlink(src_comp, dest_comp)
+                except OSError:
+                    shutil.copy2(src_comp, dest_comp)
+                print(f"OK: Linked Moonraker timelapse component into {dest_comp}")
+        except Exception as e:
+            print(f"WARNING: Failed linking {dest_comp}: {e}", file=sys.stderr)
+
+    cfg_dirs = get_config_dirs()
+    seed_tl = get_seed_timelapse_cfg()
+    config_url = app.get("config_url") if app else ""
+    target_rel = app.get("config_target", "macros/timelapse.cfg") if app else "macros/timelapse.cfg"
+
+    for cfg_dir in cfg_dirs:
+        # 2. Download/Install macros/timelapse.cfg
+        tl_dest = os.path.join(cfg_dir, target_rel)
+        if not os.path.isfile(tl_dest):
+            installed = False
+            if config_url:
+                print(f"Downloading {target_rel} from {config_url}...")
+                if download_file(config_url, tl_dest):
+                    installed = True
+                    print(f"OK: Downloaded and installed {tl_dest}")
+
+            if not installed and seed_tl and os.path.abspath(seed_tl) != os.path.abspath(tl_dest):
+                os.makedirs(os.path.dirname(tl_dest), exist_ok=True)
+                try:
+                    shutil.copy(seed_tl, tl_dest)
+                    print(f"OK: Installed {tl_dest} from local seed")
+                except Exception as e:
+                    print(f"WARNING: Failed to install {tl_dest}: {e}", file=sys.stderr)
+
+        # 3. Create output timelapse directories
+        tl_out = os.path.join(os.path.dirname(cfg_dir), "timelapse")
+        try:
+            os.makedirs(tl_out, exist_ok=True)
+        except Exception:
+            pass
+
+        # 4. Add [timelapse] and [update_manager timelapse] to moonraker.conf
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if os.path.isfile(moonraker_conf):
+            try:
+                with open(moonraker_conf, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                changed = False
+                if "[timelapse]" not in content:
+                    tl_section = (
+                        "[timelapse]\n"
+                        "output_path: /opt/printer_data/timelapse/\n"
+                        "frame_path: /tmp/timelapse/printer_data\n"
+                        "ffmpeg_binary_path: /usr/bin/ffmpeg\n\n"
+                    )
+                    content = tl_section + content
+                    changed = True
+
+                if "[update_manager timelapse]" not in content:
+                    upd_section = (
+                        "[update_manager timelapse]\n"
+                        "type: git_repo\n"
+                        "primary_branch: main\n"
+                        f"path: {install_path}\n"
+                        "origin: https://github.com/mainsail-crew/moonraker-timelapse.git\n\n"
+                    )
+                    if "[authorization]" in content:
+                        content = content.replace("[authorization]", upd_section + "[authorization]")
+                    else:
+                        content = content.rstrip() + "\n\n" + upd_section
+                    changed = True
+
+                if changed:
+                    with open(moonraker_conf, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    print(f"OK: Added [timelapse] & [update_manager timelapse] to {moonraker_conf}")
+                    notify_moonraker_restart()
+            except Exception as e:
+                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
+
+        # 5. Add [include macros/timelapse.cfg] to printer.cfg
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        if os.path.isfile(printer_cfg):
+            try:
+                with open(printer_cfg, "r", encoding="utf-8") as f:
+                    pcontent = f.read()
+
+                if f"[include {target_rel}]" not in pcontent:
+                    if "[include macros/apps.cfg]" in pcontent:
+                        pcontent = pcontent.replace("[include macros/apps.cfg]", f"[include {target_rel}]\n[include macros/apps.cfg]")
+                    elif "[include macros/profiles.cfg]" in pcontent:
+                        pcontent = pcontent.replace("[include macros/profiles.cfg]", f"[include macros/profiles.cfg]\n[include {target_rel}]")
+                    else:
+                        pcontent = pcontent.rstrip() + f"\n\n[include {target_rel}]\n"
+
+                    with open(printer_cfg, "w", encoding="utf-8") as f:
+                        f.write(pcontent)
+                    print(f"OK: Added [include {target_rel}] to {printer_cfg}")
+            except Exception as e:
+                print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
+
+
+def remove_timelapse_components(app: dict = None):
+    """
+    Unregisters moonraker-timelapse:
+    1. Removes Moonraker components/timelapse.py link/file.
+    2. Removes [timelapse] and [update_manager timelapse] from moonraker.conf.
+    3. Removes [include macros/timelapse.cfg] from printer.cfg.
+    4. Removes macros/timelapse.cfg.
+    """
+    # 1. Remove Moonraker component
+    comp_dirs = get_moonraker_components_dirs()
+    for cdir in comp_dirs:
+        dest_comp = os.path.join(cdir, "timelapse.py")
+        if os.path.exists(dest_comp) or os.path.islink(dest_comp):
+            try:
+                os.remove(dest_comp)
+                print(f"OK: Removed {dest_comp}")
+            except Exception as e:
+                print(f"WARNING: Failed removing {dest_comp}: {e}", file=sys.stderr)
+
+    cfg_dirs = get_config_dirs()
+    target_rel = app.get("config_target", "macros/timelapse.cfg") if app else "macros/timelapse.cfg"
+
+    for cfg_dir in cfg_dirs:
+        # 2. Remove macros/timelapse.cfg
+        tl_macro = os.path.join(cfg_dir, target_rel)
+        if os.path.isfile(tl_macro):
+            try:
+                os.remove(tl_macro)
+                print(f"OK: Removed {tl_macro}")
+            except Exception as e:
+                print(f"WARNING: Failed to remove {tl_macro}: {e}", file=sys.stderr)
+
+        # 3. Remove [timelapse] and [update_manager timelapse] from moonraker.conf
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if os.path.isfile(moonraker_conf):
+            try:
+                with open(moonraker_conf, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                new_lines = []
+                in_tl_section = False
+                in_upd_section = False
+                changed = False
+
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped == "[timelapse]":
+                        in_tl_section = True
+                        changed = True
+                        continue
+                    elif stripped == "[update_manager timelapse]":
+                        in_upd_section = True
+                        changed = True
+                        continue
+                    elif stripped.startswith("[") and stripped.endswith("]"):
+                        in_tl_section = False
+                        in_upd_section = False
+
+                    if not in_tl_section and not in_upd_section:
+                        new_lines.append(line)
+
+                if changed:
+                    cleaned = "".join(new_lines)
+                    while "\n\n\n" in cleaned:
+                        cleaned = cleaned.replace("\n\n\n", "\n\n")
+                    with open(moonraker_conf, "w", encoding="utf-8") as f:
+                        f.write(cleaned)
+                    print(f"OK: Removed [timelapse] and [update_manager timelapse] from {moonraker_conf}")
+                    notify_moonraker_restart()
+            except Exception as e:
+                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
+
+        # 4. Remove [include macros/timelapse.cfg] from printer.cfg
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        if os.path.isfile(printer_cfg):
+            try:
+                with open(printer_cfg, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                new_lines = [l for l in lines if f"[include {target_rel}]" not in l]
+                if len(new_lines) != len(lines):
+                    with open(printer_cfg, "w", encoding="utf-8") as f:
+                        f.writelines(new_lines)
+                    print(f"OK: Removed [include {target_rel}] from {printer_cfg}")
+            except Exception as e:
+                print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
+
+
 def cmd_remove(args):
     app_id = args.app_id.lower()
     catalog = load_catalog()
@@ -635,6 +880,8 @@ def cmd_remove(args):
     # Post-remove component hooks
     if app_id == "fluidd":
         remove_fluidd_components(app)
+    elif app_id == "timelapse":
+        remove_timelapse_components(app)
 
 
 def sync_web_ui_klipper_macros(target_web_ui: str):

@@ -76,9 +76,9 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 assert "apps" in data, "manifest missing apps list"
-assert len(data["apps"]) == 4, f"expected exactly 4 apps, got {len(data['apps'])}"
+assert len(data["apps"]) == 5, f"expected exactly 5 apps, got {len(data['apps'])}"
 categories = {a["category"] for a in data["apps"]}
-assert {"web_ui", "touch_ui"}.issubset(categories), f"missing core categories in {categories}"
+assert {"web_ui", "touch_ui", "plugin"}.issubset(categories), f"missing core categories in {categories}"
 
 ids = [a["id"] for a in data["apps"]]
 assert len(ids) == len(set(ids)), "duplicate app ids in manifest"
@@ -86,6 +86,7 @@ assert "mainsail" in ids, "mainsail missing from catalog"
 assert "fluidd" in ids, "fluidd missing from catalog"
 assert "guppyscreen" in ids, "guppyscreen missing from catalog"
 assert "helixscreen" in ids, "helixscreen missing from catalog"
+assert "timelapse" in ids, "timelapse missing from catalog"
 ' "$MANIFEST" && pass "apps.json manifest schema and required applications validated" || fail "apps.json validation failed"
 
 echo "=== Test 2: CLI Syntax & Output Modes ==="
@@ -568,10 +569,105 @@ if [ "$all_profiles_included" -eq 1 ]; then
 	pass "all printer profile configurations include macros/apps.cfg"
 fi
 
+echo "=== Test 10: Timelapse Plugin Integration & Macro Lifecycle ==="
+MOCK_MOONRAKER_COMPS="$TEST_SANDBOX/moonraker/components"
+mkdir -p "$MOCK_MOONRAKER_COMPS"
+export OPENKE_MOONRAKER_COMPONENTS_DIR="$MOCK_MOONRAKER_COMPS"
+
+mock_timelapse_zip="$TEST_SANDBOX/timelapse-pkg.zip"
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$mock_timelapse_zip', 'w') as zf:
+    zf.writestr('component/timelapse.py', '# Mock Timelapse Component\n')
+    zf.writestr('klipper_macro/timelapse.cfg', '[gcode_macro TIMELAPSE_TAKE_FRAME]\ngcode:\n  G4 P100\n')
+"
+mock_timelapse_sha=$(sha256sum "$mock_timelapse_zip" | awk '{print $1}')
+
+mock_timelapse_cfg="$TEST_SANDBOX/mock-timelapse.cfg"
+echo "[gcode_macro TIMELAPSE_TAKE_FRAME]" > "$mock_timelapse_cfg"
+
+python3 -c "
+import json
+with open('$mock_catalog') as f:
+    d = json.load(f)
+tl_app = {
+    'id': 'timelapse',
+    'name': 'Moonraker Timelapse',
+    'category': 'plugin',
+    'author': 'mainsail-crew',
+    'version': '0.0.12',
+    'type': 'plugin',
+    'is_builtin': False,
+    'download_url': 'file://$mock_timelapse_zip',
+    'sha256': '$mock_timelapse_sha',
+    'config_url': 'file://$mock_timelapse_cfg',
+    'config_target': 'macros/timelapse.cfg',
+    'install_path': '$OPENKE_APPS_DIR/timelapse'
+}
+d['apps'] = [a for a in d['apps'] if a['id'] != 'timelapse'] + [tl_app]
+with open('$mock_catalog', 'w') as f:
+    json.dump(d, f)
+"
+
+# 1. Install timelapse
+python3 "$OPENKE_APP" install timelapse
+
+if [ -f "$MOCK_MOONRAKER_COMPS/timelapse.py" ] || [ -L "$MOCK_MOONRAKER_COMPS/timelapse.py" ]; then
+	pass "openke-app install timelapse linked component/timelapse.py into Moonraker components"
+else
+	fail "openke-app install timelapse failed to link Moonraker component"
+fi
+
+if [ -f "$OPENKE_PRINTER_DATA_CONFIG/macros/timelapse.cfg" ]; then
+	pass "openke-app install timelapse installed macros/timelapse.cfg"
+else
+	fail "openke-app install timelapse failed to install macros/timelapse.cfg"
+fi
+
+if grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app install timelapse added [timelapse] and [update_manager timelapse] to moonraker.conf"
+else
+	fail "openke-app install timelapse failed to update moonraker.conf"
+fi
+
+if grep -q "\[include macros/timelapse.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "openke-app install timelapse added [include macros/timelapse.cfg] to printer.cfg"
+else
+	fail "openke-app install timelapse failed to update printer.cfg"
+fi
+
+# 2. Remove timelapse
+python3 "$OPENKE_APP" remove timelapse
+
+if [ ! -e "$MOCK_MOONRAKER_COMPS/timelapse.py" ]; then
+	pass "openke-app remove timelapse removed Moonraker component link"
+else
+	fail "openke-app remove timelapse failed to remove Moonraker component"
+fi
+
+if [ ! -f "$OPENKE_PRINTER_DATA_CONFIG/macros/timelapse.cfg" ]; then
+	pass "openke-app remove timelapse removed macros/timelapse.cfg"
+else
+	fail "openke-app remove timelapse failed to remove macros/timelapse.cfg"
+fi
+
+if ! grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && ! grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app remove timelapse cleaned [timelapse] and [update_manager timelapse] from moonraker.conf"
+else
+	fail "openke-app remove timelapse failed to clean moonraker.conf"
+fi
+
+if ! grep -q "\[include macros/timelapse.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
+	pass "openke-app remove timelapse removed [include macros/timelapse.cfg] from printer.cfg"
+else
+	fail "openke-app remove timelapse failed to clean printer.cfg"
+fi
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
 
 

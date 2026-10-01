@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T00:04:23Z",
+  "updated_at": "2026-10-01T00:17:33Z",
   "categories": [
     {
       "id": "web_ui",
@@ -29,6 +29,25 @@
     }
   ],
   "apps": [
+    {
+      "id": "timelapse",
+      "name": "Moonraker Timelapse",
+      "category": "plugin",
+      "icon": "timelapse",
+      "description": "Capture automated frame timelapses and renders during 3D prints using FFmpeg and Moonraker.",
+      "author": "mainsail-crew",
+      "version": "0.0.12",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/timelapse-v0.0.12.zip",
+      "sha256": "7b65e5e6aa4f1aaff426633d86389871c5722ac5c80ec05587887cae4d3a9374",
+      "install_path": "/usr/data/openke/apps/timelapse",
+      "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/timelapse.cfg",
+      "config_target": "macros/timelapse.cfg",
+      "probe_path": "/usr/data/openke/apps/timelapse/component/timelapse.py",
+      "website": "https://github.com/mainsail-crew/moonraker-timelapse",
+      "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
+    },
     {
       "id": "guppyscreen",
       "name": "GuppyScreen Touch UI",
