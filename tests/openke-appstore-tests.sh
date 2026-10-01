@@ -631,10 +631,10 @@ else
 	fail "openke-app install timelapse failed to install macros/timelapse.cfg"
 fi
 
-if grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "is_system_service: False" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
-	pass "openke-app install timelapse added [timelapse] and [update_manager timelapse] with is_system_service: False"
+if grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app install timelapse added [timelapse] to moonraker.conf"
 else
-	fail "openke-app install timelapse failed to update moonraker.conf with is_system_service: False"
+	fail "openke-app install timelapse failed to update moonraker.conf"
 fi
 
 if grep -q "\[include macros/timelapse.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then
@@ -658,8 +658,8 @@ else
 	fail "openke-app remove timelapse failed to remove macros/timelapse.cfg"
 fi
 
-if ! grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && ! grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
-	pass "openke-app remove timelapse cleaned [timelapse] and [update_manager timelapse] from moonraker.conf"
+if ! grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app remove timelapse cleaned [timelapse] from moonraker.conf"
 else
 	fail "openke-app remove timelapse failed to clean moonraker.conf"
 fi
@@ -710,12 +710,6 @@ if [ -f "$OPENKE_PRINTER_DATA_CONFIG/mobileraker.conf" ]; then
 	pass "openke-app install mobileraker installed mobileraker.conf"
 else
 	fail "openke-app install mobileraker failed to install mobileraker.conf"
-fi
-
-if grep -q "\[update_manager mobileraker\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "is_system_service: False" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
-	pass "openke-app install mobileraker added [update_manager mobileraker] with is_system_service: False"
-else
-	fail "openke-app install mobileraker failed to update moonraker.conf with is_system_service: False"
 fi
 
 # Dynamic service assertions

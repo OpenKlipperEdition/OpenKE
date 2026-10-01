@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T02:51:09Z",
+  "updated_at": "2026-10-01T02:58:53Z",
   "categories": [
     {
       "id": "web_ui",
@@ -50,12 +50,6 @@
         "priority": 60,
         "oom_score_adj": -500
       },
-      "moonraker_update_manager": {
-        "type": "git_repo",
-        "primary_branch": "main",
-        "origin": "https://github.com/Clon1998/mobileraker_companion.git",
-        "is_system_service": "False"
-      },
       "probe_path": "/usr/data/openke/apps/mobileraker/mobileraker.py",
       "website": "https://github.com/Clon1998/mobileraker",
       "source_url": "https://github.com/Clon1998/mobileraker_companion"
@@ -81,12 +75,6 @@
         "timelapse"
       ],
       "moonraker_config": "[timelapse]\noutput_path: /opt/printer_data/timelapse/\nframe_path: /tmp/timelapse/printer_data\nffmpeg_binary_path: /usr/bin/ffmpeg",
-      "moonraker_update_manager": {
-        "type": "git_repo",
-        "primary_branch": "main",
-        "origin": "https://github.com/mainsail-crew/moonraker-timelapse.git",
-        "is_system_service": "False"
-      },
       "probe_path": "/usr/data/openke/apps/timelapse/component/timelapse.py",
       "website": "https://github.com/mainsail-crew/moonraker-timelapse",
       "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
