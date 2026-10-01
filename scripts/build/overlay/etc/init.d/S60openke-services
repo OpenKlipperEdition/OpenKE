@@ -1,0 +1,74 @@
+#!/bin/sh
+#
+# /etc/init.d/S60openke-services
+#
+# Dynamic service dispatcher for installed OpenKE AppStore apps.
+# Executes persistent service scripts located in /usr/data/openke/services.d/
+#
+
+SERVICES_DIR="/usr/data/openke/services.d"
+
+start() {
+	[ -d "$SERVICES_DIR" ] || return 0
+	for svc in "$SERVICES_DIR"/S* "$SERVICES_DIR"/*; do
+		[ -f "$svc" ] && [ -x "$svc" ] || continue
+		svc_name=$(basename "$svc")
+		# Avoid running duplicate if glob matched both S* and *
+		case "$svc_name" in
+			S*) ;;
+			*)
+				# If S-prefixed version exists, skip plain
+				[ -f "$SERVICES_DIR/S60$svc_name" ] && continue
+				;;
+		esac
+		echo "Starting OpenKE app service: $svc_name"
+		"$svc" start
+	done
+}
+
+stop() {
+	[ -d "$SERVICES_DIR" ] || return 0
+	# Reverse order for clean shutdown
+	for svc in $(ls -r "$SERVICES_DIR"/S* "$SERVICES_DIR"/* 2>/dev/null); do
+		[ -f "$svc" ] && [ -x "$svc" ] || continue
+		svc_name=$(basename "$svc")
+		echo "Stopping OpenKE app service: $svc_name"
+		"$svc" stop
+	done
+}
+
+status() {
+	[ -d "$SERVICES_DIR" ] || { echo "No dynamic services directory found."; return 0; }
+	found=0
+	for svc in "$SERVICES_DIR"/S* "$SERVICES_DIR"/*; do
+		[ -f "$svc" ] && [ -x "$svc" ] || continue
+		found=1
+		svc_name=$(basename "$svc")
+		echo -n "Service $svc_name: "
+		"$svc" status || true
+	done
+	[ "$found" -eq 0 ] && echo "No dynamic services configured."
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart|reload)
+		stop
+		sleep 1
+		start
+		;;
+	status)
+		status
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|status}"
+		exit 1
+		;;
+esac
+
+exit 0

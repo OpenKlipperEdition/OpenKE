@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T01:54:28Z",
+  "updated_at": "2026-10-01T01:58:22Z",
   "categories": [
     {
       "id": "web_ui",
@@ -45,7 +45,11 @@
       "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/mobileraker.conf",
       "config_target": "mobileraker.conf",
       "klipper_include": false,
-      "service_init": "/etc/init.d/S60mobileraker",
+      "service": {
+        "exec": "python3 /usr/data/openke/apps/mobileraker/mobileraker.py -c /opt/printer_data/config/mobileraker.conf -l /opt/printer_data/logs/mobileraker.log",
+        "priority": 60,
+        "oom_score_adj": -500
+      },
       "moonraker_update_manager": {
         "type": "git_repo",
         "primary_branch": "main",

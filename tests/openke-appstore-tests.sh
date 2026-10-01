@@ -34,10 +34,11 @@ trap 'rm -rf "$TEST_SANDBOX"' EXIT
 
 export OPENKE_STATE_DIR="$TEST_SANDBOX/state"
 export OPENKE_APPS_DIR="$TEST_SANDBOX/state/apps"
+export OPENKE_SERVICES_DIR="$TEST_SANDBOX/state/services.d"
 export OPENKE_WEB_ROOT_LINK="$TEST_SANDBOX/web-root"
 export OPENKE_CATALOG_FILE="$MANIFEST"
 export OPENKE_PRINTER_DATA_CONFIG="$TEST_SANDBOX/printer_data_config"
-mkdir -p "$OPENKE_STATE_DIR" "$OPENKE_APPS_DIR" "$OPENKE_PRINTER_DATA_CONFIG/macros"
+mkdir -p "$OPENKE_STATE_DIR" "$OPENKE_APPS_DIR" "$OPENKE_SERVICES_DIR" "$OPENKE_PRINTER_DATA_CONFIG/macros"
 cat << 'EOF' > "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"
 [include macros/mainsail.cfg]
 [printer]
@@ -356,6 +357,20 @@ if grep -q "get_touch_binary" "$S58" && grep -q "active_touch_ui" "$S58"; then
 	pass "S58guppyscreen supports dynamic touchscreen UI selection with fallback"
 else
 	fail "S58guppyscreen missing dynamic touch UI selection"
+fi
+
+# S60openke-services assertions
+S60_SERVICES="$OVERLAY/etc/init.d/S60openke-services"
+if [ -x "$S60_SERVICES" ] && grep -q "SERVICES_DIR" "$S60_SERVICES"; then
+	pass "S60openke-services dynamic service dispatcher present and executable in overlay"
+else
+	fail "S60openke-services missing or not executable"
+fi
+
+if [ ! -e "$OVERLAY/etc/init.d/S60mobileraker" ]; then
+	pass "S60mobileraker static script cleanly removed from firmware overlay"
+else
+	fail "S60mobileraker should not exist in firmware overlay"
 fi
 
 echo "=== Test 7: Printing & Thermal Safeguards Verification ==="
@@ -703,6 +718,28 @@ else
 	fail "openke-app install mobileraker failed to update moonraker.conf with is_system_service: False"
 fi
 
+# Dynamic service assertions
+if [ -x "$OPENKE_SERVICES_DIR/S60mobileraker" ] && grep -q "EXEC_CMD=" "$OPENKE_SERVICES_DIR/S60mobileraker"; then
+	pass "openke-app install mobileraker generated executable dynamic service runner S60mobileraker"
+else
+	fail "openke-app install mobileraker failed to generate dynamic service script"
+fi
+
+# openke-app service commands
+svc_list_out=$(python3 "$OPENKE_APP" service list)
+if echo "$svc_list_out" | grep -q "S60mobileraker"; then
+	pass "openke-app service list displays dynamic services"
+else
+	fail "openke-app service list failed: $svc_list_out"
+fi
+
+svc_stat_out=$(python3 "$OPENKE_APP" service status mobileraker || true)
+if echo "$svc_stat_out" | grep -q "mobileraker"; then
+	pass "openke-app service status mobileraker queried dynamic service"
+else
+	fail "openke-app service status failed: $svc_stat_out"
+fi
+
 # 2. Remove mobileraker
 python3 "$OPENKE_APP" remove mobileraker
 
@@ -722,6 +759,12 @@ if ! grep -q "\[update_manager mobileraker\]" "$OPENKE_PRINTER_DATA_CONFIG/moonr
 	pass "openke-app remove mobileraker cleaned [update_manager mobileraker] from moonraker.conf"
 else
 	fail "openke-app remove mobileraker failed to clean moonraker.conf"
+fi
+
+if [ ! -e "$OPENKE_SERVICES_DIR/S60mobileraker" ]; then
+	pass "openke-app remove mobileraker deleted dynamic service runner from services.d"
+else
+	fail "openke-app remove mobileraker left dynamic service script behind in services.d"
 fi
 
 echo ""
