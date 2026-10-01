@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T02:58:53Z",
+  "updated_at": "2026-10-01T22:35:15Z",
   "categories": [
     {
       "id": "web_ui",
@@ -53,6 +53,32 @@
       "probe_path": "/usr/data/openke/apps/mobileraker/mobileraker.py",
       "website": "https://github.com/Clon1998/mobileraker",
       "source_url": "https://github.com/Clon1998/mobileraker_companion"
+    },
+    {
+      "id": "spoolman",
+      "name": "Spoolman",
+      "category": "plugin",
+      "icon": "spoolman",
+      "description": "Filament spool management service with native Moonraker, Mainsail, and Fluidd integration. Tracks weights, usage, and material parameters.",
+      "author": "Donkie",
+      "version": "0.18.0",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/spoolman-v0.18.0.zip",
+      "sha256": "ad4ab8eadcd983b89815633eb10bf402f01973f6ae0396b49dda863ac933ac03",
+      "install_path": "/usr/data/openke/apps/spoolman",
+      "output_dirs": [
+        "spoolman"
+      ],
+      "moonraker_config": "[spoolman]\nserver: http://127.0.0.1:7912\nsync_rate: 5",
+      "service": {
+        "exec": "python3 /usr/data/openke/apps/spoolman/server.py",
+        "priority": 60,
+        "oom_score_adj": -300
+      },
+      "probe_path": "/usr/data/openke/apps/spoolman/server.py",
+      "website": "https://github.com/Donkie/Spoolman",
+      "source_url": "https://github.com/Donkie/Spoolman"
     },
     {
       "id": "timelapse",
