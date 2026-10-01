@@ -76,7 +76,7 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 assert "apps" in data, "manifest missing apps list"
-assert len(data["apps"]) == 5, f"expected exactly 5 apps, got {len(data['apps'])}"
+assert len(data["apps"]) == 6, f"expected exactly 6 apps, got {len(data['apps'])}"
 categories = {a["category"] for a in data["apps"]}
 assert {"web_ui", "touch_ui", "plugin"}.issubset(categories), f"missing core categories in {categories}"
 
@@ -87,6 +87,7 @@ assert "fluidd" in ids, "fluidd missing from catalog"
 assert "guppyscreen" in ids, "guppyscreen missing from catalog"
 assert "helixscreen" in ids, "helixscreen missing from catalog"
 assert "timelapse" in ids, "timelapse missing from catalog"
+assert "mobileraker" in ids, "mobileraker missing from catalog"
 ' "$MANIFEST" && pass "apps.json manifest schema and required applications validated" || fail "apps.json validation failed"
 
 echo "=== Test 2: CLI Syntax & Output Modes ==="
@@ -654,11 +655,81 @@ else
 	fail "openke-app remove timelapse failed to clean printer.cfg"
 fi
 
+echo "=== Test 11: Mobileraker Companion Plugin Integration & Config Lifecycle ==="
+mock_mobileraker_zip="$TEST_SANDBOX/mobileraker-pkg.zip"
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$mock_mobileraker_zip', 'w') as zf:
+    zf.writestr('mobileraker.py', '#!/usr/bin/env python3\n# Mock Mobileraker\n')
+"
+mock_mobileraker_sha=$(sha256sum "$mock_mobileraker_zip" | awk '{print $1}')
+
+mock_mobileraker_conf="$TEST_SANDBOX/mock-mobileraker.conf"
+echo "[printer OpenKE]" > "$mock_mobileraker_conf"
+echo "moonraker_uri: ws://127.0.0.1:7125/websocket" >> "$mock_mobileraker_conf"
+
+python3 -c "
+import json
+with open('$mock_catalog') as f:
+    d = json.load(f)
+for app in d['apps']:
+    if app['id'] == 'mobileraker':
+        app['download_url'] = 'file://$mock_mobileraker_zip'
+        app['sha256'] = '$mock_mobileraker_sha'
+        app['config_url'] = 'file://$mock_mobileraker_conf'
+        app['config_target'] = 'mobileraker.conf'
+with open('$mock_catalog', 'w') as f:
+    json.dump(d, f)
+"
+
+# 1. Install mobileraker
+python3 "$OPENKE_APP" install mobileraker
+
+if [ -f "$OPENKE_APPS_DIR/mobileraker/mobileraker.py" ]; then
+	pass "openke-app install mobileraker unpacked mobileraker.py"
+else
+	fail "openke-app install mobileraker failed to unpack mobileraker.py"
+fi
+
+if [ -f "$OPENKE_PRINTER_DATA_CONFIG/mobileraker.conf" ]; then
+	pass "openke-app install mobileraker installed mobileraker.conf"
+else
+	fail "openke-app install mobileraker failed to install mobileraker.conf"
+fi
+
+if grep -q "\[update_manager mobileraker\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "is_system_service: False" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app install mobileraker added [update_manager mobileraker] with is_system_service: False"
+else
+	fail "openke-app install mobileraker failed to update moonraker.conf with is_system_service: False"
+fi
+
+# 2. Remove mobileraker
+python3 "$OPENKE_APP" remove mobileraker
+
+if [ ! -d "$OPENKE_APPS_DIR/mobileraker" ]; then
+	pass "openke-app remove mobileraker removed application directory"
+else
+	fail "openke-app remove mobileraker failed to remove application directory"
+fi
+
+if [ ! -f "$OPENKE_PRINTER_DATA_CONFIG/mobileraker.conf" ]; then
+	pass "openke-app remove mobileraker removed mobileraker.conf"
+else
+	fail "openke-app remove mobileraker failed to remove mobileraker.conf"
+fi
+
+if ! grep -q "\[update_manager mobileraker\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app remove mobileraker cleaned [update_manager mobileraker] from moonraker.conf"
+else
+	fail "openke-app remove mobileraker failed to clean moonraker.conf"
+fi
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
 
 
 

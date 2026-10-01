@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# OpenKE Mobileraker Companion Service
+# Starts Mobileraker push notification companion for Moonraker/Klipper.
+#
+
+APP_DIR=/usr/data/openke/apps/mobileraker
+SCRIPT=$APP_DIR/mobileraker.py
+CONFIG_FILE=/usr/data/printer_data/config/mobileraker.conf
+LOG_FILE=/usr/data/printer_data/logs/mobileraker.log
+PIDFILE=/var/run/mobileraker.pid
+
+# Fallback paths
+[ -d "$APP_DIR" ] || APP_DIR=/opt/openke/apps/mobileraker
+[ -f "$SCRIPT" ] || SCRIPT=$APP_DIR/mobileraker.py
+[ -f "$CONFIG_FILE" ] || CONFIG_FILE=/opt/printer_data/config/mobileraker.conf
+[ -d "/usr/data/printer_data/logs" ] || LOG_FILE=/opt/printer_data/logs/mobileraker.log
+
+start() {
+	if [ ! -f "$SCRIPT" ]; then
+		# Mobileraker companion not installed
+		exit 0
+	fi
+
+	echo "Starting Mobileraker Companion..."
+	mkdir -p "$(dirname "$LOG_FILE")"
+	start-stop-daemon -S -b -m -p "$PIDFILE" \
+		-x /usr/bin/python3 -- "$SCRIPT" -c "$CONFIG_FILE" -l "$LOG_FILE"
+	[ -f "$PIDFILE" ] && echo 300 > "/proc/$(cat "$PIDFILE")/oom_score_adj" 2>/dev/null || true
+}
+
+stop() {
+	echo "Stopping Mobileraker Companion..."
+	start-stop-daemon -K -q -p "$PIDFILE" || true
+	rm -f "$PIDFILE"
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		sleep 1
+		start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac
+
+exit 0

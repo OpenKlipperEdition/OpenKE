@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T00:53:29Z",
+  "updated_at": "2026-10-01T01:54:28Z",
   "categories": [
     {
       "id": "web_ui",
@@ -29,6 +29,33 @@
     }
   ],
   "apps": [
+    {
+      "id": "mobileraker",
+      "name": "Mobileraker Companion",
+      "category": "plugin",
+      "icon": "mobileraker",
+      "description": "Companion service for Mobileraker mobile app (iOS & Android) enabling real-time push notifications for print status, progress, M117, and errors.",
+      "author": "Patrick Schmidt (Clon1998)",
+      "version": "0.5.0",
+      "type": "plugin",
+      "is_builtin": false,
+      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/mobileraker-v0.5.0.zip",
+      "sha256": "ca8107ac8a5e374b1e09d4394c30d4868b81888779d81e0828720c8083feb039",
+      "install_path": "/usr/data/openke/apps/mobileraker",
+      "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/mobileraker.conf",
+      "config_target": "mobileraker.conf",
+      "klipper_include": false,
+      "service_init": "/etc/init.d/S60mobileraker",
+      "moonraker_update_manager": {
+        "type": "git_repo",
+        "primary_branch": "main",
+        "origin": "https://github.com/Clon1998/mobileraker_companion.git",
+        "is_system_service": "False"
+      },
+      "probe_path": "/usr/data/openke/apps/mobileraker/mobileraker.py",
+      "website": "https://github.com/Clon1998/mobileraker",
+      "source_url": "https://github.com/Clon1998/mobileraker_companion"
+    },
     {
       "id": "timelapse",
       "name": "Moonraker Timelapse",

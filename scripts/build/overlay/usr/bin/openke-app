@@ -316,20 +316,17 @@ def notify_moonraker_restart():
 def install_app_moonraker_components(install_path: str, app: dict):
     """
     Links or copies component python files declared in app['moonraker_component']
-    (or automatically detected for plugins) into Moonraker's components directories.
+    into Moonraker's components directories.
     """
     comp_defs = app.get("moonraker_component")
+    if not comp_defs:
+        return
+
     comp_files = []
-    if isinstance(comp_defs, str) and comp_defs:
+    if isinstance(comp_defs, str):
         comp_files.append(comp_defs)
     elif isinstance(comp_defs, list):
         comp_files.extend(comp_defs)
-    elif app.get("category") == "plugin":
-        app_id = app.get("id", "")
-        if os.path.isfile(os.path.join(install_path, "component", f"{app_id}.py")):
-            comp_files.append(f"component/{app_id}.py")
-        elif os.path.isfile(os.path.join(install_path, f"{app_id}.py")):
-            comp_files.append(f"{app_id}.py")
 
     if not comp_files:
         return
@@ -362,14 +359,14 @@ def install_app_moonraker_components(install_path: str, app: dict):
 
 def remove_app_moonraker_components(install_path: str, app: dict):
     comp_defs = app.get("moonraker_component")
+    if not comp_defs:
+        return
+
     comp_files = []
-    if isinstance(comp_defs, str) and comp_defs:
+    if isinstance(comp_defs, str):
         comp_files.append(comp_defs)
     elif isinstance(comp_defs, list):
         comp_files.extend(comp_defs)
-    else:
-        app_id = app.get("id", "")
-        comp_files.append(f"{app_id}.py")
 
     comp_dirs = get_moonraker_components_dirs()
     for rel_comp in comp_files:
@@ -593,21 +590,14 @@ def remove_app_moonraker_conf(app: dict, notify: bool = True):
 
 def install_app_printer_cfg(install_path: str, app: dict):
     """
-    If app has klipper_include: true (or category == 'plugin' and klipper_include is not False),
-    ensures [include <config_target>] is in printer.cfg.
+    If app has klipper_include: true, ensures [include <config_target>] is in printer.cfg.
     """
     target_rel = app.get("config_target")
     if not target_rel:
         return
 
     k_inc = app.get("klipper_include")
-    if k_inc is None:
-        if app.get("category") == "plugin":
-            k_inc = True
-        else:
-            k_inc = False
-
-    if not k_inc or k_inc == "active_only":
+    if k_inc is not True:
         return
 
     cfg_dirs = get_config_dirs()
@@ -641,6 +631,10 @@ def remove_app_printer_cfg(app: dict):
     """
     target_rel = app.get("config_target")
     if not target_rel:
+        return
+
+    k_inc = app.get("klipper_include")
+    if k_inc is not True and k_inc != "active_only":
         return
 
     cfg_dirs = get_config_dirs()
@@ -921,6 +915,7 @@ def cmd_install(args):
         install_app_output_dirs(app)
         install_app_moonraker_conf(install_path, app)
         install_app_printer_cfg(install_path, app)
+        start_app_service(app)
 
         # If set to auto-activate
         if getattr(args, "activate", False):
@@ -932,6 +927,34 @@ def cmd_install(args):
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def start_app_service(app: dict):
+    svc_init = app.get("service_init")
+    if not svc_init:
+        def_svc = f"/etc/init.d/S60{app.get('id', '')}"
+        if os.path.isfile(def_svc):
+            svc_init = def_svc
+    if svc_init and os.path.isfile(svc_init) and os.access(svc_init, os.X_OK):
+        try:
+            subprocess.run([svc_init, "restart"], check=False)
+            print(f"OK: Started service via {svc_init}")
+        except Exception as e:
+            print(f"WARNING: Starting service {svc_init} failed: {e}", file=sys.stderr)
+
+
+def stop_app_service(app: dict):
+    svc_init = app.get("service_init") if app else None
+    if not svc_init and app:
+        def_svc = f"/etc/init.d/S60{app.get('id', '')}"
+        if os.path.isfile(def_svc):
+            svc_init = def_svc
+    if svc_init and os.path.isfile(svc_init) and os.access(svc_init, os.X_OK):
+        try:
+            subprocess.run([svc_init, "stop"], check=False)
+            print(f"OK: Stopped service via {svc_init}")
+        except Exception:
+            pass
 
 
 def cmd_remove(args):
@@ -954,6 +977,10 @@ def cmd_remove(args):
     if get_active_touch_ui() == app_id:
         print(f"App '{app_id}' is currently active as Touch UI. Reverting active Touch UI to GuppyScreen...")
         set_active_touch("guppyscreen", force=force)
+
+    # Stop service if running
+    if app:
+        stop_app_service(app)
 
     if os.path.exists(install_path):
         if os.path.isdir(install_path):
