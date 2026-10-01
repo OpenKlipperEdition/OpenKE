@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T00:29:26Z",
+  "updated_at": "2026-10-01T00:53:29Z",
   "categories": [
     {
       "id": "web_ui",
@@ -53,7 +53,8 @@
       "moonraker_update_manager": {
         "type": "git_repo",
         "primary_branch": "main",
-        "origin": "https://github.com/mainsail-crew/moonraker-timelapse.git"
+        "origin": "https://github.com/mainsail-crew/moonraker-timelapse.git",
+        "is_system_service": "False"
       },
       "probe_path": "/usr/data/openke/apps/timelapse/component/timelapse.py",
       "website": "https://github.com/mainsail-crew/moonraker-timelapse",
