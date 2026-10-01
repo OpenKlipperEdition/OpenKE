@@ -220,7 +220,6 @@ jobs:
             --tag "nightly"
 
           cp "$image_dir/xImage" \
-             "$image_dir/rootfs.ext2" \
              "$image_dir/rootfs.squashfs" \
              "$image_dir/build-manifest.txt" \
              "$image_dir/kernel.config" \
