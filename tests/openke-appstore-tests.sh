@@ -76,9 +76,9 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 assert "apps" in data, "manifest missing apps list"
-assert len(data["apps"]) >= 5, "manifest has fewer than 5 apps"
+assert len(data["apps"]) == 4, f"expected exactly 4 apps, got {len(data['apps'])}"
 categories = {a["category"] for a in data["apps"]}
-assert {"web_ui", "touch_ui", "plugin"}.issubset(categories), f"missing core categories in {categories}"
+assert {"web_ui", "touch_ui"}.issubset(categories), f"missing core categories in {categories}"
 
 ids = [a["id"] for a in data["apps"]]
 assert len(ids) == len(set(ids)), "duplicate app ids in manifest"

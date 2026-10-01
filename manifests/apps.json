@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-09-30T23:16:43Z",
+  "updated_at": "2026-10-01T00:04:23Z",
   "categories": [
     {
       "id": "web_ui",
@@ -29,54 +29,6 @@
     }
   ],
   "apps": [
-    {
-      "id": "mobileraker",
-      "name": "Mobileraker Companion",
-      "category": "plugin",
-      "icon": "mobileraker",
-      "description": "Push notification companion service for Mobileraker mobile app on iOS and Android.",
-      "author": "Clon1998",
-      "version": "0.7.0",
-      "type": "plugin",
-      "is_builtin": false,
-      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/mobileraker_companion-master.tar.gz",
-      "sha256": "4c4534c4d4a04c83c55a07d39dc3d232aee41ce6d905ef9763be2d65b8ad315a",
-      "install_path": "/usr/data/openke/apps/mobileraker_companion",
-      "probe_path": "/usr/data/openke/apps/mobileraker_companion/mobileraker.py",
-      "source_url": "https://github.com/Clon1998/mobileraker_companion"
-    },
-    {
-      "id": "spoolman",
-      "name": "Spoolman",
-      "category": "plugin",
-      "icon": "spoolman",
-      "description": "Filament spool management service seamlessly integrated with Moonraker and Mainsail/Fluidd.",
-      "author": "Donkie",
-      "version": "0.18.0",
-      "type": "plugin",
-      "is_builtin": false,
-      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/spoolman-v0.18.0.zip",
-      "sha256": "464e8e3bf8f6167ba3ff92859ac3131ed3fc24ce5280faa4a73a1be8b5304df6",
-      "install_path": "/usr/data/openke/apps/spoolman",
-      "probe_path": "/usr/data/openke/apps/spoolman/spoolman.py",
-      "source_url": "https://github.com/Donkie/Spoolman"
-    },
-    {
-      "id": "timelapse",
-      "name": "Moonraker Timelapse",
-      "category": "plugin",
-      "icon": "timelapse",
-      "description": "Automatic video timelapse recorder synchronized with G-code positioning and layer changes.",
-      "author": "mainsail-crew",
-      "version": "0.4.0",
-      "type": "plugin",
-      "is_builtin": false,
-      "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/moonraker-timelapse-main.tar.gz",
-      "sha256": "78b3ac4cf1cab7e0b2239afce37f001d74a6fc458e0024726e1f03dd76681cc7",
-      "install_path": "/usr/data/openke/apps/moonraker-timelapse",
-      "probe_path": "/usr/data/openke/apps/moonraker-timelapse/component/timelapse.py",
-      "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
-    },
     {
       "id": "guppyscreen",
       "name": "GuppyScreen Touch UI",
