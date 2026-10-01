@@ -37,6 +37,10 @@ PIDFILE=/var/run/moonraker.pid
 PYTHON3=/usr/bin/python3
 [ -x /usr/data/openke/envs/moonraker/bin/python3 ] && PYTHON3=/usr/data/openke/envs/moonraker/bin/python3
 
+# Embedded memory optimizations: strip docstrings/asserts and restrict glibc heap arenas
+export PYTHONOPTIMIZE=2
+export MALLOC_ARENA_MAX=1
+
 # Final Baseline Closure mission (2026-08-08): a genuine first-boot
 # startup race, distinct from (but related to) S55klipper's own
 # already-documented venv-discovery bug above. Root-caused by reading the

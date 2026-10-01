@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T23:14:40Z",
+  "updated_at": "2026-10-01T23:37:09Z",
   "categories": [
     {
       "id": "web_ui",
@@ -65,7 +65,7 @@
       "type": "plugin",
       "is_builtin": false,
       "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/spoolman-v0.18.0.zip",
-      "sha256": "bcf59b7a0f80d546b20254eb1b3f532e3ca4cd9e3f67aa841d9eb0bc32a3048d",
+      "sha256": "58d1b5368aee6474ffa37d504b56d8a10ba2b0dd89cf0d711e92369fdc41c878",
       "install_path": "/usr/data/openke/apps/spoolman",
       "output_dirs": [
         "spoolman"

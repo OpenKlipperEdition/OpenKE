@@ -997,6 +997,10 @@ NAME="{app_id}"
 DESC="{app_name}"
 OOM_ADJ="{oom_score_adj}"
 
+# Embedded memory optimizations: strip docstrings/asserts and restrict glibc heap arenas
+export PYTHONOPTIMIZE=2
+export MALLOC_ARENA_MAX=1
+
 start() {{
 	echo -n "Starting $DESC ($NAME)... "
 	if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then

@@ -27,6 +27,10 @@ PIDFILE=/var/run/klippy.pid
 PYTHON3=/usr/bin/python3
 [ -x /usr/data/openke/envs/klipper/bin/python3 ] && PYTHON3=/usr/data/openke/envs/klipper/bin/python3
 
+# Embedded memory optimizations: strip docstrings/asserts and restrict glibc heap arenas
+export PYTHONOPTIMIZE=2
+export MALLOC_ARENA_MAX=1
+
 start() {
 	echo "Starting klippy (using $PYTHON3)"
 	if [ ! -f /opt/klipper/klippy/chelper/c_helper.so ] || [ ! -s /opt/klipper/klippy/chelper/c_helper.so ]; then
