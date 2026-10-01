@@ -528,9 +528,50 @@ assert fluidd['installed_version'] == '1.38.0', f'Unexpected installed_version: 
 assert fluidd['has_update'] is False, f'Expected has_update False, got: {fluidd}'
 " && pass "has_update resets to false after successful upgrade" || fail "has_update reset check failed"
 
+echo "=== Test 9: G-code Macro Definitions & Inclusion Verification ==="
+APPS_CFG="$OVERLAY/opt/printer_data/config/macros/apps.cfg"
+[ -f "$APPS_CFG" ] || { fail "$APPS_CFG missing"; exit 1; }
+
+# Verify required macro sections
+for macro_sec in "gcode_shell_command openke_app_cmd" \
+                 "gcode_macro APPSTORE_STATUS" \
+                 "gcode_macro APPSTORE_LIST" \
+                 "gcode_macro APPSTORE_UPDATE_CATALOG" \
+                 "gcode_macro APPSTORE_INSTALL" \
+                 "gcode_macro APPSTORE_UPGRADE" \
+                 "gcode_macro SET_ACTIVE_WEB_UI" \
+                 "gcode_macro SET_ACTIVE_TOUCH_UI" \
+                 "gcode_macro APPSTORE_REMOVE"; do
+	if grep -q "\[$macro_sec\]" "$APPS_CFG"; then
+		pass "apps.cfg contains [$macro_sec]"
+	else
+		fail "apps.cfg missing [$macro_sec]"
+	fi
+done
+
+# Verify inclusion in default printer.cfg and all printer profiles
+PRINTER_CFG="$OVERLAY/opt/printer_data/config/printer.cfg"
+if grep -q "\[include macros/apps.cfg\]" "$PRINTER_CFG"; then
+	pass "default printer.cfg includes macros/apps.cfg"
+else
+	fail "default printer.cfg missing [include macros/apps.cfg]"
+fi
+
+all_profiles_included=1
+for pcfg in "$OVERLAY/opt/openke-seeds/printer_profiles"/*/printer.cfg; do
+	if ! grep -q "\[include macros/apps.cfg\]" "$pcfg"; then
+		fail "$(basename "$(dirname "$pcfg")")/printer.cfg missing [include macros/apps.cfg]"
+		all_profiles_included=0
+	fi
+done
+if [ "$all_profiles_included" -eq 1 ]; then
+	pass "all printer profile configurations include macros/apps.cfg"
+fi
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
 
