@@ -3,6 +3,7 @@
 OpenKE App Store Engine (openke-app)
 Manages installation, updates, removal, and active selection of Web Interfaces,
 Touchscreen UIs, and Moonraker Plugins for OpenKE.
+All operations are metadata-driven based on the AppStore catalog schema.
 """
 
 import argparse
@@ -225,10 +226,514 @@ def is_print_in_progress() -> bool:
     try:
         req = urllib.request.urlopen(f"{moonraker_url}/printer/objects/query?print_stats", timeout=1.5)
         data = json.loads(req.read().decode("utf-8"))
-        state = data.get("result", {}).get("status", {}) .get("print_stats", {}).get("state", "").lower()
+        state = data.get("result", {}).get("status", {}).get("print_stats", {}).get("state", "").lower()
         return state in ("printing", "paused")
     except Exception:
         return False
+
+
+def get_config_dirs() -> list:
+    paths = [
+        "/usr/data/printer_data/config",
+        "/opt/printer_data/config",
+        os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    ]
+    return [p for p in paths if p and os.path.isdir(p)]
+
+
+def get_moonraker_components_dirs() -> list:
+    paths = [
+        "/usr/data/openke/apps/moonraker/moonraker/components",
+        "/opt/moonraker/moonraker/components",
+        os.environ.get("OPENKE_MOONRAKER_COMPONENTS_DIR", "")
+    ]
+    return [p for p in paths if p and os.path.isdir(p)]
+
+
+def get_seed_config(rel_target: str) -> str:
+    """
+    Finds a local seed file for a given relative config path (e.g. 'macros/fluidd.cfg')
+    across firmware seed directories and build tree overlays.
+    """
+    filename = os.path.basename(rel_target)
+    candidates = [
+        os.path.join("/opt/openke-seeds/printer_data-config", rel_target),
+        os.path.join("/usr/data/openke-seeds/printer_data-config", rel_target),
+        os.path.join("/usr/data/printer_data/config", rel_target),
+        os.path.join("/opt/printer_data/config", rel_target),
+        os.path.join("/opt/openke-seeds/printer_data-config", filename),
+        os.path.join("/usr/data/openke-seeds/printer_data-config", filename),
+        # Development repository / build tree fallbacks
+        os.path.abspath(os.path.join(os.path.dirname(__file__), f"../../opt/printer_data/config/{rel_target}")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), f"../../../opt/printer_data/config/{rel_target}")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), f"../../../scripts/build/overlay/opt/printer_data/config/{rel_target}")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), f"../../../../scripts/build/overlay/opt/printer_data/config/{rel_target}")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), f"../opt/printer_data/config/{rel_target}")),
+    ]
+    env_cfg = os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
+    if env_cfg:
+        candidates.insert(0, os.path.join(env_cfg, rel_target))
+
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def download_file(url: str, dest_path: str) -> bool:
+    try:
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        if url.startswith("file://"):
+            local_path = url[7:]
+            if os.path.isfile(local_path):
+                shutil.copy2(local_path, dest_path)
+                return True
+        req = urllib.request.Request(url, headers={"User-Agent": "OpenKE-App/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()
+            if data:
+                with open(dest_path, "wb") as f:
+                    f.write(data)
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def notify_moonraker_restart():
+    try:
+        moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
+        req = urllib.request.Request(
+            f"{moonraker_url}/server/restart",
+            method="POST",
+            data=b""
+        )
+        urllib.request.urlopen(req, timeout=1.0)
+    except Exception:
+        pass
+
+
+def install_app_moonraker_components(install_path: str, app: dict):
+    """
+    Links or copies component python files declared in app['moonraker_component']
+    (or automatically detected for plugins) into Moonraker's components directories.
+    """
+    comp_defs = app.get("moonraker_component")
+    comp_files = []
+    if isinstance(comp_defs, str) and comp_defs:
+        comp_files.append(comp_defs)
+    elif isinstance(comp_defs, list):
+        comp_files.extend(comp_defs)
+    elif app.get("category") == "plugin":
+        app_id = app.get("id", "")
+        if os.path.isfile(os.path.join(install_path, "component", f"{app_id}.py")):
+            comp_files.append(f"component/{app_id}.py")
+        elif os.path.isfile(os.path.join(install_path, f"{app_id}.py")):
+            comp_files.append(f"{app_id}.py")
+
+    if not comp_files:
+        return
+
+    comp_dirs = get_moonraker_components_dirs()
+    for rel_comp in comp_files:
+        src_comp = os.path.join(install_path, rel_comp)
+        if not os.path.isfile(src_comp):
+            base_src = os.path.join(install_path, os.path.basename(rel_comp))
+            if os.path.isfile(base_src):
+                src_comp = base_src
+
+        if not os.path.isfile(src_comp):
+            continue
+
+        comp_name = os.path.basename(rel_comp)
+        for cdir in comp_dirs:
+            dest_comp = os.path.join(cdir, comp_name)
+            try:
+                if os.path.exists(dest_comp) or os.path.islink(dest_comp):
+                    os.remove(dest_comp)
+                try:
+                    os.symlink(src_comp, dest_comp)
+                except OSError:
+                    shutil.copy2(src_comp, dest_comp)
+                print(f"OK: Linked Moonraker component '{comp_name}' into {dest_comp}")
+            except Exception as e:
+                print(f"WARNING: Failed linking {dest_comp}: {e}", file=sys.stderr)
+
+
+def remove_app_moonraker_components(install_path: str, app: dict):
+    comp_defs = app.get("moonraker_component")
+    comp_files = []
+    if isinstance(comp_defs, str) and comp_defs:
+        comp_files.append(comp_defs)
+    elif isinstance(comp_defs, list):
+        comp_files.extend(comp_defs)
+    else:
+        app_id = app.get("id", "")
+        comp_files.append(f"{app_id}.py")
+
+    comp_dirs = get_moonraker_components_dirs()
+    for rel_comp in comp_files:
+        comp_name = os.path.basename(rel_comp)
+        for cdir in comp_dirs:
+            dest_comp = os.path.join(cdir, comp_name)
+            if os.path.exists(dest_comp) or os.path.islink(dest_comp):
+                try:
+                    os.remove(dest_comp)
+                    print(f"OK: Removed Moonraker component {dest_comp}")
+                except Exception as e:
+                    print(f"WARNING: Failed removing {dest_comp}: {e}", file=sys.stderr)
+
+
+def install_app_config_files(install_path: str, app: dict):
+    """
+    Downloads or copies configuration / macro files declared in app['config_target'] / app['config_url'].
+    """
+    target_rel = app.get("config_target")
+    if not target_rel:
+        return
+
+    config_url = app.get("config_url")
+    cfg_dirs = get_config_dirs()
+    seed_file = get_seed_config(target_rel)
+
+    for cfg_dir in cfg_dirs:
+        dest_path = os.path.join(cfg_dir, target_rel)
+        if not os.path.isfile(dest_path):
+            installed = False
+            if config_url:
+                print(f"Downloading {target_rel} from {config_url}...")
+                if download_file(config_url, dest_path):
+                    installed = True
+                    print(f"OK: Downloaded and installed {dest_path}")
+
+            if not installed and seed_file and os.path.abspath(seed_file) != os.path.abspath(dest_path):
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                try:
+                    shutil.copy2(seed_file, dest_path)
+                    print(f"OK: Installed {dest_path} from local seed")
+                except Exception as e:
+                    print(f"WARNING: Failed to install {dest_path}: {e}", file=sys.stderr)
+
+
+def remove_app_config_files(app: dict):
+    target_rel = app.get("config_target")
+    if not target_rel:
+        return
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        dest_path = os.path.join(cfg_dir, target_rel)
+        if os.path.isfile(dest_path):
+            try:
+                os.remove(dest_path)
+                print(f"OK: Removed {dest_path}")
+            except Exception as e:
+                print(f"WARNING: Failed to remove {dest_path}: {e}", file=sys.stderr)
+
+
+def install_app_output_dirs(app: dict):
+    """
+    Creates any directories declared in app['output_dirs'] under printer_data.
+    """
+    dirs = app.get("output_dirs", [])
+    if isinstance(dirs, str):
+        dirs = [dirs]
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        printer_data_dir = os.path.dirname(cfg_dir)
+        for d in dirs:
+            target_dir = os.path.join(printer_data_dir, d) if not os.path.isabs(d) else d
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+            except Exception:
+                pass
+
+
+def install_app_moonraker_conf(install_path: str, app: dict):
+    """
+    Injects custom Moonraker INI sections (from moonraker_config) and
+    [update_manager <app_id>] (from moonraker_update_manager) into moonraker.conf.
+    """
+    app_id = app.get("id", "")
+    moonraker_cfg = app.get("moonraker_config", "")
+    upd_mgr = app.get("moonraker_update_manager")
+
+    sections_to_add = []
+
+    # 1. Custom moonraker_config block
+    if moonraker_cfg:
+        sections_to_add.append(moonraker_cfg.strip())
+
+    # 2. Update manager section
+    if upd_mgr:
+        if isinstance(upd_mgr, dict):
+            sec_header = upd_mgr.get("section", f"update_manager {app_id}")
+            lines = [f"[{sec_header}]"]
+            for k, v in upd_mgr.items():
+                if k == "section":
+                    continue
+                lines.append(f"{k}: {v}")
+            if "path" not in upd_mgr:
+                lines.append(f"path: {install_path}")
+            sections_to_add.append("\n".join(lines))
+        elif isinstance(upd_mgr, str):
+            sections_to_add.append(upd_mgr.strip().format(install_path=install_path, app_id=app_id))
+    elif app.get("category") == "web_ui" and not app.get("is_builtin", False):
+        sections_to_add.append(
+            f"[update_manager {app_id}]\n"
+            f"type: web\n"
+            f"channel: stable\n"
+            f"repo: {app.get('author', app_id)}/{app_id}\n"
+            f"path: {install_path}"
+        )
+
+    if not sections_to_add:
+        return
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if not os.path.isfile(moonraker_conf):
+            continue
+
+        try:
+            with open(moonraker_conf, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            changed = False
+            for sec in sections_to_add:
+                first_line = sec.splitlines()[0].strip() if sec.splitlines() else ""
+                if first_line and first_line in content:
+                    continue
+
+                if "[authorization]" in content:
+                    content = content.replace("[authorization]", sec + "\n\n[authorization]")
+                else:
+                    content = content.rstrip() + "\n\n" + sec + "\n"
+                changed = True
+
+            if changed:
+                with open(moonraker_conf, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"OK: Added components for {app_id} to {moonraker_conf}")
+                notify_moonraker_restart()
+        except Exception as e:
+            print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
+
+
+def remove_app_moonraker_conf(app: dict):
+    """
+    Removes INI sections associated with app from moonraker.conf.
+    """
+    app_id = app.get("id", "")
+    sections_to_remove = set()
+
+    sections_to_remove.add(f"[update_manager {app_id}]")
+    sections_to_remove.add(f"[{app_id}]")
+
+    moonraker_cfg = app.get("moonraker_config", "")
+    if moonraker_cfg:
+        for line in moonraker_cfg.splitlines():
+            line = line.strip()
+            if line.startswith("[") and line.endswith("]"):
+                sections_to_remove.add(line)
+
+    upd_mgr = app.get("moonraker_update_manager")
+    if isinstance(upd_mgr, dict) and "section" in upd_mgr:
+        sections_to_remove.add(f"[{upd_mgr['section']}]")
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
+        if not os.path.isfile(moonraker_conf):
+            continue
+
+        try:
+            with open(moonraker_conf, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            new_lines = []
+            in_remove_sec = False
+            changed = False
+
+            for line in lines:
+                stripped = line.strip()
+                if stripped in sections_to_remove:
+                    in_remove_sec = True
+                    changed = True
+                    continue
+                elif in_remove_sec:
+                    if stripped.startswith("[") and stripped.endswith("]"):
+                        in_remove_sec = False
+                        if stripped in sections_to_remove:
+                            in_remove_sec = True
+                            continue
+                        new_lines.append(line)
+                    else:
+                        continue
+                else:
+                    new_lines.append(line)
+
+            if changed:
+                cleaned = "".join(new_lines)
+                while "\n\n\n" in cleaned:
+                    cleaned = cleaned.replace("\n\n\n", "\n\n")
+                with open(moonraker_conf, "w", encoding="utf-8") as f:
+                    f.write(cleaned)
+                print(f"OK: Cleaned Moonraker configuration for {app_id} in {moonraker_conf}")
+                notify_moonraker_restart()
+        except Exception as e:
+            print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
+
+
+def install_app_printer_cfg(install_path: str, app: dict):
+    """
+    If app has klipper_include: true (or category == 'plugin' and klipper_include is not False),
+    ensures [include <config_target>] is in printer.cfg.
+    """
+    target_rel = app.get("config_target")
+    if not target_rel:
+        return
+
+    k_inc = app.get("klipper_include")
+    if k_inc is None:
+        if app.get("category") == "plugin":
+            k_inc = True
+        else:
+            k_inc = False
+
+    if not k_inc or k_inc == "active_only":
+        return
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        if not os.path.isfile(printer_cfg):
+            continue
+
+        try:
+            with open(printer_cfg, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            if f"[include {target_rel}]" not in content:
+                if "[include macros/apps.cfg]" in content:
+                    content = content.replace("[include macros/apps.cfg]", f"[include {target_rel}]\n[include macros/apps.cfg]")
+                elif "[include macros/profiles.cfg]" in content:
+                    content = content.replace("[include macros/profiles.cfg]", f"[include macros/profiles.cfg]\n[include {target_rel}]")
+                else:
+                    content = content.rstrip() + f"\n\n[include {target_rel}]\n"
+
+                with open(printer_cfg, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"OK: Added [include {target_rel}] to {printer_cfg}")
+        except Exception as e:
+            print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
+
+
+def remove_app_printer_cfg(app: dict):
+    """
+    Removes [include <config_target>] from printer.cfg.
+    """
+    target_rel = app.get("config_target")
+    if not target_rel:
+        return
+
+    cfg_dirs = get_config_dirs()
+    for cfg_dir in cfg_dirs:
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        if not os.path.isfile(printer_cfg):
+            continue
+
+        try:
+            with open(printer_cfg, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            new_lines = [l for l in lines if f"[include {target_rel}]" not in l]
+            if len(new_lines) != len(lines):
+                with open(printer_cfg, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                print(f"OK: Removed [include {target_rel}] from {printer_cfg}")
+        except Exception as e:
+            print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
+
+
+def sync_web_ui_klipper_macros(target_web_ui: str):
+    """
+    Synchronizes Klipper client macros in printer.cfg for the active Web UI.
+    Discovers all web_ui apps from the catalog, ensures the target Web UI's
+    macro file is included, and removes/replaces other web UI macros.
+    """
+    catalog = load_catalog()
+    web_apps = [a for a in catalog.get("apps", []) if a.get("category") == "web_ui"]
+    target_app = next((a for a in web_apps if a.get("id") == target_web_ui), None)
+
+    target_macro = target_app.get("config_target", f"macros/{target_web_ui}.cfg") if target_app else f"macros/{target_web_ui}.cfg"
+    all_web_macros = {a.get("config_target", f"macros/{a['id']}.cfg") for a in web_apps if a.get("config_target") or a.get("id")}
+    all_web_macros.add("macros/mainsail.cfg")
+    all_web_macros.add("macros/fluidd.cfg")
+
+    cfg_dirs = get_config_dirs()
+    seed_file = get_seed_config(target_macro)
+
+    for cfg_dir in cfg_dirs:
+        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
+        if not os.path.isfile(printer_cfg):
+            continue
+
+        # Ensure active target macro file exists (from seed or download if needed)
+        dest_macro_path = os.path.join(cfg_dir, target_macro)
+        if not os.path.isfile(dest_macro_path):
+            installed = False
+            if target_app and target_app.get("config_url"):
+                installed = download_file(target_app["config_url"], dest_macro_path)
+            if not installed and seed_file and os.path.abspath(seed_file) != os.path.abspath(dest_macro_path):
+                os.makedirs(os.path.dirname(dest_macro_path), exist_ok=True)
+                try:
+                    shutil.copy2(seed_file, dest_macro_path)
+                except Exception:
+                    pass
+
+        try:
+            with open(printer_cfg, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            changed = False
+            found_existing = False
+            for old_macro in all_web_macros:
+                old_inc = f"[include {old_macro}]"
+                if old_inc in content:
+                    found_existing = True
+                    if old_macro != target_macro:
+                        content = content.replace(old_inc, f"[include {target_macro}]")
+                        changed = True
+
+            if not found_existing and f"[include {target_macro}]" not in content:
+                if "[include macros/apps.cfg]" in content:
+                    content = content.replace("[include macros/apps.cfg]", f"[include {target_macro}]\n[include macros/apps.cfg]")
+                elif "[include macros/profiles.cfg]" in content:
+                    content = content.replace("[include macros/profiles.cfg]", f"[include macros/profiles.cfg]\n[include {target_macro}]")
+                else:
+                    content = f"[include {target_macro}]\n" + content
+                changed = True
+
+            if changed:
+                with open(printer_cfg, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"OK: Updated {printer_cfg} to include {target_macro}.")
+
+                try:
+                    moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
+                    req = urllib.request.Request(
+                        f"{moonraker_url}/printer/gcode/script?script=RESTART",
+                        method="POST",
+                        data=b""
+                    )
+                    urllib.request.urlopen(req, timeout=1.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"WARNING: Could not update macro include in {printer_cfg}: {e}", file=sys.stderr)
 
 
 def cmd_list(args):
@@ -362,7 +867,6 @@ def cmd_install(args):
                 with tarfile.open(archive_file, "r:*") as tf:
                     tf.extractall(stage_dir)
         else:
-            # Fallback: try tarfile, then zipfile, else copy raw file
             try:
                 try:
                     with tarfile.open(archive_file, "r:*") as tf:
@@ -377,7 +881,7 @@ def cmd_install(args):
                 except Exception:
                     shutil.copy(archive_file, os.path.join(stage_dir, app.get("executable", app_id)))
 
-        # Free downloaded archive space immediately before moving to install_path
+        # Free downloaded archive space immediately
         if os.path.isfile(archive_file):
             try:
                 os.remove(archive_file)
@@ -407,11 +911,12 @@ def cmd_install(args):
         print(f"OK: Successfully installed {app_id} into {install_path}")
         save_installed_app_meta(app)
 
-        # Post-install component hooks
-        if app_id == "fluidd":
-            install_fluidd_components(install_path, app)
-        elif app_id == "timelapse":
-            install_timelapse_components(install_path, app)
+        # Declarative generic component hooks
+        install_app_moonraker_components(install_path, app)
+        install_app_config_files(install_path, app)
+        install_app_output_dirs(app)
+        install_app_moonraker_conf(install_path, app)
+        install_app_printer_cfg(install_path, app)
 
         # If set to auto-activate
         if getattr(args, "activate", False):
@@ -423,426 +928,6 @@ def cmd_install(args):
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-def download_file(url: str, dest_path: str) -> bool:
-    try:
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        if url.startswith("file://"):
-            local_path = url[7:]
-            if os.path.isfile(local_path):
-                shutil.copy2(local_path, dest_path)
-                return True
-        req = urllib.request.Request(url, headers={"User-Agent": "OpenKE-App/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = resp.read()
-            if data:
-                with open(dest_path, "wb") as f:
-                    f.write(data)
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def get_config_dirs() -> list:
-    paths = [
-        "/usr/data/printer_data/config",
-        "/opt/printer_data/config",
-        os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
-    ]
-    return [p for p in paths if p and os.path.isdir(p)]
-
-
-def get_seed_fluidd_cfg() -> str:
-    candidates = [
-        "/opt/openke-seeds/printer_data-config/macros/fluidd.cfg",
-        "/usr/data/openke-seeds/printer_data-config/macros/fluidd.cfg",
-        "/usr/data/printer_data/config/macros/fluidd.cfg",
-        "/opt/printer_data/config/macros/fluidd.cfg",
-        os.environ.get("OPENKE_SEED_FLUIDD_CFG", ""),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../opt/printer_data/config/macros/fluidd.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../opt/printer_data/config/macros/fluidd.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts/build/overlay/opt/printer_data/config/macros/fluidd.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../scripts/build/overlay/opt/printer_data/config/macros/fluidd.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../opt/printer_data/config/macros/fluidd.cfg")),
-    ]
-    env_cfg = os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
-    if env_cfg:
-        candidates.append(os.path.join(env_cfg, "macros", "fluidd.cfg"))
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    return ""
-
-
-def notify_moonraker_restart():
-    try:
-        moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
-        req = urllib.request.Request(
-            f"{moonraker_url}/server/restart",
-            method="POST",
-            data=b""
-        )
-        urllib.request.urlopen(req, timeout=1.0)
-    except Exception:
-        pass
-
-
-def install_fluidd_components(install_path: str, app: dict = None):
-    """
-    Downloads fluidd.cfg from AppStore repo (or offline seed) into macros/ and registers fluidd in Moonraker's update_manager.
-    Note: does NOT switch printer.cfg include until activated.
-    """
-    cfg_dirs = get_config_dirs()
-    seed_fluidd = get_seed_fluidd_cfg()
-    config_url = app.get("config_url") if app else ""
-    target_rel = app.get("config_target", "macros/fluidd.cfg") if app else "macros/fluidd.cfg"
-
-    for cfg_dir in cfg_dirs:
-        # 1. Download/Install macros/fluidd.cfg
-        fluidd_dest = os.path.join(cfg_dir, target_rel)
-        if not os.path.isfile(fluidd_dest):
-            installed = False
-            if config_url:
-                print(f"Downloading {target_rel} from {config_url}...")
-                if download_file(config_url, fluidd_dest):
-                    installed = True
-                    print(f"OK: Downloaded and installed {fluidd_dest}")
-
-            if not installed and seed_fluidd and os.path.abspath(seed_fluidd) != os.path.abspath(fluidd_dest):
-                os.makedirs(os.path.dirname(fluidd_dest), exist_ok=True)
-                try:
-                    shutil.copy(seed_fluidd, fluidd_dest)
-                    print(f"OK: Installed {fluidd_dest} from local seed")
-                except Exception as e:
-                    print(f"WARNING: Failed to install {fluidd_dest}: {e}", file=sys.stderr)
-
-        # 2. Add [update_manager fluidd] to moonraker.conf
-        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
-        if os.path.isfile(moonraker_conf):
-            try:
-                with open(moonraker_conf, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                if "[update_manager fluidd]" not in content:
-                    fluidd_section = (
-                        "[update_manager fluidd]\n"
-                        "type: web\n"
-                        "channel: stable\n"
-                        "repo: fluidd-core/fluidd\n"
-                        f"path: {install_path}\n\n"
-                    )
-                    if "[authorization]" in content:
-                        new_content = content.replace("[authorization]", fluidd_section + "[authorization]")
-                    else:
-                        new_content = content.rstrip() + "\n\n" + fluidd_section
-
-                    with open(moonraker_conf, "w", encoding="utf-8") as f:
-                        f.write(new_content)
-                    print(f"OK: Added [update_manager fluidd] to {moonraker_conf}")
-                    notify_moonraker_restart()
-            except Exception as e:
-                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
-
-
-def remove_fluidd_components(app: dict = None):
-    """
-    Removes macros/fluidd.cfg and unregisters fluidd from Moonraker's update_manager.
-    """
-    cfg_dirs = get_config_dirs()
-    target_rel = app.get("config_target", "macros/fluidd.cfg") if app else "macros/fluidd.cfg"
-
-    for cfg_dir in cfg_dirs:
-        # 1. Remove macros/fluidd.cfg
-        fluidd_macro = os.path.join(cfg_dir, target_rel)
-        if os.path.isfile(fluidd_macro):
-            try:
-                os.remove(fluidd_macro)
-                print(f"OK: Removed {fluidd_macro}")
-            except Exception as e:
-                print(f"WARNING: Failed to remove {fluidd_macro}: {e}", file=sys.stderr)
-
-        # 2. Remove [update_manager fluidd] from moonraker.conf
-        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
-        if os.path.isfile(moonraker_conf):
-            try:
-                with open(moonraker_conf, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-
-                new_lines = []
-                in_fluidd_section = False
-                changed = False
-
-                for line in lines:
-                    stripped = line.strip()
-                    if stripped == "[update_manager fluidd]":
-                        in_fluidd_section = True
-                        changed = True
-                        continue
-                    elif in_fluidd_section:
-                        if stripped.startswith("[") and stripped.endswith("]"):
-                            in_fluidd_section = False
-                            new_lines.append(line)
-                        else:
-                            # skip lines in [update_manager fluidd]
-                            continue
-                    else:
-                        new_lines.append(line)
-
-                if changed:
-                    cleaned = "".join(new_lines)
-                    while "\n\n\n" in cleaned:
-                        cleaned = cleaned.replace("\n\n\n", "\n\n")
-                    with open(moonraker_conf, "w", encoding="utf-8") as f:
-                        f.write(cleaned)
-                    print(f"OK: Removed [update_manager fluidd] from {moonraker_conf}")
-                    notify_moonraker_restart()
-            except Exception as e:
-                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
-
-
-def get_moonraker_components_dirs() -> list:
-    paths = [
-        "/usr/data/openke/apps/moonraker/moonraker/components",
-        "/opt/moonraker/moonraker/components",
-        os.environ.get("OPENKE_MOONRAKER_COMPONENTS_DIR", "")
-    ]
-    return [p for p in paths if p and os.path.isdir(p)]
-
-
-def get_seed_timelapse_cfg() -> str:
-    candidates = [
-        "/opt/openke-seeds/printer_data-config/macros/timelapse.cfg",
-        "/usr/data/openke-seeds/printer_data-config/macros/timelapse.cfg",
-        "/usr/data/printer_data/config/macros/timelapse.cfg",
-        "/opt/printer_data/config/macros/timelapse.cfg",
-        os.environ.get("OPENKE_SEED_TIMELAPSE_CFG", ""),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../opt/printer_data/config/macros/timelapse.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../opt/printer_data/config/macros/timelapse.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts/build/overlay/opt/printer_data/config/macros/timelapse.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../scripts/build/overlay/opt/printer_data/config/macros/timelapse.cfg")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../opt/printer_data/config/macros/timelapse.cfg")),
-    ]
-    env_cfg = os.environ.get("OPENKE_PRINTER_DATA_CONFIG", "")
-    if env_cfg:
-        candidates.append(os.path.join(env_cfg, "macros", "timelapse.cfg"))
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    return ""
-
-
-def install_timelapse_components(install_path: str, app: dict = None):
-    """
-    Integrates moonraker-timelapse:
-    1. Symlinks/copies component/timelapse.py into Moonraker components directory.
-    2. Downloads/copies macros/timelapse.cfg into macros/.
-    3. Adds [timelapse] and [update_manager timelapse] into moonraker.conf.
-    4. Ensures [include macros/timelapse.cfg] is added to printer.cfg.
-    5. Ensures timelapse output directory exists.
-    """
-    # 1. Integrate component into Moonraker
-    src_comp = os.path.join(install_path, "component", "timelapse.py")
-    if not os.path.isfile(src_comp):
-        alt_comp = os.path.join(install_path, "timelapse.py")
-        if os.path.isfile(alt_comp):
-            src_comp = alt_comp
-
-    comp_dirs = get_moonraker_components_dirs()
-    for cdir in comp_dirs:
-        dest_comp = os.path.join(cdir, "timelapse.py")
-        try:
-            if os.path.exists(dest_comp) or os.path.islink(dest_comp):
-                os.remove(dest_comp)
-            if os.path.isfile(src_comp):
-                try:
-                    os.symlink(src_comp, dest_comp)
-                except OSError:
-                    shutil.copy2(src_comp, dest_comp)
-                print(f"OK: Linked Moonraker timelapse component into {dest_comp}")
-        except Exception as e:
-            print(f"WARNING: Failed linking {dest_comp}: {e}", file=sys.stderr)
-
-    cfg_dirs = get_config_dirs()
-    seed_tl = get_seed_timelapse_cfg()
-    config_url = app.get("config_url") if app else ""
-    target_rel = app.get("config_target", "macros/timelapse.cfg") if app else "macros/timelapse.cfg"
-
-    for cfg_dir in cfg_dirs:
-        # 2. Download/Install macros/timelapse.cfg
-        tl_dest = os.path.join(cfg_dir, target_rel)
-        if not os.path.isfile(tl_dest):
-            installed = False
-            if config_url:
-                print(f"Downloading {target_rel} from {config_url}...")
-                if download_file(config_url, tl_dest):
-                    installed = True
-                    print(f"OK: Downloaded and installed {tl_dest}")
-
-            if not installed and seed_tl and os.path.abspath(seed_tl) != os.path.abspath(tl_dest):
-                os.makedirs(os.path.dirname(tl_dest), exist_ok=True)
-                try:
-                    shutil.copy(seed_tl, tl_dest)
-                    print(f"OK: Installed {tl_dest} from local seed")
-                except Exception as e:
-                    print(f"WARNING: Failed to install {tl_dest}: {e}", file=sys.stderr)
-
-        # 3. Create output timelapse directories
-        tl_out = os.path.join(os.path.dirname(cfg_dir), "timelapse")
-        try:
-            os.makedirs(tl_out, exist_ok=True)
-        except Exception:
-            pass
-
-        # 4. Add [timelapse] and [update_manager timelapse] to moonraker.conf
-        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
-        if os.path.isfile(moonraker_conf):
-            try:
-                with open(moonraker_conf, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                changed = False
-                if "[timelapse]" not in content:
-                    tl_section = (
-                        "[timelapse]\n"
-                        "output_path: /opt/printer_data/timelapse/\n"
-                        "frame_path: /tmp/timelapse/printer_data\n"
-                        "ffmpeg_binary_path: /usr/bin/ffmpeg\n\n"
-                    )
-                    content = tl_section + content
-                    changed = True
-
-                if "[update_manager timelapse]" not in content:
-                    upd_section = (
-                        "[update_manager timelapse]\n"
-                        "type: git_repo\n"
-                        "primary_branch: main\n"
-                        f"path: {install_path}\n"
-                        "origin: https://github.com/mainsail-crew/moonraker-timelapse.git\n\n"
-                    )
-                    if "[authorization]" in content:
-                        content = content.replace("[authorization]", upd_section + "[authorization]")
-                    else:
-                        content = content.rstrip() + "\n\n" + upd_section
-                    changed = True
-
-                if changed:
-                    with open(moonraker_conf, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    print(f"OK: Added [timelapse] & [update_manager timelapse] to {moonraker_conf}")
-                    notify_moonraker_restart()
-            except Exception as e:
-                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
-
-        # 5. Add [include macros/timelapse.cfg] to printer.cfg
-        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
-        if os.path.isfile(printer_cfg):
-            try:
-                with open(printer_cfg, "r", encoding="utf-8") as f:
-                    pcontent = f.read()
-
-                if f"[include {target_rel}]" not in pcontent:
-                    if "[include macros/apps.cfg]" in pcontent:
-                        pcontent = pcontent.replace("[include macros/apps.cfg]", f"[include {target_rel}]\n[include macros/apps.cfg]")
-                    elif "[include macros/profiles.cfg]" in pcontent:
-                        pcontent = pcontent.replace("[include macros/profiles.cfg]", f"[include macros/profiles.cfg]\n[include {target_rel}]")
-                    else:
-                        pcontent = pcontent.rstrip() + f"\n\n[include {target_rel}]\n"
-
-                    with open(printer_cfg, "w", encoding="utf-8") as f:
-                        f.write(pcontent)
-                    print(f"OK: Added [include {target_rel}] to {printer_cfg}")
-            except Exception as e:
-                print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
-
-
-def remove_timelapse_components(app: dict = None):
-    """
-    Unregisters moonraker-timelapse:
-    1. Removes Moonraker components/timelapse.py link/file.
-    2. Removes [timelapse] and [update_manager timelapse] from moonraker.conf.
-    3. Removes [include macros/timelapse.cfg] from printer.cfg.
-    4. Removes macros/timelapse.cfg.
-    """
-    # 1. Remove Moonraker component
-    comp_dirs = get_moonraker_components_dirs()
-    for cdir in comp_dirs:
-        dest_comp = os.path.join(cdir, "timelapse.py")
-        if os.path.exists(dest_comp) or os.path.islink(dest_comp):
-            try:
-                os.remove(dest_comp)
-                print(f"OK: Removed {dest_comp}")
-            except Exception as e:
-                print(f"WARNING: Failed removing {dest_comp}: {e}", file=sys.stderr)
-
-    cfg_dirs = get_config_dirs()
-    target_rel = app.get("config_target", "macros/timelapse.cfg") if app else "macros/timelapse.cfg"
-
-    for cfg_dir in cfg_dirs:
-        # 2. Remove macros/timelapse.cfg
-        tl_macro = os.path.join(cfg_dir, target_rel)
-        if os.path.isfile(tl_macro):
-            try:
-                os.remove(tl_macro)
-                print(f"OK: Removed {tl_macro}")
-            except Exception as e:
-                print(f"WARNING: Failed to remove {tl_macro}: {e}", file=sys.stderr)
-
-        # 3. Remove [timelapse] and [update_manager timelapse] from moonraker.conf
-        moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
-        if os.path.isfile(moonraker_conf):
-            try:
-                with open(moonraker_conf, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-
-                new_lines = []
-                in_tl_section = False
-                in_upd_section = False
-                changed = False
-
-                for line in lines:
-                    stripped = line.strip()
-                    if stripped == "[timelapse]":
-                        in_tl_section = True
-                        changed = True
-                        continue
-                    elif stripped == "[update_manager timelapse]":
-                        in_upd_section = True
-                        changed = True
-                        continue
-                    elif stripped.startswith("[") and stripped.endswith("]"):
-                        in_tl_section = False
-                        in_upd_section = False
-
-                    if not in_tl_section and not in_upd_section:
-                        new_lines.append(line)
-
-                if changed:
-                    cleaned = "".join(new_lines)
-                    while "\n\n\n" in cleaned:
-                        cleaned = cleaned.replace("\n\n\n", "\n\n")
-                    with open(moonraker_conf, "w", encoding="utf-8") as f:
-                        f.write(cleaned)
-                    print(f"OK: Removed [timelapse] and [update_manager timelapse] from {moonraker_conf}")
-                    notify_moonraker_restart()
-            except Exception as e:
-                print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
-
-        # 4. Remove [include macros/timelapse.cfg] from printer.cfg
-        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
-        if os.path.isfile(printer_cfg):
-            try:
-                with open(printer_cfg, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-
-                new_lines = [l for l in lines if f"[include {target_rel}]" not in l]
-                if len(new_lines) != len(lines):
-                    with open(printer_cfg, "w", encoding="utf-8") as f:
-                        f.writelines(new_lines)
-                    print(f"OK: Removed [include {target_rel}] from {printer_cfg}")
-            except Exception as e:
-                print(f"WARNING: Could not update {printer_cfg}: {e}", file=sys.stderr)
 
 
 def cmd_remove(args):
@@ -877,71 +962,12 @@ def cmd_remove(args):
 
     remove_installed_app_meta(app_id)
 
-    # Post-remove component hooks
-    if app_id == "fluidd":
-        remove_fluidd_components(app)
-    elif app_id == "timelapse":
-        remove_timelapse_components(app)
-
-
-def sync_web_ui_klipper_macros(target_web_ui: str):
-    """
-    Synchronizes Klipper client macros in printer.cfg for the active Web UI:
-    - When target is 'fluidd': switch '[include macros/mainsail.cfg]' to '[include macros/fluidd.cfg]'
-    - When target is 'mainsail': switch '[include macros/fluidd.cfg]' to '[include macros/mainsail.cfg]'
-    """
-    cfg_dirs = get_config_dirs()
-    seed_fluidd = get_seed_fluidd_cfg()
-
-    for cfg_dir in cfg_dirs:
-        printer_cfg = os.path.join(cfg_dir, "printer.cfg")
-        macros_dir = os.path.join(cfg_dir, "macros")
-        if not os.path.isfile(printer_cfg):
-            continue
-
-        # If switching to fluidd, ensure macros/fluidd.cfg exists
-        if target_web_ui == "fluidd":
-            fluidd_dest = os.path.join(macros_dir, "fluidd.cfg")
-            if not os.path.isfile(fluidd_dest) and seed_fluidd and os.path.abspath(seed_fluidd) != os.path.abspath(fluidd_dest):
-                os.makedirs(macros_dir, exist_ok=True)
-                try:
-                    shutil.copy(seed_fluidd, fluidd_dest)
-                except Exception:
-                    pass
-
-        try:
-            with open(printer_cfg, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            changed = False
-            if target_web_ui == "fluidd":
-                if "[include macros/mainsail.cfg]" in content:
-                    content = content.replace("[include macros/mainsail.cfg]", "[include macros/fluidd.cfg]")
-                    changed = True
-            else:
-                if "[include macros/fluidd.cfg]" in content:
-                    content = content.replace("[include macros/fluidd.cfg]", "[include macros/mainsail.cfg]")
-                    changed = True
-
-            if changed:
-                with open(printer_cfg, "w", encoding="utf-8") as f:
-                    f.write(content)
-                target_macro = "macros/fluidd.cfg" if target_web_ui == "fluidd" else "macros/mainsail.cfg"
-                print(f"OK: Updated {printer_cfg} to include {target_macro}.")
-
-                # Notify Moonraker to reload Klipper configuration if running
-                try:
-                    moonraker_url = os.environ.get("OPENKE_MOONRAKER_URL", "http://127.0.0.1:7125")
-                    req = urllib.request.Request(
-                        f"{moonraker_url}/printer/gcode/script?script=RESTART",
-                        method="POST",
-                        data=b""
-                    )
-                    urllib.request.urlopen(req, timeout=1.0)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"WARNING: Could not update macro include in {printer_cfg}: {e}", file=sys.stderr)
+    # Declarative generic component cleanup
+    if app:
+        remove_app_moonraker_components(install_path, app)
+        remove_app_config_files(app)
+        remove_app_moonraker_conf(app)
+        remove_app_printer_cfg(app)
 
 
 def set_active_web(target: str, force: bool = False):
@@ -978,7 +1004,7 @@ def set_active_web(target: str, force: bool = False):
     except Exception as e:
         print(f"WARNING: Could not symlink {WEB_ROOT_SYMLINK} -> {target_dir}: {e}", file=sys.stderr)
 
-    # Sync Klipper client macros (mainsail.cfg <-> fluidd.cfg)
+    # Sync Klipper client macros dynamically
     sync_web_ui_klipper_macros(target)
 
     # Reload nginx if running

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T00:17:33Z",
+  "updated_at": "2026-10-01T00:29:26Z",
   "categories": [
     {
       "id": "web_ui",
@@ -42,8 +42,19 @@
       "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/timelapse-v0.0.12.zip",
       "sha256": "7b65e5e6aa4f1aaff426633d86389871c5722ac5c80ec05587887cae4d3a9374",
       "install_path": "/usr/data/openke/apps/timelapse",
+      "moonraker_component": "component/timelapse.py",
       "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/timelapse.cfg",
       "config_target": "macros/timelapse.cfg",
+      "klipper_include": true,
+      "output_dirs": [
+        "timelapse"
+      ],
+      "moonraker_config": "[timelapse]\noutput_path: /opt/printer_data/timelapse/\nframe_path: /tmp/timelapse/printer_data\nffmpeg_binary_path: /usr/bin/ffmpeg",
+      "moonraker_update_manager": {
+        "type": "git_repo",
+        "primary_branch": "main",
+        "origin": "https://github.com/mainsail-crew/moonraker-timelapse.git"
+      },
       "probe_path": "/usr/data/openke/apps/timelapse/component/timelapse.py",
       "website": "https://github.com/mainsail-crew/moonraker-timelapse",
       "source_url": "https://github.com/mainsail-crew/moonraker-timelapse"
@@ -95,6 +106,11 @@
       "install_path": "/usr/data/openke/apps/fluidd",
       "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/fluidd.cfg",
       "config_target": "macros/fluidd.cfg",
+      "moonraker_update_manager": {
+        "type": "web",
+        "channel": "stable",
+        "repo": "fluidd-core/fluidd"
+      },
       "probe_path": "/usr/data/openke/apps/fluidd/index.html",
       "website": "https://fluidd.xyz",
       "source_url": "https://github.com/fluidd-core/fluidd"
@@ -110,6 +126,7 @@
       "type": "web_ui",
       "is_builtin": true,
       "builtin_path": "/usr/share/mainsail",
+      "config_target": "macros/mainsail.cfg",
       "probe_path": "/usr/share/mainsail/index.html",
       "website": "https://mainsail.xyz",
       "source_url": "https://github.com/mainsail-crew/mainsail"

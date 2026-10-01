@@ -590,21 +590,12 @@ python3 -c "
 import json
 with open('$mock_catalog') as f:
     d = json.load(f)
-tl_app = {
-    'id': 'timelapse',
-    'name': 'Moonraker Timelapse',
-    'category': 'plugin',
-    'author': 'mainsail-crew',
-    'version': '0.0.12',
-    'type': 'plugin',
-    'is_builtin': False,
-    'download_url': 'file://$mock_timelapse_zip',
-    'sha256': '$mock_timelapse_sha',
-    'config_url': 'file://$mock_timelapse_cfg',
-    'config_target': 'macros/timelapse.cfg',
-    'install_path': '$OPENKE_APPS_DIR/timelapse'
-}
-d['apps'] = [a for a in d['apps'] if a['id'] != 'timelapse'] + [tl_app]
+for app in d['apps']:
+    if app['id'] == 'timelapse':
+        app['download_url'] = 'file://$mock_timelapse_zip'
+        app['sha256'] = '$mock_timelapse_sha'
+        app['config_url'] = 'file://$mock_timelapse_cfg'
+        app['config_target'] = 'macros/timelapse.cfg'
 with open('$mock_catalog', 'w') as f:
     json.dump(d, f)
 "
