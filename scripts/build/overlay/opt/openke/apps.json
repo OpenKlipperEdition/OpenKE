@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "OpenKE App Store Catalog",
-  "updated_at": "2026-10-01T01:58:22Z",
+  "updated_at": "2026-10-01T02:51:09Z",
   "categories": [
     {
       "id": "web_ui",
@@ -40,7 +40,7 @@
       "type": "plugin",
       "is_builtin": false,
       "download_url": "https://github.com/OpenKlipperEdition/AppStore/releases/download/packages-v1.0/mobileraker-v0.5.0.zip",
-      "sha256": "ca8107ac8a5e374b1e09d4394c30d4868b81888779d81e0828720c8083feb039",
+      "sha256": "b9d6b3ad11c7eed4fbe577f887dc8fcd4c2d1058a27b3ef276bd6a8335c72d5d",
       "install_path": "/usr/data/openke/apps/mobileraker",
       "config_url": "https://raw.githubusercontent.com/OpenKlipperEdition/AppStore/main/configs/mobileraker.conf",
       "config_target": "mobileraker.conf",
