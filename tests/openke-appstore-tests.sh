@@ -615,10 +615,10 @@ else
 	fail "openke-app install timelapse failed to install macros/timelapse.cfg"
 fi
 
-if grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
-	pass "openke-app install timelapse added [timelapse] and [update_manager timelapse] to moonraker.conf"
+if grep -q "\[timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "\[update_manager timelapse\]" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf" && grep -q "is_system_service: False" "$OPENKE_PRINTER_DATA_CONFIG/moonraker.conf"; then
+	pass "openke-app install timelapse added [timelapse] and [update_manager timelapse] with is_system_service: False"
 else
-	fail "openke-app install timelapse failed to update moonraker.conf"
+	fail "openke-app install timelapse failed to update moonraker.conf with is_system_service: False"
 fi
 
 if grep -q "\[include macros/timelapse.cfg\]" "$OPENKE_PRINTER_DATA_CONFIG/printer.cfg"; then

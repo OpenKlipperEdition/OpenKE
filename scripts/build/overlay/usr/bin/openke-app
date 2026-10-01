@@ -452,7 +452,7 @@ def install_app_output_dirs(app: dict):
 
 def install_app_moonraker_conf(install_path: str, app: dict):
     """
-    Injects custom Moonraker INI sections (from moonraker_config) and
+    Injects or refreshes custom Moonraker INI sections (from moonraker_config) and
     [update_manager <app_id>] (from moonraker_update_manager) into moonraker.conf.
     """
     app_id = app.get("id", "")
@@ -491,6 +491,9 @@ def install_app_moonraker_conf(install_path: str, app: dict):
     if not sections_to_add:
         return
 
+    # Clean out any old sections first so that upgrades/reinstalls cleanly update configuration
+    remove_app_moonraker_conf(app, notify=False)
+
     cfg_dirs = get_config_dirs()
     for cfg_dir in cfg_dirs:
         moonraker_conf = os.path.join(cfg_dir, "moonraker.conf")
@@ -522,7 +525,7 @@ def install_app_moonraker_conf(install_path: str, app: dict):
             print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
 
 
-def remove_app_moonraker_conf(app: dict):
+def remove_app_moonraker_conf(app: dict, notify: bool = True):
     """
     Removes INI sections associated with app from moonraker.conf.
     """
@@ -582,7 +585,8 @@ def remove_app_moonraker_conf(app: dict):
                 with open(moonraker_conf, "w", encoding="utf-8") as f:
                     f.write(cleaned)
                 print(f"OK: Cleaned Moonraker configuration for {app_id} in {moonraker_conf}")
-                notify_moonraker_restart()
+                if notify:
+                    notify_moonraker_restart()
         except Exception as e:
             print(f"WARNING: Could not update {moonraker_conf}: {e}", file=sys.stderr)
 
