@@ -14,9 +14,9 @@
 #   ./scripts/dev/serve-update.sh 8000 192.168.1.120
 # ==============================================================================
 
-set -euo pipefail
+set -eu
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ARTIFACTS_DIR="$REPO_ROOT/artifacts/buildroot-halley5-v30-image"
 SERVING_DIR="$REPO_ROOT/build-work/dev-update-server"
@@ -111,7 +111,7 @@ else
     echo "  1. SSH to printer: root@<PRINTER_IP>"
     echo "  2. Run: echo 'dev_server_url=$DEV_SERVER_URL' > /usr/data/openke/openke-update.conf"
     echo "     (Or create /usr/data/openke-dev-url containing: $DEV_SERVER_URL)"
-    echo "  3. Open the Firmware Update panel on GuppyScreen and tap 'Scan USB'"
+    echo "  3. Open the Firmware Update panel on GuppyScreen and tap 'Refresh'"
 fi
 echo "======================================================="
 echo "Starting HTTP server on port $PORT (Press Ctrl+C to stop)..."
