@@ -48,6 +48,7 @@ STATE_DIR = os.environ.get("OPENKE_STATE_DIR", "/usr/data/openke")
 APPS_DIR = os.environ.get("OPENKE_APPS_DIR", os.path.join(STATE_DIR, "apps"))
 SERVICES_DIR = os.environ.get("OPENKE_SERVICES_DIR", os.path.join(STATE_DIR, "services.d"))
 INSTALLED_DIR = os.path.join(STATE_DIR, "installed")
+COMPONENTS_DIR = os.environ.get("OPENKE_COMPONENTS_DIR", os.path.join(STATE_DIR, "components"))
 WEB_ROOT_SYMLINK = os.environ.get("OPENKE_WEB_ROOT_LINK", "/var/run/openke-web-root")
 ACTIVE_WEB_FILE = os.path.join(STATE_DIR, "active_web_ui")
 ACTIVE_TOUCH_FILE = os.path.join(STATE_DIR, "active_touch_ui")
@@ -279,11 +280,29 @@ def get_config_dirs() -> list:
 
 def get_moonraker_components_dirs() -> list:
     paths = [
+        COMPONENTS_DIR,
+        os.path.join(STATE_DIR, "components"),
+        os.path.join(STATE_DIR, "moonraker-components"),
+        "/usr/data/openke/components",
+        "/usr/data/openke/moonraker-components",
+        "/opt/printer_data/components",
+        "/usr/data/printer_data/components",
         "/usr/data/openke/apps/moonraker/moonraker/components",
         "/opt/moonraker/moonraker/components",
         os.environ.get("OPENKE_MOONRAKER_COMPONENTS_DIR", "")
     ]
-    return [p for p in paths if p and os.path.isdir(p)]
+    res = []
+    for p in paths:
+        if not p:
+            continue
+        if p.startswith(STATE_DIR) or p.startswith("/usr/data") or p.startswith("/opt/printer_data"):
+            try:
+                os.makedirs(p, exist_ok=True)
+            except Exception:
+                pass
+        if os.path.isdir(p) and p not in res:
+            res.append(p)
+    return res
 
 
 def get_seed_config(rel_target: str) -> str:
@@ -2218,9 +2237,17 @@ def cmd_sync(args=None):
             if not meta:
                 save_installed_app_meta(app)
 
-            # Ensure Moonraker components are linked
+            # Ensure Moonraker components, configurations, macros, and output directories are synchronized
             if app.get("moonraker_component") and os.path.isdir(install_path):
                 install_app_moonraker_components(install_path, app)
+            if app.get("config_target") and os.path.isdir(install_path):
+                install_app_config_files(install_path, app)
+            if app.get("output_dirs"):
+                install_app_output_dirs(app)
+            if app.get("moonraker_config") and os.path.isdir(install_path):
+                install_app_moonraker_conf(install_path, app)
+            if app.get("klipper_include") and os.path.isdir(install_path):
+                install_app_printer_cfg(install_path, app)
 
             # Ensure service runner exists and is executable
             if (app.get("service") or app.get("service_init")) and os.path.isdir(install_path):

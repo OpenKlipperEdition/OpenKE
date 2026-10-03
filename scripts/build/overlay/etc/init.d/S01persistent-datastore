@@ -128,13 +128,14 @@ start() {
 		/usr/data/opt/tmp
 	[ -e /usr/data/opt/lib/ld-linux.so.2 ] || ln -sf /lib/ld.so.1 /usr/data/opt/lib/ld-linux.so.2
 
-	# Initialize OpenKE custom apps storage, dynamic services, and dynamic web root
-	mkdir -p "$DATA_ROOT/apps" "$DATA_ROOT/services.d" "$DATA_ROOT/installed"
+	# Initialize OpenKE custom apps storage, dynamic services, Moonraker components, and dynamic web root
+	mkdir -p "$DATA_ROOT/apps" "$DATA_ROOT/services.d" "$DATA_ROOT/installed" "$DATA_ROOT/components"
 	if [ -f /opt/openke-seeds/apps.json ]; then
 		if [ ! -f "$DATA_ROOT/apps.json" ] || [ /opt/openke-seeds/apps.json -nt "$DATA_ROOT/apps.json" ]; then
 			cp -a /opt/openke-seeds/apps.json "$DATA_ROOT/apps.json"
 		fi
 	fi
+	[ -x /usr/bin/openke-app ] && /usr/bin/openke-app sync >/dev/null 2>&1 || true
 	active_web="mainsail"
 	[ -f "$DATA_ROOT/active_web_ui" ] && active_web=$(cat "$DATA_ROOT/active_web_ui" 2>/dev/null | tr -d ' \r\n')
 	if [ "$active_web" = "mainsail" ] || [ ! -d "$DATA_ROOT/apps/$active_web" ]; then

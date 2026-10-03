@@ -466,6 +466,8 @@ find "$OVERLAY/opt/moonraker" -name "__pycache__" -exec rm -rf {} + 2>/dev/null 
 # being in the correct end state. -N makes patch skip hunks it detects as
 # already-applied instead of erroring, so this stays idempotent either way.
 patch -N -p1 -d "$OVERLAY/opt/moonraker" < "$SCRIPT_DIR/patches/moonraker-sqlite-nolock.patch" || true
+patch -N -p1 -d "$OVERLAY/opt/moonraker" < "$SCRIPT_DIR/patches/moonraker-components-extension.patch" || true
+
 
 # Production optimization mission, Phase 4 (2026-07-30): precompile after
 # the patch above, not before, so bytecode reflects the final patched

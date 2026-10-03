@@ -95,6 +95,8 @@ log() {
 }
 
 start_daemon() {
+	mkdir -p /usr/data/openke/components
+	[ -x /usr/bin/openke-app ] && /usr/bin/openke-app sync >/dev/null 2>&1 || true
 	echo "Starting moonraker (using $PYTHON3)"
 	start-stop-daemon -S -b -m -p "$PIDFILE" \
 		-x "$PYTHON3" -- \

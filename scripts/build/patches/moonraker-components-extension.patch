@@ -1,0 +1,20 @@
+--- a/moonraker/components/__init__.py
++++ b/moonraker/components/__init__.py
+@@ -4,3 +4,17 @@
+ # Copyright (C) 2020 Eric Callahan <arksine.code@gmail.com>
+ #
+ # This file may be distributed under the terms of the GNU GPLv3 license.
++
++import os
++
++_extra_component_dirs = [
++    "/usr/data/openke/components",
++    "/usr/data/openke/moonraker-components",
++    "/opt/printer_data/components",
++    "/usr/data/printer_data/components",
++    os.environ.get("OPENKE_MOONRAKER_COMPONENTS_DIR", ""),
++]
++
++for _dir in _extra_component_dirs:
++    if _dir and os.path.isdir(_dir) and _dir not in __path__:
++        __path__.append(_dir)
