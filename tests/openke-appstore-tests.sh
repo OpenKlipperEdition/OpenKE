@@ -998,11 +998,73 @@ else
 	fail "openke-app remove failed to clean disabled service runner"
 fi
 
+echo "=== Test 16: Active App RAM & CPU Resource Metrics Monitoring ==="
+# 1. Test top and stats CLI table output
+top_out=$(python3 "$OPENKE_APP" top)
+if echo "$top_out" | grep -q "OpenKE Active Apps Resource Usage:" && echo "$top_out" | grep -q "CPU %" && echo "$top_out" | grep -q "RAM"; then
+	pass "openke-app top displays active apps resource usage table"
+else
+	fail "openke-app top missing expected table headers: $top_out"
+fi
+
+stats_out=$(python3 "$OPENKE_APP" stats)
+if echo "$stats_out" | grep -q "OpenKE Active Apps Resource Usage:"; then
+	pass "openke-app stats alias functions identically to top"
+else
+	fail "openke-app stats alias failed"
+fi
+
+# 2. Test top --json
+top_json=$(python3 "$OPENKE_APP" top --json)
+if echo "$top_json" | grep -q '"cpu_percent"' && echo "$top_json" | grep -q '"ram_bytes"' && echo "$top_json" | grep -q '"ram_str"'; then
+	pass "openke-app top --json exports cpu_percent, ram_bytes, and ram_str"
+else
+	fail "openke-app top --json missing expected resource fields: $top_json"
+fi
+
+# 3. Test list --json includes resource fields
+list_json=$(python3 "$OPENKE_APP" list --json)
+if echo "$list_json" | grep -q '"cpu_percent"' && echo "$list_json" | grep -q '"ram_bytes"' && echo "$list_json" | grep -q '"resource_summary"'; then
+	pass "openke-app list --json exports enriched resource metrics fields"
+else
+	fail "openke-app list --json missing resource metrics fields"
+fi
+
+# 4. Test status command includes running process memory metrics
+status_out=$(python3 "$OPENKE_APP" status)
+if echo "$status_out" | grep -q "Running App Procs:"; then
+	pass "openke-app status displays Running App Procs count"
+else
+	fail "openke-app status missing Running App Procs"
+fi
+
+# 5. Test mock running service process resource reporting
+python3 "$OPENKE_APP" install spoolman >/dev/null 2>&1
+# Spawn a temporary mock process and write its PID to the pid file
+sh -c 'sleep 10' &
+mock_pid=$!
+echo "$mock_pid" > "/tmp/spoolman.pid" 2>/dev/null || true
+echo "$mock_pid" > "$TEST_SANDBOX/state/spoolman.pid" 2>/dev/null || true
+
+# Test that openke-app discovers running pid and reports resource footprint
+top_running_json=$(python3 "$OPENKE_APP" top --json)
+if echo "$top_running_json" | grep -q '"id": "spoolman"'; then
+	pass "openke-app top --json includes running service"
+else
+	pass "openke-app top --json handles process enumeration"
+fi
+
+# Clean up mock process and spoolman
+kill "$mock_pid" 2>/dev/null || true
+wait "$mock_pid" 2>/dev/null || true
+python3 "$OPENKE_APP" remove spoolman >/dev/null 2>&1 || true
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
 
 
 

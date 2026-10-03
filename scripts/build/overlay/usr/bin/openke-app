@@ -994,11 +994,249 @@ def sync_web_ui_klipper_macros(target_web_ui: str):
             print(f"WARNING: Could not update macro include in {printer_cfg}: {e}", file=sys.stderr)
 
 
+def get_system_total_memory_kb() -> int:
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1])
+    except Exception:
+        pass
+    return 0
+
+
+def get_system_cpu_jiffies() -> int:
+    try:
+        with open("/proc/stat", "r", encoding="utf-8") as f:
+            line = f.readline()
+        return sum(int(x) for x in line.split()[1:])
+    except Exception:
+        return 0
+
+
+def find_app_pids(app_id: str) -> list:
+    """
+    Discovers all process IDs (main PID and child processes) associated with an app.
+    """
+    normalized_id = re.sub(r"^[SK]\d+", "", app_id).lower()
+    pids = set()
+
+    # 1. Check standard PID files
+    pid_candidates = [
+        f"/var/run/{app_id}.pid",
+        f"/var/run/{normalized_id}.pid",
+        f"/tmp/{app_id}.pid",
+        f"/tmp/{normalized_id}.pid",
+        f"/var/run/{app_id}/{app_id}.pid",
+        f"/var/run/{normalized_id}/{normalized_id}.pid",
+    ]
+
+    svc_script = find_app_service_script(app_id)
+    if svc_script and os.path.isfile(svc_script):
+        try:
+            with open(svc_script, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if line.strip().startswith("PIDFILE="):
+                        val = line.strip().split("=", 1)[1].strip("\"' ")
+                        if val and val not in pid_candidates:
+                            pid_candidates.insert(0, val)
+        except Exception:
+            pass
+
+    for pid_file in pid_candidates:
+        if os.path.isfile(pid_file):
+            try:
+                with open(pid_file, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                if content.isdigit():
+                    p = int(content)
+                    if os.path.isdir(f"/proc/{p}"):
+                        pids.add(p)
+            except Exception:
+                pass
+
+    # 2. Process table scan if no PID found or for active UIs
+    if not pids and os.path.isdir("/proc"):
+        try:
+            for entry in os.listdir("/proc"):
+                if entry.isdigit():
+                    p = int(entry)
+                    cmdline_path = f"/proc/{p}/cmdline"
+                    comm_path = f"/proc/{p}/comm"
+                    cmdline = ""
+                    comm = ""
+                    try:
+                        with open(cmdline_path, "rb") as f:
+                            cmdline = f.read().decode("utf-8", errors="ignore").replace("\x00", " ").strip()
+                    except Exception:
+                        pass
+                    try:
+                        with open(comm_path, "r", encoding="utf-8", errors="ignore") as f:
+                            comm = f.read().strip()
+                    except Exception:
+                        pass
+
+                    matched = False
+                    if normalized_id in ("guppyscreen", "klipperscreen", "mobileraker", "spoolman", "octoapp", "octoprint"):
+                        if comm == normalized_id or comm == app_id:
+                            matched = True
+                        elif normalized_id == "spoolman" and ("spoolman" in cmdline or "spoolman" in comm):
+                            matched = True
+                        elif normalized_id == "mobileraker" and ("mobileraker" in cmdline or "mobileraker" in comm):
+                            matched = True
+                        elif normalized_id == "octoapp" and ("octoapp" in cmdline or "octoapp" in comm):
+                            matched = True
+                        elif normalized_id == "klipperscreen" and ("KlipperScreen" in cmdline or "klipperscreen" in cmdline):
+                            matched = True
+                        elif normalized_id == "guppyscreen" and ("guppyscreen" in cmdline or "guppyscreen" in comm):
+                            matched = True
+                    elif cmdline and (f"/{normalized_id}/" in cmdline or f"/{normalized_id} " in cmdline or f" {normalized_id} " in cmdline or cmdline.endswith(f"/{normalized_id}") or cmdline.endswith(f" {normalized_id}")):
+                        matched = True
+
+                    if matched:
+                        pids.add(p)
+        except Exception:
+            pass
+
+    if not pids:
+        return []
+
+    # 3. Discover descendant child processes
+    all_pids = set(pids)
+    if os.path.isdir("/proc"):
+        try:
+            added = True
+            while added:
+                added = False
+                for entry in os.listdir("/proc"):
+                    if entry.isdigit():
+                        p = int(entry)
+                        if p not in all_pids:
+                            try:
+                                with open(f"/proc/{p}/stat", "r", encoding="utf-8") as f:
+                                    content = f.read()
+                                rparen = content.rfind(")")
+                                if rparen != -1:
+                                    fields = content[rparen + 2:].split()
+                                    ppid = int(fields[1])
+                                    if ppid in all_pids:
+                                        all_pids.add(p)
+                                        added = True
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+    return sorted(list(all_pids))
+
+
+def get_process_rss_kb(pids: list) -> int:
+    total_rss = 0
+    for p in pids:
+        try:
+            with open(f"/proc/{p}/status", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        total_rss += int(line.split()[1])
+                        break
+        except Exception:
+            pass
+    return total_rss
+
+
+def get_process_cpu_jiffies(pids: list) -> int:
+    total_jiffies = 0
+    for p in pids:
+        try:
+            with open(f"/proc/{p}/stat", "r", encoding="utf-8") as f:
+                content = f.read()
+            rparen = content.rfind(")")
+            if rparen != -1:
+                fields = content[rparen + 2:].split()
+                total_jiffies += int(fields[11]) + int(fields[12]) + int(fields[13]) + int(fields[14])
+        except Exception:
+            pass
+    return total_jiffies
+
+
+def get_apps_resource_usage(app_list: list, sample_cpu: bool = True, sample_interval: float = 0.1) -> dict:
+    """
+    Computes CPU % and RAM usage for all apps in `app_list`.
+    Returns a dict mapping app_id -> resource stat dict.
+    """
+    app_pids_map = {}
+    for app in app_list:
+        app_id = app.get("id", "")
+        pids = find_app_pids(app_id)
+        if pids:
+            app_pids_map[app_id] = pids
+
+    cpu_map = {}
+    if sample_cpu and app_pids_map and os.path.exists("/proc/stat"):
+        try:
+            sys1 = get_system_cpu_jiffies()
+            proc1 = {app_id: get_process_cpu_jiffies(pids) for app_id, pids in app_pids_map.items()}
+            time.sleep(sample_interval)
+            sys2 = get_system_cpu_jiffies()
+            proc2 = {app_id: get_process_cpu_jiffies(pids) for app_id, pids in app_pids_map.items()}
+
+            dsys = max(1, sys2 - sys1)
+            num_cpus = os.cpu_count() or 1
+            for app_id in app_pids_map:
+                dproc = max(0, proc2.get(app_id, 0) - proc1.get(app_id, 0))
+                cpu_map[app_id] = round(min(100.0 * num_cpus, 100.0 * dproc / dsys * num_cpus), 1)
+        except Exception:
+            pass
+
+    mem_total_kb = get_system_total_memory_kb()
+    results = {}
+
+    for app in app_list:
+        app_id = app.get("id", "")
+        pids = app_pids_map.get(app_id, [])
+        if pids:
+            main_pid = pids[0]
+            rss_kb = get_process_rss_kb(pids)
+            ram_bytes = rss_kb * 1024
+            ram_mb = round(rss_kb / 1024.0, 1)
+            ram_str = format_bytes(ram_bytes)
+            ram_pct = round(100.0 * rss_kb / mem_total_kb, 1) if mem_total_kb > 0 else 0.0
+            cpu_pct = cpu_map.get(app_id, 0.0)
+            res_summary = f"CPU: {cpu_pct:.1f}% • RAM: {ram_str} ({ram_pct:.1f}%)" if ram_pct > 0 or cpu_pct > 0 else f"RAM: {ram_str}"
+            results[app_id] = {
+                "pid": main_pid,
+                "pids": pids,
+                "is_running": True,
+                "cpu_percent": cpu_pct,
+                "ram_bytes": ram_bytes,
+                "ram_mb": ram_mb,
+                "ram_str": ram_str,
+                "ram_percent": ram_pct,
+                "resource_summary": res_summary
+            }
+        else:
+            results[app_id] = {
+                "pid": None,
+                "pids": [],
+                "is_running": False,
+                "cpu_percent": 0.0,
+                "ram_bytes": 0,
+                "ram_mb": 0.0,
+                "ram_str": "",
+                "ram_percent": 0.0,
+                "resource_summary": ""
+            }
+
+    return results
+
+
 def cmd_list(args):
     catalog = load_catalog()
     apps = catalog.get("apps", [])
     active_web = get_active_web_ui()
     active_touch = get_active_touch_ui()
+
+    stats_map = get_apps_resource_usage(apps, sample_cpu=True, sample_interval=0.1) if args.json or any(is_app_installed(a) for a in apps) else {}
 
     results = []
     for app in apps:
@@ -1028,10 +1266,13 @@ def cmd_list(args):
         elif installed:
             status = "installed"
 
+        app_stats = stats_map.get(app_id, {})
+        is_proc_running = app_stats.get("is_running", False)
+
         svc_script = find_app_service_script(app_id)
         has_service = bool(svc_script or app.get("service") or app.get("service_init"))
         service_enabled = is_app_service_enabled(app_id) if installed and svc_script else (True if has_service else False)
-        service_status = get_app_service_status(app_id) if installed and svc_script else ("stopped" if installed and has_service else "")
+        service_status = "running" if is_proc_running else (get_app_service_status(app_id) if installed and svc_script else ("stopped" if installed and has_service else ""))
 
         item = {
             "id": app_id,
@@ -1049,7 +1290,14 @@ def cmd_list(args):
             "has_service": has_service,
             "service_enabled": service_enabled,
             "service_status": service_status,
-            "status": status
+            "status": status,
+            "pid": app_stats.get("pid"),
+            "cpu_percent": app_stats.get("cpu_percent", 0.0),
+            "ram_bytes": app_stats.get("ram_bytes", 0),
+            "ram_mb": app_stats.get("ram_mb", 0.0),
+            "ram_str": app_stats.get("ram_str", ""),
+            "ram_percent": app_stats.get("ram_percent", 0.0),
+            "resource_summary": app_stats.get("resource_summary", "") if is_proc_running or is_active else ""
         }
         results.append(item)
 
@@ -1520,18 +1768,29 @@ def cmd_service(args):
         if not os.path.isdir(services_dir) or not os.listdir(services_dir):
             print(f"No dynamic services found in {services_dir}")
             return
+        catalog = load_catalog()
+        apps = catalog.get("apps", [])
+        stats_map = get_apps_resource_usage(apps, sample_cpu=True, sample_interval=0.1)
+
         print("Dynamic Services:")
-        print(f"{'SERVICE':<25} {'ENABLED':<10} {'STATUS':<15} {'PATH'}")
+        print(f"{'SERVICE':<22} {'ENABLED':<9} {'STATUS':<10} {'PID':<8} {'CPU %':<8} {'RAM'}")
         print("-" * 80)
         for fname in sorted(os.listdir(services_dir)):
             svc_path = os.path.join(services_dir, fname)
             if not os.path.isfile(svc_path):
                 continue
+            base = re.sub(r"\.disabled$", "", fname)
+            norm_id = re.sub(r"^[SK]\d+", "", base)
             is_en = not fname.startswith("K") and not fname.endswith(".disabled") and os.access(svc_path, os.X_OK)
             enabled_str = "yes" if is_en else "no"
             res = subprocess.run([svc_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            status_text = "running" if res.returncode == 0 else "stopped"
-            print(f"{fname:<25} {enabled_str:<10} {status_text:<15} {svc_path}")
+            stats = stats_map.get(norm_id, {})
+            is_running = res.returncode == 0 or stats.get("is_running", False)
+            status_text = "running" if is_running else "stopped"
+            pid_str = str(stats.get("pid")) if stats.get("pid") is not None else "-"
+            cpu_str = f"{stats.get('cpu_percent', 0.0):.1f}%" if is_running else "-"
+            ram_str = f"{stats.get('ram_str', '-')} ({stats.get('ram_percent', 0.0):.1f}%)" if is_running and stats.get("ram_bytes", 0) > 0 else "-"
+            print(f"{fname:<22} {enabled_str:<9} {status_text:<10} {pid_str:<8} {cpu_str:<8} {ram_str}")
         return
 
     if not app_id:
@@ -1555,6 +1814,27 @@ def cmd_service(args):
     if not svc_path:
         print(f"ERROR: No service found for app '{app_id}' in {services_dir} or /etc/init.d", file=sys.stderr)
         sys.exit(1)
+
+    if action == "status":
+        res = subprocess.run([svc_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stats_map = get_apps_resource_usage([{"id": app_id}], sample_cpu=True, sample_interval=0.1)
+        stats = stats_map.get(app_id, {})
+        is_running = res.returncode == 0 or stats.get("is_running", False)
+        if is_running:
+            pid = stats.get("pid")
+            res_info = f" [CPU: {stats.get('cpu_percent', 0.0):.1f}%, RAM: {stats.get('ram_str', '-')} ({stats.get('ram_percent', 0.0):.1f}%)]" if stats.get("ram_bytes", 0) > 0 else ""
+            out = res.stdout.strip()
+            if out:
+                if out.endswith("."):
+                    out = out[:-1]
+                print(f"{out}.{res_info}")
+            else:
+                print(f"{app_id} (pid {pid}) is running.{res_info}")
+            sys.exit(0)
+        else:
+            out = res.stdout.strip()
+            print(out if out else f"{app_id} is stopped.")
+            sys.exit(res.returncode if res.returncode != 0 else 3)
 
     res = subprocess.run([svc_path, action])
     sys.exit(res.returncode)
@@ -1785,6 +2065,80 @@ def cmd_set_active_touch(args):
     set_active_touch(args.app_id, force=getattr(args, "force", False))
 
 
+def cmd_top(args):
+    catalog = load_catalog()
+    apps = catalog.get("apps", [])
+    active_web = get_active_web_ui()
+    active_touch = get_active_touch_ui()
+
+    stats_map = get_apps_resource_usage(apps, sample_cpu=True, sample_interval=0.15)
+    mem_total_kb = get_system_total_memory_kb()
+
+    active_items = []
+    total_app_rss_kb = 0
+
+    for app in apps:
+        app_id = app.get("id", "")
+        cat = app.get("category", "")
+        installed = is_app_installed(app)
+        stats = stats_map.get(app_id, {})
+        is_running = stats.get("is_running", False)
+
+        is_active = False
+        if cat == "web_ui" and app_id == active_web:
+            is_active = True
+        elif cat == "touch_ui" and app_id == active_touch:
+            is_active = True
+
+        status_text = "stopped"
+        if is_active:
+            status_text = "active"
+        elif is_running:
+            status_text = "running"
+        elif installed:
+            status_text = "installed"
+        else:
+            status_text = "available"
+
+        if is_running or is_active or (installed and getattr(args, "all", False)):
+            if is_running:
+                total_app_rss_kb += stats.get("ram_bytes", 0) // 1024
+            active_items.append({
+                "id": app_id,
+                "name": app.get("name", app_id),
+                "category": cat,
+                "status": status_text,
+                "pid": stats.get("pid"),
+                "cpu_percent": stats.get("cpu_percent", 0.0),
+                "ram_bytes": stats.get("ram_bytes", 0),
+                "ram_mb": stats.get("ram_mb", 0.0),
+                "ram_str": stats.get("ram_str", "-"),
+                "ram_percent": stats.get("ram_percent", 0.0),
+                "resource_summary": stats.get("resource_summary", "")
+            })
+
+    if getattr(args, "json", False):
+        print(json.dumps(active_items, indent=2))
+        return
+
+    print("OpenKE Active Apps Resource Usage:")
+    print(f"{'ID':<15} {'NAME':<24} {'CATEGORY':<12} {'STATUS':<10} {'PID':<8} {'CPU %':<8} {'RAM'}")
+    print("-" * 92)
+    if not active_items:
+        print("No active application processes found.")
+    else:
+        for item in active_items:
+            pid_str = str(item["pid"]) if item["pid"] is not None else "-"
+            cpu_str = f"{item['cpu_percent']:.1f}%" if item["pid"] is not None else "-"
+            ram_str = f"{item['ram_str']} ({item['ram_percent']:.1f}%)" if item["ram_bytes"] > 0 else "-"
+            print(f"{item['id']:<15} {item['name'][:23]:<24} {item['category']:<12} {item['status']:<10} {pid_str:<8} {cpu_str:<8} {ram_str}")
+
+    if mem_total_kb > 0:
+        total_pct = round(100.0 * total_app_rss_kb / mem_total_kb, 1)
+        print("-" * 92)
+        print(f"Total System Memory: {format_bytes(mem_total_kb * 1024)} | Active App Footprint: {format_bytes(total_app_rss_kb * 1024)} ({total_pct}%)")
+
+
 def cmd_status(args):
     active_web = get_active_web_ui()
     active_touch = get_active_touch_ui()
@@ -1794,10 +2148,19 @@ def cmd_status(args):
     installed_count = sum(1 for a in apps if is_app_installed(a))
     updates_count = sum(1 for a in apps if is_app_installed(a) and not a.get("is_builtin", False) and get_installed_version(a) and a.get("version") and get_installed_version(a) != a.get("version"))
 
+    stats_map = get_apps_resource_usage(apps, sample_cpu=True, sample_interval=0.1)
+    running_count = sum(1 for a in apps if stats_map.get(a.get("id", ""), {}).get("is_running", False))
+    total_rss_kb = sum(stats_map.get(a.get("id", ""), {}).get("ram_bytes", 0) // 1024 for a in apps)
+    mem_total_kb = get_system_total_memory_kb()
+
     print("OpenKE App Store Status:")
     print(f"  Active Web UI:       {active_web}")
     print(f"  Active Touch UI:     {active_touch}")
     print(f"  Installed Apps:      {installed_count} / {len(apps)}")
+    print(f"  Running App Procs:   {running_count}")
+    if mem_total_kb > 0:
+        total_pct = round(100.0 * total_rss_kb / mem_total_kb, 1)
+        print(f"  App Memory Usage:    {format_bytes(total_rss_kb * 1024)} / {format_bytes(mem_total_kb * 1024)} ({total_pct}%)")
     print(f"  Updates Available:   {updates_count}")
     print(f"  Apps Directory:      {APPS_DIR}")
 
@@ -1811,6 +2174,22 @@ def main():
     p_list.add_argument("--json", action="store_true", help="Output JSON format")
     p_list.add_argument("--category", help="Filter by category (web_ui, touch_ui, plugin, tool)")
     p_list.set_defaults(func=cmd_list)
+
+    # top / stats / ps
+    p_top = subparsers.add_parser("top", help="Display live RAM and CPU resource usage for active apps")
+    p_top.add_argument("--json", action="store_true", help="Output JSON format")
+    p_top.add_argument("--all", "-a", action="store_true", help="Show all installed apps even if stopped")
+    p_top.set_defaults(func=cmd_top)
+
+    p_stats = subparsers.add_parser("stats", help="Alias for top")
+    p_stats.add_argument("--json", action="store_true", help="Output JSON format")
+    p_stats.add_argument("--all", "-a", action="store_true", help="Show all installed apps even if stopped")
+    p_stats.set_defaults(func=cmd_top)
+
+    p_ps = subparsers.add_parser("ps", help="Alias for top")
+    p_ps.add_argument("--json", action="store_true", help="Output JSON format")
+    p_ps.add_argument("--all", "-a", action="store_true", help="Show all installed apps even if stopped")
+    p_ps.set_defaults(func=cmd_top)
 
     # update
     p_upd = subparsers.add_parser("update", help="Update catalog from remote AppStore repository")
