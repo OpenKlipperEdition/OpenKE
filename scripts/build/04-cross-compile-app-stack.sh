@@ -812,6 +812,8 @@ else
 	# on PATH globally).
 	if [ -n "${GUPPYSCREEN_TOOLCHAIN_BIN:-}" ]; then
 		export PATH="$GUPPYSCREEN_TOOLCHAIN_BIN:$PATH"
+	elif [ -d "$TOOLCHAIN_HOST/bin" ]; then
+		export PATH="$TOOLCHAIN_HOST/bin:$PATH"
 	fi
 	# wiki/Building-from-Source.md step 3 ("Build the bundled libraries") -
 	# scripts/build-mips.sh backs up and restores these three native
