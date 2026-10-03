@@ -930,6 +930,74 @@ fi
 # Clean up fluidd after progress bar test
 python3 "$OPENKE_APP" remove fluidd >/dev/null 2>&1 || true
 
+echo "=== Test 15: App Service Enabling / Disabling Lifecycle ==="
+# 1. Install spoolman
+python3 "$OPENKE_APP" install spoolman
+
+if [ -f "$OPENKE_SERVICES_DIR/S60spoolman" ]; then
+	pass "openke-app install spoolman created enabled S60spoolman service"
+else
+	fail "openke-app install spoolman failed to create S60spoolman"
+fi
+
+# 2. Check initial is-enabled
+if python3 "$OPENKE_APP" service is-enabled spoolman; then
+	pass "openke-app service is-enabled returns 0 for enabled service"
+else
+	fail "openke-app service is-enabled failed for enabled service"
+fi
+
+json_list_en=$(python3 "$OPENKE_APP" list --json)
+if echo "$json_list_en" | grep -q '"service_enabled": true'; then
+	pass "openke-app list --json exports service_enabled: true"
+else
+	fail "openke-app list --json missing service_enabled: true"
+fi
+
+# 3. Disable service
+python3 "$OPENKE_APP" service disable spoolman
+if [ -f "$OPENKE_SERVICES_DIR/K60spoolman" ] && [ ! -f "$OPENKE_SERVICES_DIR/S60spoolman" ]; then
+	pass "openke-app service disable spoolman renamed S60spoolman to K60spoolman"
+else
+	fail "openke-app service disable spoolman did not rename to K60spoolman"
+fi
+
+if ! python3 "$OPENKE_APP" service is-enabled spoolman; then
+	pass "openke-app service is-enabled returns 1 for disabled service"
+else
+	fail "openke-app service is-enabled returned 0 for disabled service"
+fi
+
+json_list_dis=$(python3 "$OPENKE_APP" list --json)
+if echo "$json_list_dis" | grep -q '"service_enabled": false'; then
+	pass "openke-app list --json exports service_enabled: false when disabled"
+else
+	fail "openke-app list --json missing service_enabled: false"
+fi
+
+# 4. Re-enable service
+python3 "$OPENKE_APP" service enable spoolman
+if [ -f "$OPENKE_SERVICES_DIR/S60spoolman" ] && [ ! -f "$OPENKE_SERVICES_DIR/K60spoolman" ]; then
+	pass "openke-app service enable spoolman restored S60spoolman"
+else
+	fail "openke-app service enable spoolman did not restore S60spoolman"
+fi
+
+if python3 "$OPENKE_APP" service is-enabled spoolman; then
+	pass "openke-app service is-enabled returns 0 after re-enabling"
+else
+	fail "openke-app service is-enabled failed after re-enabling"
+fi
+
+# 5. Disable again and verify clean removal
+python3 "$OPENKE_APP" service disable spoolman
+python3 "$OPENKE_APP" remove spoolman
+if [ ! -e "$OPENKE_SERVICES_DIR/S60spoolman" ] && [ ! -e "$OPENKE_SERVICES_DIR/K60spoolman" ]; then
+	pass "openke-app remove cleaned disabled service runner (K60spoolman)"
+else
+	fail "openke-app remove failed to clean disabled service runner"
+fi
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"

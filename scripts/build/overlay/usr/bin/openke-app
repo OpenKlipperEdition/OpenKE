@@ -1030,6 +1030,7 @@ def cmd_list(args):
 
         svc_script = find_app_service_script(app_id)
         has_service = bool(svc_script or app.get("service") or app.get("service_init"))
+        service_enabled = is_app_service_enabled(app_id) if installed and svc_script else (True if has_service else False)
         service_status = get_app_service_status(app_id) if installed and svc_script else ("stopped" if installed and has_service else "")
 
         item = {
@@ -1046,6 +1047,7 @@ def cmd_list(args):
             "is_installed": installed,
             "is_active": is_active,
             "has_service": has_service,
+            "service_enabled": service_enabled,
             "service_status": service_status,
             "status": status
         }
@@ -1175,29 +1177,127 @@ def cmd_install(args):
 def find_app_service_script(app_id: str) -> str:
     """
     Locates the executable service runner for app_id in services.d or /etc/init.d.
-    Handles both raw ID ('mobileraker') and service name ('S60mobileraker').
+    Handles raw ID ('mobileraker'), S-prefix ('S60mobileraker'), and K-prefix ('K60mobileraker').
     """
-    normalized_id = re.sub(r"^S\d+", "", app_id)
+    normalized_id = re.sub(r"^[SK]\d+", "", app_id)
     services_dir = get_services_dir()
     if os.path.isdir(services_dir):
-        # 1. Exact match (e.g. S60mobileraker when passed S60mobileraker)
+        # 1. Exact match
         exact_cand = os.path.join(services_dir, app_id)
-        if os.path.isfile(exact_cand) and os.access(exact_cand, os.X_OK):
+        if os.path.isfile(exact_cand):
             return exact_cand
 
         # 2. Priority or normalized matches
         for fname in sorted(os.listdir(services_dir)):
             cand = os.path.join(services_dir, fname)
-            if not os.path.isfile(cand) or not os.access(cand, os.X_OK):
+            if not os.path.isfile(cand):
                 continue
-            if fname == app_id or fname == normalized_id or fname == f"S60{normalized_id}" or fname.endswith(f"_{normalized_id}") or fname.endswith(normalized_id):
+            base = re.sub(r"\.disabled$", "", fname)
+            norm_base = re.sub(r"^[SK]\d+", "", base)
+            if (fname == app_id or fname == normalized_id or
+                base == app_id or norm_base == normalized_id or
+                fname == f"S60{normalized_id}" or fname == f"K60{normalized_id}" or
+                fname.endswith(f"_{normalized_id}") or fname.endswith(normalized_id)):
                 return cand
 
     # 3. Legacy /etc/init.d/ fallback
-    for cand in [f"/etc/init.d/{app_id}", f"/etc/init.d/S60{normalized_id}", f"/etc/init.d/{normalized_id}"]:
-        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+    for cand in [f"/etc/init.d/{app_id}", f"/etc/init.d/S60{normalized_id}", f"/etc/init.d/K60{normalized_id}", f"/etc/init.d/{normalized_id}"]:
+        if os.path.isfile(cand):
             return cand
     return ""
+
+
+def is_app_service_enabled(app_id: str) -> bool:
+    """
+    Returns True if service is enabled to start on boot (S*), False if disabled (K* or .disabled).
+    """
+    svc_path = find_app_service_script(app_id)
+    if not svc_path or not os.path.isfile(svc_path):
+        return False
+    fname = os.path.basename(svc_path)
+    if fname.startswith("K") or fname.endswith(".disabled") or fname.endswith(".bak"):
+        return False
+    return os.access(svc_path, os.X_OK)
+
+
+def enable_app_service(app_id: str) -> bool:
+    """
+    Enables automatic startup on boot for the app service (renames K... -> S...).
+    """
+    svc_path = find_app_service_script(app_id)
+    if not svc_path or not os.path.isfile(svc_path):
+        print(f"ERROR: No service runner found for app '{app_id}'", file=sys.stderr)
+        return False
+
+    dir_path = os.path.dirname(svc_path)
+    fname = os.path.basename(svc_path)
+
+    if fname.startswith("K"):
+        new_fname = "S" + fname[1:]
+    elif fname.endswith(".disabled"):
+        new_fname = fname[:-9]
+    elif not fname.startswith("S"):
+        new_fname = f"S60{fname}"
+    else:
+        new_fname = fname
+
+    new_path = os.path.join(dir_path, new_fname)
+    if svc_path != new_path:
+        try:
+            os.rename(svc_path, new_path)
+            svc_path = new_path
+        except Exception as e:
+            print(f"ERROR: Failed enabling service script {svc_path} -> {new_path}: {e}", file=sys.stderr)
+            return False
+
+    try:
+        os.chmod(svc_path, 0o755)
+    except Exception:
+        pass
+
+    try:
+        subprocess.run([svc_path, "start"], check=False)
+    except Exception:
+        pass
+
+    print(f"OK: Enabled service for {app_id} ({os.path.basename(svc_path)})")
+    return True
+
+
+def disable_app_service(app_id: str) -> bool:
+    """
+    Disables automatic startup on boot for the app service (stops and renames S... -> K...).
+    """
+    svc_path = find_app_service_script(app_id)
+    if not svc_path or not os.path.isfile(svc_path):
+        print(f"ERROR: No service runner found for app '{app_id}'", file=sys.stderr)
+        return False
+
+    try:
+        subprocess.run([svc_path, "stop"], check=False)
+    except Exception:
+        pass
+
+    dir_path = os.path.dirname(svc_path)
+    fname = os.path.basename(svc_path)
+
+    if fname.startswith("S"):
+        new_fname = "K" + fname[1:]
+    elif not fname.startswith("K"):
+        new_fname = f"K60{fname}"
+    else:
+        new_fname = fname
+
+    new_path = os.path.join(dir_path, new_fname)
+    if svc_path != new_path:
+        try:
+            os.rename(svc_path, new_path)
+        except Exception as e:
+            print(f"ERROR: Failed disabling service script {svc_path} -> {new_path}: {e}", file=sys.stderr)
+            return False
+
+    print(f"OK: Disabled service for {app_id} ({os.path.basename(new_path)})")
+    return True
 
 
 def get_app_service_status(app_id: str) -> str:
@@ -1382,10 +1482,16 @@ def remove_app_service(app: dict):
     if not app_id:
         return
 
+    normalized_id = re.sub(r"^[SK]\d+", "", app_id)
     services_dir = get_services_dir()
     if os.path.isdir(services_dir):
         for fname in os.listdir(services_dir):
-            if fname == app_id or fname == f"S60{app_id}" or fname.endswith(app_id):
+            base = re.sub(r"\.disabled$", "", fname)
+            norm_base = re.sub(r"^[SK]\d+", "", base)
+            if (fname == app_id or fname == normalized_id or
+                base == app_id or norm_base == normalized_id or
+                fname == f"S60{normalized_id}" or fname == f"K60{normalized_id}" or
+                fname.endswith(f"_{normalized_id}") or fname.endswith(normalized_id)):
                 svc_path = os.path.join(services_dir, fname)
                 if os.path.isfile(svc_path):
                     try:
@@ -1396,7 +1502,7 @@ def remove_app_service(app: dict):
                         print(f"WARNING: Failed stopping/removing service {svc_path}: {e}", file=sys.stderr)
 
     # Fallback to legacy init.d script if present
-    for cand in [f"/etc/init.d/S60{app_id}", f"/etc/init.d/{app_id}"]:
+    for cand in [f"/etc/init.d/S60{normalized_id}", f"/etc/init.d/K60{normalized_id}", f"/etc/init.d/{normalized_id}"]:
         if os.path.isfile(cand) and os.access(cand, os.X_OK):
             try:
                 subprocess.run([cand, "stop"], check=False)
@@ -1415,20 +1521,35 @@ def cmd_service(args):
             print(f"No dynamic services found in {services_dir}")
             return
         print("Dynamic Services:")
-        print(f"{'SERVICE':<25} {'STATUS':<15} {'PATH'}")
-        print("-" * 75)
+        print(f"{'SERVICE':<25} {'ENABLED':<10} {'STATUS':<15} {'PATH'}")
+        print("-" * 80)
         for fname in sorted(os.listdir(services_dir)):
             svc_path = os.path.join(services_dir, fname)
-            if not os.path.isfile(svc_path) or not os.access(svc_path, os.X_OK):
+            if not os.path.isfile(svc_path):
                 continue
+            is_en = not fname.startswith("K") and not fname.endswith(".disabled") and os.access(svc_path, os.X_OK)
+            enabled_str = "yes" if is_en else "no"
             res = subprocess.run([svc_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             status_text = "running" if res.returncode == 0 else "stopped"
-            print(f"{fname:<25} {status_text:<15} {svc_path}")
+            print(f"{fname:<25} {enabled_str:<10} {status_text:<15} {svc_path}")
         return
 
     if not app_id:
         print(f"ERROR: App ID required for service {action}", file=sys.stderr)
         sys.exit(1)
+
+    if action == "enable":
+        ok = enable_app_service(app_id)
+        sys.exit(0 if ok else 1)
+
+    if action == "disable":
+        ok = disable_app_service(app_id)
+        sys.exit(0 if ok else 1)
+
+    if action == "is-enabled":
+        enabled = is_app_service_enabled(app_id)
+        print("enabled" if enabled else "disabled")
+        sys.exit(0 if enabled else 1)
 
     svc_path = find_app_service_script(app_id)
     if not svc_path:
@@ -1734,7 +1855,7 @@ def main():
 
     # service
     p_svc = subparsers.add_parser("service", help="Manage dynamic background app services")
-    p_svc.add_argument("action", choices=["start", "stop", "restart", "status", "list"], help="Service action (start, stop, restart, status, list)")
+    p_svc.add_argument("action", choices=["start", "stop", "restart", "status", "enable", "disable", "is-enabled", "list"], help="Service action (start, stop, restart, status, enable, disable, is-enabled, list)")
     p_svc.add_argument("app_id", nargs="?", help="App ID for service action")
     p_svc.set_defaults(func=cmd_service)
 
