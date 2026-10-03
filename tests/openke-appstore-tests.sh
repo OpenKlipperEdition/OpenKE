@@ -1059,6 +1059,59 @@ kill "$mock_pid" 2>/dev/null || true
 wait "$mock_pid" 2>/dev/null || true
 python3 "$OPENKE_APP" remove spoolman >/dev/null 2>&1 || true
 
+echo "=== Test 17: Installed App Tracking & Reconciliation Across SWUpdate Simulation ==="
+# 1. Install timelapse and mobileraker
+python3 "$OPENKE_APP" install timelapse >/dev/null 2>&1
+python3 "$OPENKE_APP" install mobileraker >/dev/null 2>&1
+
+list_pre_swu=$(python3 "$OPENKE_APP" list --json)
+python3 -c "
+import json
+data = json.loads('''$list_pre_swu''')
+tl = next(a for a in data if a['id'] == 'timelapse')
+mr = next(a for a in data if a['id'] == 'mobileraker')
+assert tl['is_installed'] is True, f'timelapse should be installed: {tl}'
+assert mr['is_installed'] is True, f'mobileraker should be installed: {mr}'
+" && pass "apps installed and tracked prior to SWUpdate" || fail "pre-SWUpdate tracking failed"
+
+# 2. Simulate SWUpdate: wipe Moonraker components directory (representing fresh rootfs)
+rm -rf "$MOCK_MOONRAKER_COMPS"/*
+if [ ! -f "$MOCK_MOONRAKER_COMPS/timelapse.py" ]; then
+	pass "simulated new rootfs with empty Moonraker components"
+else
+	fail "failed to clear components"
+fi
+
+# 3. Run openke-app sync (as S60openke-services / S01persistent-datastore would on boot)
+sync_out=$(python3 "$OPENKE_APP" sync)
+if echo "$sync_out" | grep -q "Reconciled"; then
+	pass "openke-app sync executed successfully"
+else
+	fail "openke-app sync failed: $sync_out"
+fi
+
+# 4. Verify timelapse component was restored into Moonraker
+if [ -f "$MOCK_MOONRAKER_COMPS/timelapse.py" ]; then
+	pass "openke-app sync automatically restored Moonraker components"
+else
+	fail "openke-app sync failed to restore Moonraker components"
+fi
+
+# 5. Verify list --json maintains installed tracking
+list_post_swu=$(python3 "$OPENKE_APP" list --json)
+python3 -c "
+import json
+data = json.loads('''$list_post_swu''')
+tl = next(a for a in data if a['id'] == 'timelapse')
+mr = next(a for a in data if a['id'] == 'mobileraker')
+assert tl['is_installed'] is True, f'timelapse must remain installed after sync: {tl}'
+assert mr['is_installed'] is True, f'mobileraker must remain installed after sync: {mr}'
+" && pass "openke-app list maintains installed tracking across SWUpdate" || fail "post-SWUpdate tracking failed"
+
+# Clean up
+python3 "$OPENKE_APP" remove timelapse >/dev/null 2>&1 || true
+python3 "$OPENKE_APP" remove mobileraker >/dev/null 2>&1 || true
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"

@@ -9,6 +9,9 @@
 SERVICES_DIR="/usr/data/openke/services.d"
 
 start() {
+	if [ -x /usr/bin/openke-app ]; then
+		/usr/bin/openke-app sync 2>/dev/null || true
+	fi
 	[ -d "$SERVICES_DIR" ] || return 0
 	for svc in "$SERVICES_DIR"/S[0-9][0-9]* "$SERVICES_DIR"/S*; do
 		[ -f "$svc" ] && [ -x "$svc" ] || continue

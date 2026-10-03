@@ -124,15 +124,43 @@ def get_probe_path(app: dict) -> str:
 
 
 def is_app_installed(app: dict) -> bool:
+    app_id = app.get("id", "")
     if app.get("is_builtin", False):
         builtin_path = app.get("builtin_path", "")
-        return bool(builtin_path and os.path.exists(builtin_path))
+        if builtin_path and os.path.exists(builtin_path):
+            return True
+        probe = get_probe_path(app)
+        if probe and os.path.exists(probe):
+            return True
+        if app_id in ("mainsail", "guppyscreen"):
+            return True
+        return False
+
+    # 1. Check persistent installed metadata json
+    meta_path = os.path.join(INSTALLED_DIR, f"{app_id}.json")
+    if os.path.isfile(meta_path):
+        return True
+
+    # 2. Check probe path
     probe = get_probe_path(app)
     if probe and os.path.exists(probe):
         return True
+
+    # 3. Check install path
     install_path = get_install_path(app)
     if install_path and os.path.isdir(install_path):
         return True
+
+    # 4. Check dynamic service runner (enabled S* or disabled K*)
+    svc_script = find_app_service_script(app_id)
+    if svc_script and os.path.isfile(svc_script):
+        return True
+
+    # 5. Check if process is actively running
+    pids = find_app_pids(app_id)
+    if pids:
+        return True
+
     return False
 
 
@@ -1202,7 +1230,7 @@ def get_apps_resource_usage(app_list: list, sample_cpu: bool = True, sample_inte
             ram_str = format_bytes(ram_bytes)
             ram_pct = round(100.0 * rss_kb / mem_total_kb, 1) if mem_total_kb > 0 else 0.0
             cpu_pct = cpu_map.get(app_id, 0.0)
-            res_summary = f"CPU: {cpu_pct:.1f}% • RAM: {ram_str} ({ram_pct:.1f}%)" if ram_pct > 0 or cpu_pct > 0 else f"RAM: {ram_str}"
+            res_summary = f"CPU: {cpu_pct:.1f}% | RAM: {ram_str} ({ram_pct:.1f}%)" if ram_pct > 0 or cpu_pct > 0 else f"RAM: {ram_str}"
             results[app_id] = {
                 "pid": main_pid,
                 "pids": pids,
@@ -2165,6 +2193,74 @@ def cmd_status(args):
     print(f"  Apps Directory:      {APPS_DIR}")
 
 
+def cmd_sync(args=None):
+    """
+    Reconciles all installed apps, metadata, service runners, and Moonraker components.
+    Ensures installed apps persist and function seamlessly across SWUpdates and system reboots.
+    """
+    catalog = load_catalog()
+    apps = catalog.get("apps", [])
+    os.makedirs(INSTALLED_DIR, exist_ok=True)
+    os.makedirs(APPS_DIR, exist_ok=True)
+    os.makedirs(SERVICES_DIR, exist_ok=True)
+
+    reconciled = 0
+    for app in apps:
+        app_id = app.get("id", "")
+        if not app_id or app.get("is_builtin", False):
+            continue
+
+        if is_app_installed(app):
+            install_path = get_install_path(app)
+
+            # Ensure installed metadata exists
+            meta = get_installed_app_meta(app_id)
+            if not meta:
+                save_installed_app_meta(app)
+
+            # Ensure Moonraker components are linked
+            if app.get("moonraker_component") and os.path.isdir(install_path):
+                install_app_moonraker_components(install_path, app)
+
+            # Ensure service runner exists and is executable
+            if (app.get("service") or app.get("service_init")) and os.path.isdir(install_path):
+                svc_script = find_app_service_script(app_id)
+                if not svc_script:
+                    install_app_service(install_path, app)
+                else:
+                    try:
+                        os.chmod(svc_script, 0o755)
+                    except Exception:
+                        pass
+
+            reconciled += 1
+
+    # Synchronize active web root
+    active_web = get_active_web_ui()
+    if active_web == "mainsail":
+        if os.path.isdir("/usr/share/mainsail"):
+            try:
+                if os.path.islink(WEB_ROOT_SYMLINK) or os.path.exists(WEB_ROOT_SYMLINK):
+                    os.remove(WEB_ROOT_SYMLINK)
+                os.symlink("/usr/share/mainsail", WEB_ROOT_SYMLINK)
+            except Exception:
+                pass
+    else:
+        active_path = os.path.join(APPS_DIR, active_web)
+        if os.path.isdir(active_path):
+            try:
+                if os.path.islink(WEB_ROOT_SYMLINK) or os.path.exists(WEB_ROOT_SYMLINK):
+                    os.remove(WEB_ROOT_SYMLINK)
+                os.symlink(active_path, WEB_ROOT_SYMLINK)
+            except Exception:
+                pass
+
+    if getattr(args, "json", False) if args else False:
+        print(json.dumps({"status": "ok", "reconciled_apps": reconciled}, indent=2))
+    else:
+        print(f"OK: Reconciled {reconciled} installed apps across persistent storage.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="OpenKE App Store Package & Service Manager")
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
@@ -2195,6 +2291,19 @@ def main():
     p_upd = subparsers.add_parser("update", help="Update catalog from remote AppStore repository")
     p_upd.add_argument("--url", help="Override catalog URL")
     p_upd.set_defaults(func=cmd_update)
+
+    # sync / reconcile / boot-sync
+    p_sync = subparsers.add_parser("sync", help="Reconcile and verify installed apps and services across SWUpdates")
+    p_sync.add_argument("--json", action="store_true", help="Output JSON format")
+    p_sync.set_defaults(func=cmd_sync)
+
+    p_rec = subparsers.add_parser("reconcile", help="Alias for sync")
+    p_rec.add_argument("--json", action="store_true", help="Output JSON format")
+    p_rec.set_defaults(func=cmd_sync)
+
+    p_bsync = subparsers.add_parser("boot-sync", help="Alias for sync")
+    p_bsync.add_argument("--json", action="store_true", help="Output JSON format")
+    p_bsync.set_defaults(func=cmd_sync)
 
     # install
     p_inst = subparsers.add_parser("install", help="Download and install an app")
