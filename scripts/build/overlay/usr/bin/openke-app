@@ -1028,6 +1028,10 @@ def cmd_list(args):
         elif installed:
             status = "installed"
 
+        svc_script = find_app_service_script(app_id)
+        has_service = bool(svc_script or app.get("service") or app.get("service_init"))
+        service_status = get_app_service_status(app_id) if installed and svc_script else ("stopped" if installed and has_service else "")
+
         item = {
             "id": app_id,
             "name": app.get("name", app_id),
@@ -1041,6 +1045,8 @@ def cmd_list(args):
             "is_builtin": app.get("is_builtin", False),
             "is_installed": installed,
             "is_active": is_active,
+            "has_service": has_service,
+            "service_status": service_status,
             "status": status
         }
         results.append(item)
@@ -1192,6 +1198,21 @@ def find_app_service_script(app_id: str) -> str:
         if os.path.isfile(cand) and os.access(cand, os.X_OK):
             return cand
     return ""
+
+
+def get_app_service_status(app_id: str) -> str:
+    """
+    Checks the runtime status of an app's background service.
+    Returns 'running', 'stopped', or '' if not found.
+    """
+    svc_path = find_app_service_script(app_id)
+    if not svc_path or not os.path.isfile(svc_path) or not os.access(svc_path, os.X_OK):
+        return ""
+    try:
+        res = subprocess.run([svc_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2.0)
+        return "running" if res.returncode == 0 else "stopped"
+    except Exception:
+        return "unknown"
 
 
 def generate_service_script(app: dict, install_path: str) -> str:
