@@ -13,10 +13,12 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 
@@ -286,6 +288,257 @@ def get_seed_config(rel_target: str) -> str:
     return ""
 
 
+def format_bytes(size: float) -> str:
+    if size < 1024:
+        return f"{size:.0f} B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.2f} KB"
+    elif size < 1024 * 1024 * 1024:
+        return f"{size / (1024 * 1024):.2f} MB"
+    else:
+        return f"{size / (1024 * 1024 * 1024):.2f} GB"
+
+
+def get_ssl_context():
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    except Exception:
+        return None
+
+
+def render_progress_bar(prefix: str, current: int, total: int, suffix: str = "", bar_length: int = 25) -> str:
+    cols = shutil.get_terminal_size((80, 24)).columns
+    cols = max(40, min(100, cols))
+
+    if total > 0:
+        ratio = min(1.0, max(0.0, current / float(total)))
+        percent = ratio * 100.0
+        overhead = len(prefix) + len(suffix) + 12
+        avail_bar = max(10, cols - overhead)
+        bar_len = min(bar_length, avail_bar)
+
+        filled_len = int(round(bar_len * ratio))
+        filled_len = min(bar_len, max(0, filled_len))
+        bar = "=" * filled_len + ("-" * (bar_len - filled_len))
+        return f"{prefix} [{bar}] {percent:5.1f}% {suffix}"
+    else:
+        overhead = len(prefix) + len(suffix) + 4
+        avail_bar = max(10, cols - overhead)
+        bar_len = min(bar_length, avail_bar)
+        pos = (current // 65536) % bar_len
+        bar_list = ["-"] * bar_len
+        bar_list[pos] = "="
+        bar = "".join(bar_list)
+        return f"{prefix} [{bar}] {suffix}"
+
+
+def download_with_progress(url: str, dest_path: str, desc: str = "Downloading") -> bool:
+    """
+    Streams file download with a live download progress bar showing percent, bytes, and speed.
+    """
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    temp_dest = dest_path + ".part"
+    cols = shutil.get_terminal_size((80, 24)).columns
+    cols = max(40, min(100, cols))
+
+    try:
+        if url.startswith("file://"):
+            local_path = url[7:]
+            if not os.path.isfile(local_path):
+                print(f"FATAL: Source file not found: {local_path}", file=sys.stderr)
+                return False
+            total_size = os.path.getsize(local_path)
+            downloaded = 0
+            start_time = time.time()
+            chunk_size = 65536
+
+            with open(local_path, "rb") as src, open(temp_dest, "wb") as dst:
+                while True:
+                    chunk = src.read(chunk_size)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+                    downloaded += len(chunk)
+                    elapsed = time.time() - start_time
+                    speed = downloaded / elapsed if elapsed > 0.05 else 0
+                    speed_str = f"{format_bytes(speed)}/s"
+                    size_str = f"{format_bytes(downloaded)} / {format_bytes(total_size)}"
+                    suffix = f"{size_str} ({speed_str})"
+                    line = render_progress_bar(f"{desc}:", downloaded, total_size, suffix=suffix, bar_length=25)
+                    sys.stdout.write("\r" + line.ljust(cols - 1))
+                    sys.stdout.flush()
+
+            elapsed = max(0.001, time.time() - start_time)
+            speed = downloaded / elapsed
+            speed_str = f"{format_bytes(speed)}/s"
+            size_str = f"{format_bytes(downloaded)} / {format_bytes(total_size)}"
+            suffix = f"{size_str} ({speed_str})"
+            line = render_progress_bar(f"{desc}:", downloaded, total_size, suffix=suffix, bar_length=25)
+            sys.stdout.write("\r" + line.ljust(cols - 1) + "\n")
+            sys.stdout.flush()
+
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            shutil.move(temp_dest, dest_path)
+            return True
+
+        # HTTP/HTTPS download
+        ctx = get_ssl_context()
+        req = urllib.request.Request(url, headers={"User-Agent": "OpenKE-App/1.0"})
+        with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
+            total_size_hdr = resp.headers.get("Content-Length")
+            total_size = int(total_size_hdr) if total_size_hdr and total_size_hdr.isdigit() else 0
+
+            downloaded = 0
+            chunk_size = 65536
+            start_time = time.time()
+
+            with open(temp_dest, "wb") as dst:
+                while True:
+                    chunk = resp.read(chunk_size)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+                    downloaded += len(chunk)
+                    elapsed = time.time() - start_time
+                    speed = downloaded / elapsed if elapsed > 0.05 else 0
+                    speed_str = f"{format_bytes(speed)}/s"
+                    if total_size > 0:
+                        size_str = f"{format_bytes(downloaded)} / {format_bytes(total_size)}"
+                        suffix = f"{size_str} ({speed_str})"
+                        line = render_progress_bar(f"{desc}:", downloaded, total_size, suffix=suffix, bar_length=25)
+                    else:
+                        size_str = format_bytes(downloaded)
+                        suffix = f"{size_str} ({speed_str})"
+                        line = render_progress_bar(f"{desc}:", downloaded, 0, suffix=suffix, bar_length=25)
+
+                    sys.stdout.write("\r" + line.ljust(cols - 1))
+                    sys.stdout.flush()
+
+            elapsed = max(0.001, time.time() - start_time)
+            speed = downloaded / elapsed
+            speed_str = f"{format_bytes(speed)}/s"
+            if total_size > 0:
+                size_str = f"{format_bytes(downloaded)} / {format_bytes(total_size)}"
+                suffix = f"{size_str} ({speed_str})"
+                line = render_progress_bar(f"{desc}:", downloaded, total_size, suffix=suffix, bar_length=25)
+            else:
+                size_str = format_bytes(downloaded)
+                suffix = f"{size_str} ({speed_str})"
+                line = render_progress_bar(f"{desc}:", downloaded, 0, suffix=suffix, bar_length=25)
+
+            sys.stdout.write("\r" + line.ljust(cols - 1) + "\n")
+            sys.stdout.flush()
+
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            shutil.move(temp_dest, dest_path)
+            return True
+
+    except Exception as e:
+        if os.path.exists(temp_dest):
+            try:
+                os.remove(temp_dest)
+            except Exception:
+                pass
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"FATAL: Download failed from {url}: {e}", file=sys.stderr)
+        return False
+
+
+def extract_with_progress(archive_file: str, stage_dir: str, desc: str = "Installing") -> bool:
+    """
+    Extracts archive contents into stage_dir with a live installation progress bar showing extracted file count and percent.
+    """
+    os.makedirs(stage_dir, exist_ok=True)
+    cols = shutil.get_terminal_size((80, 24)).columns
+    cols = max(40, min(100, cols))
+
+    try:
+        if archive_file.endswith(".zip"):
+            with zipfile.ZipFile(archive_file, "r") as zf:
+                members = zf.infolist()
+                total = len(members)
+                if total == 0:
+                    return True
+                for idx, member in enumerate(members, 1):
+                    zf.extract(member, stage_dir)
+                    suffix = f"({idx}/{total} files)"
+                    line = render_progress_bar(f"{desc}:", idx, total, suffix=suffix, bar_length=25)
+                    sys.stdout.write("\r" + line.ljust(cols - 1))
+                    sys.stdout.flush()
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return True
+
+        elif archive_file.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".tar")):
+            with tarfile.open(archive_file, "r:*") as tf:
+                members = tf.getmembers()
+                total = len(members)
+                if total == 0:
+                    return True
+                for idx, member in enumerate(members, 1):
+                    try:
+                        tf.extract(member, stage_dir, filter="data")
+                    except TypeError:
+                        tf.extract(member, stage_dir)
+                    suffix = f"({idx}/{total} files)"
+                    line = render_progress_bar(f"{desc}:", idx, total, suffix=suffix, bar_length=25)
+                    sys.stdout.write("\r" + line.ljust(cols - 1))
+                    sys.stdout.flush()
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return True
+
+        else:
+            try:
+                with tarfile.open(archive_file, "r:*") as tf:
+                    members = tf.getmembers()
+                    total = len(members)
+                    for idx, member in enumerate(members, 1):
+                        try:
+                            tf.extract(member, stage_dir, filter="data")
+                        except TypeError:
+                            tf.extract(member, stage_dir)
+                        suffix = f"({idx}/{total} files)"
+                        line = render_progress_bar(f"{desc}:", idx, total, suffix=suffix, bar_length=25)
+                        sys.stdout.write("\r" + line.ljust(cols - 1))
+                        sys.stdout.flush()
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    return True
+            except Exception:
+                try:
+                    with zipfile.ZipFile(archive_file, "r") as zf:
+                        members = zf.infolist()
+                        total = len(members)
+                        for idx, member in enumerate(members, 1):
+                            zf.extract(member, stage_dir)
+                            suffix = f"({idx}/{total} files)"
+                            line = render_progress_bar(f"{desc}:", idx, total, suffix=suffix, bar_length=25)
+                            sys.stdout.write("\r" + line.ljust(cols - 1))
+                            sys.stdout.flush()
+                        sys.stdout.write("\n")
+                        sys.stdout.flush()
+                        return True
+                except Exception:
+                    dest_file = os.path.join(stage_dir, os.path.basename(archive_file))
+                    shutil.copy2(archive_file, dest_file)
+                    line = render_progress_bar(f"{desc}:", 1, 1, suffix="(1/1 files)", bar_length=25)
+                    sys.stdout.write("\r" + line.ljust(cols - 1) + "\n")
+                    sys.stdout.flush()
+                    return True
+    except Exception as e:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"FATAL: Extraction failed for {archive_file}: {e}", file=sys.stderr)
+        return False
+
+
 def download_file(url: str, dest_path: str) -> bool:
     try:
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
@@ -294,8 +547,9 @@ def download_file(url: str, dest_path: str) -> bool:
             if os.path.isfile(local_path):
                 shutil.copy2(local_path, dest_path)
                 return True
+        ctx = get_ssl_context()
         req = urllib.request.Request(url, headers={"User-Agent": "OpenKE-App/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
             data = resp.read()
             if data:
                 with open(dest_path, "wb") as f:
@@ -837,9 +1091,7 @@ def cmd_install(args):
         archive_file = os.path.join(tmp_dir, archive_name)
 
         print(f"Downloading from {download_url}...")
-        curl_cmd = ["curl", "-fSL", "-k", "--connect-timeout", "15", "-m", "300", download_url, "-o", archive_file]
-        res = subprocess.run(curl_cmd)
-        if res.returncode != 0 or not os.path.isfile(archive_file) or os.path.getsize(archive_file) == 0:
+        if not download_with_progress(download_url, archive_file, desc="Downloading"):
             print(f"FATAL: Failed to download '{download_url}'.", file=sys.stderr)
             sys.exit(1)
 
@@ -855,35 +1107,14 @@ def cmd_install(args):
                 sys.exit(1)
             print("OK: SHA256 checksum verified.")
 
-        # Staged extraction
+        # Staged extraction with install progress bar
         stage_dir = os.path.join(tmp_dir, "extracted")
         os.makedirs(stage_dir, exist_ok=True)
 
         print(f"Extracting package into flash storage...")
-        if archive_file.endswith(".zip"):
-            with zipfile.ZipFile(archive_file, "r") as zf:
-                zf.extractall(stage_dir)
-        elif archive_file.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".tar")):
-            try:
-                with tarfile.open(archive_file, "r:*") as tf:
-                    tf.extractall(stage_dir, filter="data")
-            except TypeError:
-                with tarfile.open(archive_file, "r:*") as tf:
-                    tf.extractall(stage_dir)
-        else:
-            try:
-                try:
-                    with tarfile.open(archive_file, "r:*") as tf:
-                        tf.extractall(stage_dir, filter="data")
-                except TypeError:
-                    with tarfile.open(archive_file, "r:*") as tf:
-                        tf.extractall(stage_dir)
-            except Exception:
-                try:
-                    with zipfile.ZipFile(archive_file, "r") as zf:
-                        zf.extractall(stage_dir)
-                except Exception:
-                    shutil.copy(archive_file, os.path.join(stage_dir, app.get("executable", app_id)))
+        if not extract_with_progress(archive_file, stage_dir, desc="Installing"):
+            print(f"FATAL: Failed to extract package archive.", file=sys.stderr)
+            sys.exit(1)
 
         # Free downloaded archive space immediately
         if os.path.isfile(archive_file):

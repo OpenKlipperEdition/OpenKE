@@ -911,11 +911,31 @@ else
 	fail "openke-app remove octoapp left dynamic service script behind in services.d"
 fi
 
+echo "=== Test 14: Distinct Progress Bars for Downloads and Installations ==="
+# Test that package installation outputs separate, distinct progress bars for download and install
+install_progress_out=$(python3 "$OPENKE_APP" install fluidd 2>&1)
+
+if echo "$install_progress_out" | grep -q "Downloading:.*\[.*\]"; then
+	pass "openke-app renders dedicated download progress bar"
+else
+	fail "openke-app missing download progress bar"
+fi
+
+if echo "$install_progress_out" | grep -q "Installing:.*\[.*\]"; then
+	pass "openke-app renders dedicated installation progress bar"
+else
+	fail "openke-app missing installation progress bar"
+fi
+
+# Clean up fluidd after progress bar test
+python3 "$OPENKE_APP" remove fluidd >/dev/null 2>&1 || true
+
 echo ""
 echo "=========================================="
 echo "OpenKE App Store Tests: $PASS passed, $FAIL failed"
 echo "=========================================="
 [ "$FAIL" -eq 0 ]
+
 
 
 
