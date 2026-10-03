@@ -77,7 +77,7 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 assert "apps" in data, "manifest missing apps list"
-assert len(data["apps"]) == 7, f"expected exactly 7 apps, got {len(data['apps'])}"
+assert len(data["apps"]) == 8, f"expected exactly 8 apps, got {len(data['apps'])}"
 categories = {a["category"] for a in data["apps"]}
 assert {"web_ui", "touch_ui", "plugin"}.issubset(categories), f"missing core categories in {categories}"
 
@@ -90,6 +90,7 @@ assert "helixscreen" in ids, "helixscreen missing from catalog"
 assert "timelapse" in ids, "timelapse missing from catalog"
 assert "mobileraker" in ids, "mobileraker missing from catalog"
 assert "spoolman" in ids, "spoolman missing from catalog"
+assert "octoapp" in ids, "octoapp missing from catalog"
 ' "$MANIFEST" && pass "apps.json manifest schema and required applications validated" || fail "apps.json validation failed"
 
 echo "=== Test 2: CLI Syntax & Output Modes ==="
@@ -840,6 +841,74 @@ if [ ! -e "$OPENKE_SERVICES_DIR/S60spoolman" ]; then
 	pass "openke-app remove spoolman deleted dynamic service runner from services.d"
 else
 	fail "openke-app remove spoolman left dynamic service script behind in services.d"
+fi
+
+echo "=== Test 13: OctoApp Companion Plugin Integration & Dynamic Service Lifecycle ==="
+mock_octoapp_zip="$TEST_SANDBOX/octoapp-pkg.zip"
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$mock_octoapp_zip', 'w') as zf:
+    zf.writestr('server.py', '#!/usr/bin/env python3\n# Mock OctoApp Launcher\n')
+    zf.writestr('moonraker_octoapp/__init__.py', '# Mock Moonraker OctoApp\n')
+"
+mock_octoapp_sha=$(sha256sum "$mock_octoapp_zip" | awk '{print $1}')
+
+python3 -c "
+import json
+with open('$mock_catalog') as f:
+    d = json.load(f)
+for app in d['apps']:
+    if app['id'] == 'octoapp':
+        app['download_url'] = 'file://$mock_octoapp_zip'
+        app['sha256'] = '$mock_octoapp_sha'
+with open('$mock_catalog', 'w') as f:
+    json.dump(d, f)
+"
+
+# 1. Install octoapp
+python3 "$OPENKE_APP" install octoapp
+
+if [ -f "$OPENKE_APPS_DIR/octoapp/server.py" ]; then
+	pass "openke-app install octoapp unpacked server.py"
+else
+	fail "openke-app install octoapp failed to unpack server.py"
+fi
+
+# Dynamic service assertions
+if [ -x "$OPENKE_SERVICES_DIR/S60octoapp" ] && grep -q "EXEC_CMD=" "$OPENKE_SERVICES_DIR/S60octoapp"; then
+	pass "openke-app install octoapp generated executable dynamic service runner S60octoapp"
+else
+	fail "openke-app install octoapp failed to generate dynamic service script"
+fi
+
+# openke-app service commands
+svc_list_out=$(python3 "$OPENKE_APP" service list)
+if echo "$svc_list_out" | grep -q "S60octoapp"; then
+	pass "openke-app service list displays S60octoapp"
+else
+	fail "openke-app service list failed: $svc_list_out"
+fi
+
+svc_stat_out=$(python3 "$OPENKE_APP" service status octoapp || true)
+if echo "$svc_stat_out" | grep -q "octoapp"; then
+	pass "openke-app service status octoapp queried dynamic service"
+else
+	fail "openke-app service status failed: $svc_stat_out"
+fi
+
+# 2. Remove octoapp
+python3 "$OPENKE_APP" remove octoapp
+
+if [ ! -d "$OPENKE_APPS_DIR/octoapp" ]; then
+	pass "openke-app remove octoapp removed application directory"
+else
+	fail "openke-app remove octoapp failed to remove application directory"
+fi
+
+if [ ! -e "$OPENKE_SERVICES_DIR/S60octoapp" ]; then
+	pass "openke-app remove octoapp deleted dynamic service runner from services.d"
+else
+	fail "openke-app remove octoapp left dynamic service script behind in services.d"
 fi
 
 echo ""
